@@ -1,0 +1,40 @@
+---
+interface Props { title: string; description?: string }
+const { title, description = '공부한 내용과 기술 지식을 기록하는 공간입니다.' } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+    <style is:global>
+      :root { color-scheme: light dark; font-family: Inter, Pretendard, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #0d1117; color: #e6edf3; line-height: 1.7; }
+      a { color: inherit; text-decoration: none; }
+      .container { width: min(920px, calc(100% - 32px)); margin: 0 auto; }
+      header { border-bottom: 1px solid #30363d; }
+      nav { min-height: 64px; display: flex; align-items: center; justify-content: space-between; }
+      .brand { font-weight: 800; letter-spacing: -.02em; }
+      main { padding: 56px 0 96px; }
+      .muted { color: #8b949e; }
+      .card { display: block; padding: 22px 0; border-bottom: 1px solid #21262d; }
+      .card h2 { margin: 0 0 6px; font-size: 1.2rem; }
+      .pill { display: inline-block; margin-right: 8px; padding: 2px 9px; border: 1px solid #30363d; border-radius: 999px; font-size: .78rem; color: #8b949e; }
+      article { font-size: 1.03rem; }
+      article h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.15; }
+      article h2 { margin-top: 2.4rem; }
+      article pre { overflow-x: auto; padding: 18px; border-radius: 10px; background: #161b22; }
+      article code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      article img { max-width: 100%; border-radius: 10px; }
+      blockquote { margin-left: 0; padding-left: 16px; border-left: 3px solid #30363d; color: #8b949e; }
+    </style>
+  </head>
+  <body>
+    <header><nav class="container"><a class="brand" href={base}>Study Log</a><span class="muted">Notion → GitHub Pages</span></nav></header>
+    <main class="container"><slot /></main>
+  </body>
+</html>
