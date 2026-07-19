@@ -1,12 +1,14 @@
 import Link from "next/link";
 
+import { NotionBrowser } from "./notion-browser";
+
 const workflow = [
   {
     description: "허용한 페이지와 하위 문서만 안전하게 불러옵니다.",
     step: "Notion 연결",
   },
   {
-    description: "작성 중인 문서를 검수하고 게시 순서를 관리합니다.",
+    description: "보관 중인 문서와 게시 상태를 간결하게 관리합니다.",
     step: "칸반 관리",
   },
   {
@@ -26,7 +28,7 @@ export default function Home() {
           <span>Notion Kanban Blog</span>
         </Link>
         <div className="navigationActions">
-          <span className="status">개인 칸반 준비 중</span>
+          <span className="status">개인 칸반</span>
           <Link
             className="notionLink"
             href="/auth/notion/start?returnTo=%2F"
@@ -56,6 +58,8 @@ export default function Home() {
           승인된 콘텐츠만 정적 블로그로 안전하게 배포합니다.
         </p>
       </section>
+
+      <NotionBrowser />
 
       <section aria-labelledby="workflow-title" className="workflow">
         <div className="sectionHeading">

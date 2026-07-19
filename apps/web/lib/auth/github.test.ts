@@ -97,7 +97,9 @@ describe("GitHub login flow", () => {
     expect(location.searchParams.get("redirect_uri")).toBe(
       `${APP_ORIGIN}/auth/github/callback`,
     );
-    expect(location.searchParams.get("scope")).toBe("read:user");
+    expect(location.searchParams.get("scope")).toBe(
+      "read:user public_repo workflow",
+    );
     expect(setCookies(response).join(";")).toContain("HttpOnly");
     expect(setCookies(response).join(";")).toContain("SameSite=Lax");
     expect(setCookies(response).join(";")).toContain("Max-Age=600");

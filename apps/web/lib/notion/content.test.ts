@@ -1,0 +1,836 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  NotionProviderError,
+  NotionRestContentAdapter,
+} from "./content";
+
+const ROOT_ID = "3c90c3cc-0d44-4b50-8888-8dd25736052a";
+const CHILD_ID = "9188c6a5-7381-452f-b3dc-d4865aa89bdf";
+const UNKNOWN_PARENT_ID = "019c75c2-3ce6-7988-a2bc-0a56ba576bc3";
+const DATA_SOURCE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
+function page(
+  id: string,
+  title: string,
+  parent: Record<string, string>,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    icon: null,
+    id,
+    in_trash: false,
+    last_edited_time: "2026-07-19T10:00:00.000Z",
+    object: "page",
+    parent,
+    properties: {
+      title: {
+        id: "title",
+        title: [{ plain_text: title, type: "text" }],
+        type: "title",
+      },
+    },
+    ...overrides,
+  };
+}
+
+describe("NotionRestContentAdapter", () => {
+  it("retrieves the latest publishable page content recursively", async () => {
+    const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          page(
+            ROOT_ID,
+            "게시할 글",
+            { type: "workspace", workspace: "true" },
+            { created_time: "2026-07-18T09:00:00.000Z" },
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "11111111-1111-4111-8111-111111111111",
+              object: "block",
+              paragraph: {
+                rich_text: [
+                  {
+                    annotations: { bold: true },
+                    href: "https://example.com",
+                    plain_text: "본문 링크",
+                  },
+                ],
+              },
+              type: "paragraph",
+            },
+            {
+              has_children: true,
+              id: toggleId,
+              object: "block",
+              toggle: { rich_text: [{ plain_text: "접힌 내용" }] },
+              type: "toggle",
+            },
+            {
+              code: {
+                language: "typescript",
+                rich_text: [{ plain_text: "const ok = true;" }],
+              },
+              has_children: false,
+              id: "22222222-2222-4222-8222-222222222222",
+              object: "block",
+              type: "code",
+            },
+            {
+              has_children: false,
+              id: "33333333-3333-4333-8333-333333333333",
+              image: {
+                caption: [{ plain_text: "대표 이미지" }],
+                external: { url: "https://example.com/cover.png" },
+                type: "external",
+              },
+              object: "block",
+              type: "image",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "44444444-4444-4444-8444-444444444444",
+              object: "block",
+              quote: { rich_text: [{ plain_text: "인용문" }] },
+              type: "quote",
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret-notion-token",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.getPageContent(ROOT_ID)).resolves.toMatchObject({
+      blocks: [
+        {
+          kind: "paragraph",
+          richText: [
+            {
+              bold: true,
+              href: "https://example.com",
+              text: "본문 링크",
+            },
+          ],
+        },
+        {
+          children: [
+            {
+              kind: "quote",
+              richText: [{ text: "인용문" }],
+            },
+          ],
+          kind: "toggle",
+          summary: [{ text: "접힌 내용" }],
+        },
+        {
+          code: "const ok = true;",
+          kind: "code",
+          language: "typescript",
+        },
+        {
+          caption: [{ text: "대표 이미지" }],
+          kind: "image",
+          url: "https://example.com/cover.png",
+        },
+      ],
+      createdAt: new Date("2026-07-18T09:00:00.000Z"),
+      lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
+      providerPageId: ROOT_ID,
+      title: "게시할 글",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      `https://api.notion.com/v1/pages/${ROOT_ID}`,
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          authorization: "Bearer secret-notion-token",
+        }),
+      }),
+    );
+  });
+
+  it("paginates every visible page and builds a safe parent tree", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: true,
+          next_cursor: "cursor-2",
+          object: "list",
+          results: [
+            page(ROOT_ID, "루트", { type: "workspace", workspace: "true" }, {
+              icon: {
+                external: { url: "https://example.com/icon.png" },
+                type: "external",
+              },
+            }),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          object: "list",
+          results: [
+            page(CHILD_ID, "하위 문서", {
+              page_id: ROOT_ID,
+              type: "page_id",
+            }),
+            page(UNKNOWN_PARENT_ID, "직접 공유된 문서", {
+              page_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              type: "page_id",
+            }),
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret-notion-token",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.listPageTree()).resolves.toEqual([
+      {
+        hasChildren: true,
+        iconUrl: "https://example.com/icon.png",
+        lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
+        parentContainerId: null,
+        parentPageId: null,
+        providerPageId: ROOT_ID,
+        title: "루트",
+      },
+      {
+        hasChildren: false,
+        iconUrl: null,
+        lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
+        parentContainerId: null,
+        parentPageId: ROOT_ID,
+        providerPageId: CHILD_ID,
+        title: "하위 문서",
+      },
+      {
+        hasChildren: false,
+        iconUrl: null,
+        lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
+        parentContainerId: null,
+        parentPageId: null,
+        providerPageId: UNKNOWN_PARENT_ID,
+        title: "직접 공유된 문서",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual(
+      expect.objectContaining({
+        authorization: "Bearer secret-notion-token",
+        "notion-version": "2026-03-11",
+      }),
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual(
+      expect.objectContaining({ start_cursor: "cursor-2" }),
+    );
+  });
+
+  it("surfaces provider rate limits with a bounded retry delay", async () => {
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(null, {
+            headers: { "retry-after": "7200" },
+            status: 429,
+          }),
+        ),
+    });
+
+    await expect(adapter.listPageTree()).rejects.toMatchObject({
+      code: "rate_limited",
+      retryAfterSeconds: 3_600,
+    } satisfies Partial<NotionProviderError>);
+  });
+
+  it("nests data source row pages under the database parent page", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            page(ROOT_ID, "자기소개서", {
+              type: "workspace",
+              workspace: "true",
+            }),
+            page(CHILD_ID, "스테이터스 보드 항목", {
+              database_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+              data_source_id: DATA_SOURCE_ID,
+              type: "data_source_id",
+            }),
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              database_parent: {
+                page_id: ROOT_ID,
+                type: "page_id",
+              },
+              id: DATA_SOURCE_ID,
+              object: "data_source",
+              properties: {},
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.listPageTree()).resolves.toMatchObject([
+      {
+        hasChildren: true,
+        parentPageId: null,
+        providerPageId: ROOT_ID,
+      },
+      {
+        hasChildren: false,
+        parentContainerId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        parentPageId: ROOT_ID,
+        providerPageId: CHILD_ID,
+      },
+    ]);
+    expect(
+      JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)),
+    ).toMatchObject({
+      filter: { property: "object", value: "data_source" },
+    });
+  });
+
+  it("keeps a toggle-owned page out of the root classification", async () => {
+    const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            page(ROOT_ID, "자기소개서", {
+              type: "workspace",
+              workspace: "true",
+            }),
+            page(CHILD_ID, "토글 내부 페이지", {
+              block_id: toggleId,
+              type: "block_id",
+            }),
+          ],
+        }),
+      ),
+    });
+
+    await expect(adapter.listPageTree()).resolves.toEqual([
+      expect.objectContaining({
+        hasChildren: false,
+        parentContainerId: null,
+        parentPageId: null,
+        providerPageId: ROOT_ID,
+      }),
+      expect.objectContaining({
+        hasChildren: false,
+        parentContainerId: toggleId,
+        parentPageId: null,
+        providerPageId: CHILD_ID,
+      }),
+    ]);
+  });
+
+  it("preserves a legacy toggle title around its child page outline", async () => {
+    const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: true,
+              id: toggleId,
+              object: "block",
+              toggle: {
+                color: "default",
+                rich_text: [{ plain_text: "스테이터스 보드" }],
+              },
+              type: "toggle",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              child_page: { title: "지원서 초안" },
+              has_children: false,
+              id: CHILD_ID,
+              object: "block",
+              type: "child_page",
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).resolves.toEqual([
+      {
+        kind: "toggle",
+        nodeId: toggleId,
+        parentNodeId: null,
+        providerId: null,
+        title: "스테이터스 보드",
+      },
+      {
+        kind: "page",
+        nodeId: CHILD_ID,
+        parentNodeId: toggleId,
+        providerId: CHILD_ID,
+        title: "지원서 초안",
+      },
+    ]);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      `/blocks/${ROOT_ID}/children`,
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      `/blocks/${toggleId}/children`,
+    );
+  });
+
+  it("does not classify a prose-only toggle as navigation", async () => {
+    const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                has_children: true,
+                id: toggleId,
+                object: "block",
+                toggle: {
+                  rich_text: [{ plain_text: "설명 더 보기" }],
+                },
+                type: "toggle",
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                has_children: false,
+                id: CHILD_ID,
+                object: "block",
+                paragraph: {
+                  rich_text: [{ plain_text: "설명 본문" }],
+                },
+                type: "paragraph",
+              },
+            ],
+          }),
+        ),
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).resolves.toEqual([]);
+  });
+
+  it("preserves toggle headings and titled structural groups", async () => {
+    const headingId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const columnListId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const columnId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const calloutId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: true,
+              heading_2: {
+                is_toggleable: true,
+                rich_text: [{ plain_text: "토글 헤딩" }],
+              },
+              id: headingId,
+              object: "block",
+              type: "heading_2",
+            },
+            {
+              column_list: {},
+              has_children: true,
+              id: columnListId,
+              object: "block",
+              type: "column_list",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              child_page: { title: "헤딩 내부 문서" },
+              has_children: false,
+              id: CHILD_ID,
+              object: "block",
+              type: "child_page",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              column: {},
+              has_children: true,
+              id: columnId,
+              object: "block",
+              type: "column",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              callout: {
+                rich_text: [{ plain_text: "자료 모음" }],
+              },
+              has_children: true,
+              id: calloutId,
+              object: "block",
+              type: "callout",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              child_page: { title: "콜아웃 내부 문서" },
+              has_children: false,
+              id: UNKNOWN_PARENT_ID,
+              object: "block",
+              type: "child_page",
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).resolves.toEqual([
+      {
+        kind: "toggle",
+        nodeId: headingId,
+        parentNodeId: null,
+        providerId: null,
+        title: "토글 헤딩",
+      },
+      {
+        kind: "page",
+        nodeId: CHILD_ID,
+        parentNodeId: headingId,
+        providerId: CHILD_ID,
+        title: "헤딩 내부 문서",
+      },
+      {
+        kind: "group",
+        nodeId: calloutId,
+        parentNodeId: null,
+        providerId: null,
+        title: "자료 모음",
+      },
+      {
+        kind: "page",
+        nodeId: UNKNOWN_PARENT_ID,
+        parentNodeId: calloutId,
+        providerId: UNKNOWN_PARENT_ID,
+        title: "콜아웃 내부 문서",
+      },
+    ]);
+  });
+
+  it("follows synced blocks and resolves link-to-page provider IDs", async () => {
+    const syncedId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const sourceBlockId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const linkBlockId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                has_children: false,
+                id: syncedId,
+                object: "block",
+                synced_block: {
+                  synced_from: {
+                    block_id: sourceBlockId,
+                    type: "block_id",
+                  },
+                },
+                type: "synced_block",
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [
+              {
+                has_children: false,
+                id: linkBlockId,
+                link_to_page: {
+                  page_id: CHILD_ID,
+                  type: "page_id",
+                },
+                object: "block",
+                type: "link_to_page",
+              },
+            ],
+          }),
+        ),
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).resolves.toEqual([
+      {
+        kind: "page",
+        nodeId: linkBlockId,
+        parentNodeId: null,
+        providerId: CHILD_ID,
+        title: "연결된 페이지",
+      },
+    ]);
+  });
+
+  it("uses tab labels as groups and stops synced-block cycles", async () => {
+    const tabId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const labelId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const syncedId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const sourceBlockId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: true,
+              id: tabId,
+              object: "block",
+              tab: {},
+              type: "tab",
+            },
+            {
+              has_children: false,
+              id: syncedId,
+              object: "block",
+              synced_block: {
+                synced_from: {
+                  block_id: sourceBlockId,
+                  type: "block_id",
+                },
+              },
+              type: "synced_block",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: true,
+              id: labelId,
+              object: "block",
+              paragraph: {
+                rich_text: [{ plain_text: "첫 번째 탭" }],
+              },
+              type: "paragraph",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              child_page: { title: "탭 내부 문서" },
+              has_children: false,
+              id: CHILD_ID,
+              object: "block",
+              type: "child_page",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              object: "block",
+              synced_block: {
+                synced_from: {
+                  block_id: sourceBlockId,
+                  type: "block_id",
+                },
+              },
+              type: "synced_block",
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).resolves.toEqual([
+      {
+        kind: "group",
+        nodeId: labelId,
+        parentNodeId: null,
+        providerId: null,
+        title: "첫 번째 탭",
+      },
+      {
+        kind: "page",
+        nodeId: CHILD_ID,
+        parentNodeId: labelId,
+        providerId: CHILD_ID,
+        title: "탭 내부 문서",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("rejects a malformed link-to-page provider response", async () => {
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: CHILD_ID,
+              link_to_page: { type: "page_id" },
+              object: "block",
+              type: "link_to_page",
+            },
+          ],
+        }),
+      ),
+    });
+
+    await expect(adapter.listPageOutline(ROOT_ID)).rejects.toMatchObject({
+      code: "invalid_response",
+    } satisfies Partial<NotionProviderError>);
+  });
+
+  it("rejects malformed pagination instead of looping", async () => {
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json({
+          has_more: true,
+          next_cursor: null,
+          results: [],
+        }),
+      ),
+    });
+
+    await expect(adapter.listPageTree()).rejects.toMatchObject({
+      code: "invalid_response",
+    } satisfies Partial<NotionProviderError>);
+  });
+});

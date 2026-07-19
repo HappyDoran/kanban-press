@@ -13,16 +13,21 @@
 - Route Handler와 Server Component를 서버 경계로 사용
 - Tailwind CSS, shadcn/ui
 - dnd-kit: 접근 가능한 칸반 drag-and-drop
-- IndexedDB + Dexie: 사용자별 칸반과 설정의 브라우저 저장
+- IndexedDB + Dexie: 사용자별 보관 문서 정렬과 page 설정 저장
+- React state: 새로고침 시 소멸하는 게시 중·완료 상태와 완료 링크
 - Zod: 쿠키 복호화 결과, API 입력, IndexedDB 레코드 검증
 
 ## 인증과 외부 연동
 
-- GitHub OAuth App: 로그인
-- GitHub App + Octokit: installation repository 접근과 commit
+- GitHub OAuth App: 로그인과 공개 `<login>.github.io` repository 직접 commit
 - Notion Public Integration OAuth + 공식 Notion SDK
 - Node `crypto` 기반 AEAD 암호화 쿠키
 - OAuth state는 짧게 만료되는 별도 암호화 HttpOnly 쿠키로 검증
+
+GitHub OAuth는 `read:user public_repo workflow`만 요청한다. `workflow`는 생성되는
+`.github/workflows/deploy.yml`을 commit하기 위해 필요하다. private repository와
+임의의 repository 선택은 지원하지 않는다. 서버는 요청마다 OAuth scope와 고정 Pages
+repository의 소유권·쓰기 권한을 다시 검증한다.
 
 Better Auth는 DB 없는 세션·복수 provider token 쿠키 계약보다 추상화 비용이 커서
 MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내부 모듈로 구현한다.
@@ -30,7 +35,11 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 ## 게시
 
 - Notion block → 내부 문서 모델 → Markdown/MDX 변환
-- Astro 정적 블로그 template
+- Astro 7.1.1 정적 블로그 template
+- `actions/setup-node@v6` + `pnpm/action-setup@v6`로 명시적인 lockfile 없는 build
+- pnpm dependency build script는 `pnpm-workspace.yaml`에서 Astro가 요구하는
+  `esbuild`만 `allowBuilds`로 허용
+- `actions/upload-pages-artifact@v5` + `actions/deploy-pages@v5` GitHub Pages workflow
 - GitHub Contents 또는 Git Data API로 결정적 파일 반영
 - GitHub Actions와 GitHub Pages가 build/deploy 수행
 - Web 앱은 GitHub API를 polling해 결과를 표시

@@ -26,7 +26,8 @@ apps/web (stateless Next.js)
 |---|---|---|
 | GitHub 세션과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
-| 칸반 상태와 UI 설정 | IndexedDB | 비신뢰 입력 |
+| 보관 문서 정렬, 게시 후 숨김과 page 표시·자동 역할·legacy 역할 override | IndexedDB | 비신뢰 입력 |
+| 게시 중·완료 상태와 현재 완료 링크 | React 메모리 | 새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |
 | 배포 상태 | GitHub Actions/Pages | GitHub API에서 조회 |
 
@@ -45,8 +46,8 @@ apps/web
 - `domain`: ID, 칸반 상태, provider 독립 규칙
 - `auth`: stateless session 및 암호화 envelope 계약
 - `notion`: workspace/page 조회 계약
-- `github`: installation/repository/commit 계약
-- `publisher`: Notion 문서에서 결정적 artifact 생성
+- `github`: OAuth repository 검증/commit 계약
+- `publisher`: GitHub Pages용 Astro template manifest와 Notion 문서의 결정적 artifact 생성
 - `validation`: 외부 입력 schema
 
 package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/web`이 담당한다.
@@ -66,10 +67,16 @@ package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/w
 2. 브라우저 payload를 schema로 검증한다.
 3. Notion 페이지 접근과 GitHub repository 접근을 다시 확인한다.
 4. 최신 원문을 서버에서 가져온다.
-5. artifact와 content hash를 결정적으로 생성한다.
-6. 기존 hash와 같으면 성공으로 간주하고, 다르면 GitHub에 commit한다.
+5. artifact와 진단용 content hash를 생성한다.
+6. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다.
 
 클라이언트가 전달한 markdown, repository 소유권, 사용자 ID를 그대로 신뢰하지 않는다.
+Notion provider 응답은 앱 orchestration에서 정규화하고 publisher는 제한된 block
+union만 받는다. publisher가 생성하는 repository 상대 경로와 Markdown text, URL,
+code fence는 commit 전에 다시 검증한다.
+GitHub adapter는 기본 branch head/tree 조회, blob/tree/commit 생성, non-force ref
+update와 Actions/Pages 상태 조회만 담당한다. content hash 계산과 Notion→publisher
+정규화, 두 adapter의 호출 순서는 `apps/web` orchestration이 소유한다.
 
 ## 5. 쿠키 envelope
 
@@ -99,9 +106,18 @@ Notion OAuth state에는 현재 GitHub user ID를 함께 봉인한다. callback�
 있지만 목록·변경 시 현재 소유자 레코드만 노출한다. 전체 3개 또는 암호문 3,800 bytes를
 넘는 새 연결은 저장하지 않고 방금 발급된 token을 revoke한다.
 
+GitHub OAuth credential에는 공개 repository 직접 게시를 위한 `public_repo`와
+`.github/workflows/deploy.yml` 생성·수정을 위한 `workflow` scope를 요청한다. 이
+scope들은 사용자 repository에 대한 쓰기 권한이므로 제품은 서버에서 대상을
+`<현재 login>.github.io` 하나로 더 좁힌다. 매 요청마다 token scope, repository owner
+numeric ID, public 여부와 push 권한을 확인하며 credential은 응답, URL, 로그,
+IndexedDB에 포함하지 않는다.
+
 ## 6. 장애 특성
 
 - Notion/GitHub API 실패는 요청 실패로 반환하며 브라우저에서 명시적으로 재시도한다.
-- commit 이후 응답이 유실되면 다음 요청이 content hash로 기존 반영을 확인한다.
+- commit 이후 응답이 유실된 상태에서 재시도하면 중복 commit이 생길 수 있다.
+- 같은 artifact로 만든 Git tree가 현재 tree와 같아도 새 commit을 만든다.
+- ref update 사이에 다른 변경이 생기면 force push하지 않고 게시 충돌로 반환한다.
 - GitHub Actions/Pages 상태는 GitHub가 source of truth다.
 - 서버 재시작은 사용자 상태에 영향을 주지 않지만 쿠키 암호화 키는 안정적으로 유지해야 한다.

@@ -87,6 +87,15 @@ export type NotionConnection = z.infer<typeof connectionSchema>;
 export type NotionConnectionsPayload = z.infer<typeof connectionsPayloadSchema>;
 export type NotionOAuthState = z.infer<typeof notionStateSchema>;
 
+export type NotionConnectionAccess =
+  | { kind: "allowed"; connection: NotionConnection }
+  | {
+      kind:
+        | "authentication_required"
+        | "invalid_connections_cookie"
+        | "notion_connection_not_found";
+    };
+
 export interface NotionOAuthClient {
   authorize(code: string, redirectUri: string): Promise<{
     accessToken: string;
@@ -354,6 +363,32 @@ export async function listNotionConnections(
     },
     { headers: { "cache-control": "no-store" } },
   );
+}
+
+export async function getOwnedNotionConnection(
+  request: Request,
+  connectionId: string,
+  dependencies: Pick<
+    NotionAuthDependencies,
+    "connectionsCodec" | "sessionCodec"
+  >,
+): Promise<NotionConnectionAccess> {
+  const session = await readSession(request, dependencies.sessionCodec);
+  if (session === null) {
+    return { kind: "authentication_required" };
+  }
+  const payload = await readConnections(request, dependencies.connectionsCodec);
+  if (payload === null) {
+    return { kind: "invalid_connections_cookie" };
+  }
+  const connection = payload.connections.find(
+    (item) =>
+      item.ownerUserId === session.userId &&
+      item.connectionId === connectionId,
+  );
+  return connection === undefined
+    ? { kind: "notion_connection_not_found" }
+    : { connection, kind: "allowed" };
 }
 
 export async function disconnectNotion(

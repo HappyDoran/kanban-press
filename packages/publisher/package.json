@@ -7,11 +7,19 @@
   "types": "./src/index.ts",
   "exports": { ".": { "types": "./src/index.ts", "import": "./dist/index.js" } },
   "scripts": {
-    "build": "tsc --project tsconfig.json --noEmit false --outDir dist --rootDir src",
+    "build": "tsc --project tsconfig.build.json --noEmit false --outDir dist --rootDir src",
     "lint": "eslint .",
+    "test": "vitest run src/index.test.ts src/markdown.test.ts",
+    "test:integration": "vitest run src/template.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notion-kanban-blog/domain": "workspace:*"
+    "@notion-kanban-blog/domain": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "astro": "7.1.1",
+    "vitest": "^4.1.10"
   }
 }

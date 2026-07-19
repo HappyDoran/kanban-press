@@ -12,8 +12,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@notion-kanban-blog/auth": "workspace:*",
     "@notion-kanban-blog/domain": "workspace:*",
+    "@notion-kanban-blog/github": "workspace:*",
+    "@notion-kanban-blog/notion": "workspace:*",
+    "@notion-kanban-blog/publisher": "workspace:*",
+    "dexie": "^4.4.4",
     "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -24,6 +31,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "eslint-config-next": "^16.2.10",
+    "fake-indexeddb": "^6.2.5",
     "vitest": "^4.1.10"
   }
 }

@@ -12,7 +12,7 @@ import { z } from "zod";
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
-const GITHUB_SCOPE = "read:user";
+const GITHUB_SCOPE = "read:user public_repo workflow";
 const OAUTH_STATE_TTL_SECONDS = 10 * 60;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const OAUTH_STATE_COOKIE = "nkb_oauth_state";

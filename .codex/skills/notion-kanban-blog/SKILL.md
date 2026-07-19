@@ -1,6 +1,6 @@
 ---
 name: notion-kanban-blog
-description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, per-GitHub-user IndexedDB boards, GitHub App publishing, Astro/GitHub Pages output, project architecture, TODO priorities, or acceptance tests.
+description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, per-GitHub-user IndexedDB boards, direct OAuth publishing to username.github.io, Astro/GitHub Pages output, project architecture, TODO priorities, or acceptance tests.
 ---
 
 # Notion Kanban Blog
@@ -26,7 +26,11 @@ architecture or contract in the documents before code.
 - Keep credentials only in authenticated-encryption, HttpOnly cookies.
 - Never put credentials in client JavaScript, IndexedDB, localStorage, URLs, or logs.
 - Revalidate Notion page and GitHub repository access for every publish request.
-- Use deterministic content hashes so retrying a request does not create duplicate commits.
+- Limit direct GitHub publishing to the signed-in user's public `<login>.github.io`
+  repository and require the OAuth `public_repo` (or `repo`) and `workflow` scopes.
+- Keep persistent board records in `stored`; publishing and published UI state must remain
+  in React memory only and may disappear on refresh.
+- Allow repeated publish requests to create duplicate commits even when content is unchanged.
 - Do not introduce a database, queue, Worker, or object store without a documented requirement
   that exceeds the explicit MVP limitations.
 
