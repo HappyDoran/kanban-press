@@ -20,6 +20,8 @@ describe("createAstroTemplateManifest", () => {
     expect(first).toEqual(second);
     expect(first.basePath).toBe("/");
     expect(first.siteUrl).toBe("https://HappyDoran.github.io");
+    expect(first.schemaVersion).toBe(1);
+    expect(first.templateVersion).toBe(2);
     expect(readArtifact(first.artifacts, "astro.config.mjs")).toContain(
       'base: "/"',
     );
@@ -35,13 +37,23 @@ describe("createAstroTemplateManifest", () => {
     expect(workflow).not.toContain("withastro/action");
     expect(
       readArtifact(first.artifacts, ".notion-kanban-blog/managed.json"),
-    ).toBe('{\n  "publisher": "astro",\n  "templateVersion": 1\n}\n');
+    ).toBe('{\n  "publisher": "astro",\n  "templateVersion": 2\n}\n');
     expect(readArtifact(first.artifacts, "pnpm-workspace.yaml")).toBe(
       "allowBuilds:\n  esbuild: true\n",
     );
     const paths = first.artifacts.map(({ path }) => path);
     expect(paths).toEqual([...paths].sort());
     expect(paths).toContain(".notion-kanban-blog/managed.json");
+
+    const contentConfig = readArtifact(
+      first.artifacts,
+      "src/content.config.ts",
+    );
+    expect(contentConfig).toContain("schemaVersion: 1 as const");
+    expect(contentConfig).toContain("schemaVersion: z.literal(2)");
+    expect(contentConfig).toContain('category: "미분류"');
+    expect(contentConfig).toContain('categorySlug: "uncategorized"');
+    expect(contentConfig).toContain(".strict()");
   });
 
   it("creates a project-site template with a repository base path", () => {
