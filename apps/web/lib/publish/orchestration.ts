@@ -7,13 +7,10 @@ import type {
 } from "@notion-kanban-blog/github";
 import type {
   NotionContentAdapter,
-  NotionContentBlock,
-  NotionPageContent,
 } from "@notion-kanban-blog/notion";
 import {
   createAstroTemplateManifest,
   createMarkdownArtifact,
-  type PublishBlock,
 } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
@@ -36,6 +33,12 @@ import {
   NotionProviderError,
   NotionRestContentAdapter,
 } from "../notion/content";
+import {
+  buildPublishDocument,
+  InvalidBlogMetadataError,
+} from "./document";
+
+export { pageSlug } from "./document";
 
 const publishRequestSchema = z
   .object({
@@ -99,20 +102,13 @@ export async function publishNotionPage(
     if (page.providerPageId !== input.data.providerPageId) {
       return errorResponse(403, "notion_page_mismatch");
     }
-    const slug = pageSlug(page.title, page.providerPageId);
+    const document = buildPublishDocument(page);
     const template = createAstroTemplateManifest({
       defaultBranch: repository.defaultBranch,
       owner: session.githubLogin,
       repository: repository.fullName.split("/")[1] ?? "",
     });
-    const markdown = createMarkdownArtifact({
-      blocks: page.blocks.flatMap(toPublishBlock),
-      description: pageDescription(page),
-      publishedAt: page.createdAt.toISOString(),
-      slug,
-      title: page.title,
-      updatedAt: page.lastEditedAt.toISOString(),
-    });
+    const markdown = createMarkdownArtifact(document);
     const artifacts = [...template.artifacts, markdown].sort((left, right) =>
       left.path.localeCompare(right.path),
     );
@@ -142,7 +138,7 @@ export async function publishNotionPage(
         commitSha: committed.commitSha,
         contentHash,
         created: committed.created,
-        pageUrl: `${template.siteUrl}/posts/${slug}/`,
+        pageUrl: `${template.siteUrl}/posts/${document.slug}/`,
       },
       { headers: { "cache-control": "no-store" } },
     );
@@ -206,23 +202,6 @@ export function createPublishDependencies(
   };
 }
 
-export function pageSlug(title: string, providerPageId: string): string {
-  const suffix = providerPageId.replaceAll("-", "").slice(0, 12).toLowerCase();
-  if (!/^[a-f0-9]{12}$/.test(suffix)) {
-    throw new Error("Invalid Notion page ID");
-  }
-  const base =
-    title
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80)
-      .replace(/-+$/g, "") || "notion";
-  return `${base}-${suffix}`;
-}
-
 export function artifactHash(artifacts: readonly GitHubArtifact[]): string {
   const hash = createHash("sha256");
   for (const artifact of [...artifacts].sort((left, right) =>
@@ -233,45 +212,6 @@ export function artifactHash(artifacts: readonly GitHubArtifact[]): string {
     hash.update(artifact.bytes);
   }
   return hash.digest("hex");
-}
-
-function toPublishBlock(block: NotionContentBlock): PublishBlock[] {
-  switch (block.kind) {
-    case "heading":
-      return [
-        {
-          kind: "heading",
-          level: (block.level + 1) as 2 | 3 | 4,
-          richText: block.richText,
-        },
-      ];
-    case "toggle":
-      return [
-        {
-          children: block.children.flatMap(toPublishBlock),
-          kind: "toggle",
-          summary: block.summary,
-        },
-      ];
-    default:
-      return [block];
-  }
-}
-
-function pageDescription(page: NotionPageContent): string {
-  for (const block of page.blocks) {
-    if (
-      block.kind === "paragraph" ||
-      block.kind === "quote" ||
-      block.kind === "heading"
-    ) {
-      const text = block.richText.map((part) => part.text).join("").trim();
-      if (text) {
-        return text.slice(0, 1_000);
-      }
-    }
-  }
-  return page.title.slice(0, 1_000);
 }
 
 async function readSession(request: Request, codec: SessionCodec) {
@@ -288,6 +228,9 @@ async function safeJson(request: Request): Promise<unknown> {
 }
 
 function publishErrorResponse(error: unknown): Response {
+  if (error instanceof InvalidBlogMetadataError) {
+    return errorResponse(422, error.code);
+  }
   if (error instanceof NotionProviderError) {
     const status =
       error.code === "access_denied"

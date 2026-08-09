@@ -12,6 +12,7 @@ import type {
   GitHubRepositoryAdapter,
 } from "@notion-kanban-blog/github";
 import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
+import { createMarkdownArtifact } from "@notion-kanban-blog/publisher";
 import type { NotionConnectionsPayload } from "../auth/notion";
 import {
   artifactHash,
@@ -20,6 +21,18 @@ import {
   publishNotionPage,
   type PublishDependencies,
 } from "./orchestration";
+
+vi.mock("@notion-kanban-blog/publisher", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@notion-kanban-blog/publisher")>();
+  return {
+    ...actual,
+    createMarkdownArtifact: vi.fn((document: { slug: string }) => ({
+      bytes: new TextEncoder().encode("shared publish document"),
+      path: `src/content/blog/${document.slug}.md`,
+    })),
+  };
+});
 
 const NOW = 2_000_000_000;
 const ORIGIN = "http://localhost:3000";
@@ -87,6 +100,7 @@ async function fixture() {
     createdAt: new Date("2026-07-18T09:00:00.000Z"),
     lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
     providerPageId: PAGE_ID,
+    publishingProperties: {},
     title: "한글 게시 글",
   });
   const notion: NotionContentAdapter = {
@@ -187,6 +201,16 @@ describe("publish orchestration", () => {
         "package.json",
         "src/content/blog/notion-9188c6a57381.md",
       ]),
+    );
+    expect(createMarkdownArtifact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: { name: "미분류", slug: "uncategorized" },
+        description: "최신 본문",
+        publishedAt: "2026-07-18T09:00:00.000Z",
+        schemaVersion: 2,
+        slug: "notion-9188c6a57381",
+        tags: [],
+      }),
     );
     const artifacts = context.commitArtifacts.mock.calls[0]?.[1] as
       | readonly GitHubArtifact[]
@@ -295,14 +319,19 @@ describe("publish orchestration", () => {
     expect(context.getPagesRepository).not.toHaveBeenCalled();
   });
 
-  it("rejects browser-supplied readiness input", async () => {
+  it("rejects browser-supplied publishing metadata and readiness input", async () => {
     const context = await fixture();
     const response = await publishNotionPage(
       new Request(`${ORIGIN}/api/publish`, {
         body: JSON.stringify({
           connectionId: CONNECTION_ID,
           providerPageId: PAGE_ID,
+          category: "browser category",
+          markdown: "# browser content",
           readiness: { state: "ready" },
+          slug: "browser-slug",
+          tags: ["browser-tag"],
+          title: "browser title",
         }),
         headers: {
           "content-type": "application/json",
@@ -319,6 +348,43 @@ describe("publish orchestration", () => {
       error: "invalid_publish_request",
     });
     expect(context.getPageContent).not.toHaveBeenCalled();
+    expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
+    expect(context.commitArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("maps shared builder metadata failures to HTTP 422", async () => {
+    const context = await fixture();
+    context.getPageContent.mockResolvedValue({
+      blocks: [],
+      createdAt: new Date("2026-07-18T09:00:00.000Z"),
+      lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
+      providerPageId: PAGE_ID,
+      publishingProperties: {
+        "Blog Category": { kind: "select", name: "" },
+      },
+      title: "한글 게시 글",
+    });
+
+    const response = await publishNotionPage(
+      new Request(`${ORIGIN}/api/publish`, {
+        body: JSON.stringify({
+          connectionId: CONNECTION_ID,
+          providerPageId: PAGE_ID,
+        }),
+        headers: {
+          "content-type": "application/json",
+          cookie: context.cookie,
+          origin: ORIGIN,
+        },
+        method: "POST",
+      }),
+      context.dependencies,
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_blog_metadata",
+    });
     expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
     expect(context.commitArtifacts).not.toHaveBeenCalled();
   });
