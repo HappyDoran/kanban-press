@@ -34,20 +34,26 @@ describe("Astro template build", () => {
   it.each([
     {
       expectedBase: "/",
+      defaultBranch: "main",
       owner: "HappyDoran",
       repository: "HappyDoran.github.io",
     },
     {
       expectedBase: "/notion-notes/",
+      defaultBranch: "release/pages",
       owner: "HappyDoran",
       repository: "notion-notes",
     },
   ])(
     "builds $repository with base $expectedBase",
-    async ({ expectedBase, owner, repository }) => {
+    async ({ defaultBranch, expectedBase, owner, repository }) => {
       const root = await mkdtemp(join(process.cwd(), ".template-test-"));
       roots.push(root);
-      const manifest = createAstroTemplateManifest({ owner, repository });
+      const manifest = createAstroTemplateManifest({
+        defaultBranch,
+        owner,
+        repository,
+      });
       await symlink(
         fileURLToPath(new URL("../node_modules", import.meta.url)),
         join(root, "node_modules"),

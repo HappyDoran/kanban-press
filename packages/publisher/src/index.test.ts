@@ -7,10 +7,12 @@ const decoder = new TextDecoder();
 describe("createAstroTemplateManifest", () => {
   it("creates a deterministic user-site template rooted at slash", () => {
     const first = createAstroTemplateManifest({
+      defaultBranch: "main",
       owner: "HappyDoran",
       repository: "HappyDoran.github.io",
     });
     const second = createAstroTemplateManifest({
+      defaultBranch: "main",
       owner: "HappyDoran",
       repository: "HappyDoran.github.io",
     });
@@ -29,17 +31,22 @@ describe("createAstroTemplateManifest", () => {
     expect(workflow).toContain("package-manager-cache: false");
     expect(workflow).toContain("pnpm install --no-frozen-lockfile");
     expect(workflow).toContain("uses: actions/upload-pages-artifact@v5");
+    expect(workflow).toContain('branches: ["main"]');
     expect(workflow).not.toContain("withastro/action");
+    expect(
+      readArtifact(first.artifacts, ".notion-kanban-blog/managed.json"),
+    ).toBe('{\n  "publisher": "astro",\n  "templateVersion": 1\n}\n');
     expect(readArtifact(first.artifacts, "pnpm-workspace.yaml")).toBe(
       "allowBuilds:\n  esbuild: true\n",
     );
-    expect(first.artifacts.map(({ path }) => path)).toEqual(
-      [...first.artifacts.map(({ path }) => path)].sort(),
-    );
+    const paths = first.artifacts.map(({ path }) => path);
+    expect(paths).toEqual([...paths].sort());
+    expect(paths).toContain(".notion-kanban-blog/managed.json");
   });
 
   it("creates a project-site template with a repository base path", () => {
     const manifest = createAstroTemplateManifest({
+      defaultBranch: 'release/"pages"',
       owner: "HappyDoran",
       repository: "notion-notes",
     });
@@ -48,21 +55,33 @@ describe("createAstroTemplateManifest", () => {
     expect(readArtifact(manifest.artifacts, "astro.config.mjs")).toContain(
       'base: "/notion-notes"',
     );
+    expect(
+      readArtifact(manifest.artifacts, ".github/workflows/deploy.yml"),
+    ).toContain('branches: ["release/\\"pages\\""]');
   });
 
   it("rejects names that could inject config or escape artifact paths", () => {
     expect(() =>
       createAstroTemplateManifest({
+        defaultBranch: "main",
         owner: "owner",
         repository: "../pages",
       }),
     ).toThrow("Invalid GitHub repository");
     expect(() =>
       createAstroTemplateManifest({
+        defaultBranch: "main",
         owner: "owner\nmalicious",
         repository: "owner.github.io",
       }),
     ).toThrow("Invalid GitHub owner");
+    expect(() =>
+      createAstroTemplateManifest({
+        defaultBranch: "main\n  pull_request:",
+        owner: "owner",
+        repository: "owner.github.io",
+      }),
+    ).toThrow("Invalid GitHub default branch");
   });
 });
 

@@ -101,6 +101,7 @@ export async function publishNotionPage(
     }
     const slug = pageSlug(page.title, page.providerPageId);
     const template = createAstroTemplateManifest({
+      defaultBranch: repository.defaultBranch,
       owner: session.githubLogin,
       repository: repository.fullName.split("/")[1] ?? "",
     });

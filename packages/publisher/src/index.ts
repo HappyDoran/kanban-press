@@ -12,6 +12,7 @@ const encoder = new TextEncoder();
 const githubNamePattern = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?$/;
 
 export interface AstroTemplateTarget {
+  defaultBranch: string;
   owner: string;
   repository: string;
 }
@@ -50,11 +51,12 @@ export function createAstroTemplateManifest(
 ): PublisherManifest {
   const owner = parseGitHubName(target.owner, "owner");
   const repository = parseGitHubName(target.repository, "repository");
+  const defaultBranch = parseDefaultBranch(target.defaultBranch);
   const userSite = repository.toLowerCase() === `${owner.toLowerCase()}.github.io`;
   const siteUrl = `https://${owner}.github.io`;
   const basePath = userSite ? "/" : `/${repository}`;
   const artifacts = Object.entries(
-    templateFiles({ basePath, siteUrl }),
+    templateFiles({ basePath, defaultBranch, siteUrl }),
   )
     .map(([path, content]) => artifact(path, content))
     .sort((left, right) => left.path.localeCompare(right.path));
@@ -72,9 +74,11 @@ export function createAstroTemplateManifest(
 
 function templateFiles({
   basePath,
+  defaultBranch,
   siteUrl,
 }: {
   basePath: string;
+  defaultBranch: string;
   siteUrl: string;
 }): Readonly<Record<string, string>> {
   const linkBase = basePath === "/" ? "/" : `${basePath}/`;
@@ -83,7 +87,7 @@ function templateFiles({
 
 on:
   push:
-    branches: [main]
+    branches: [${JSON.stringify(defaultBranch)}]
   workflow_dispatch:
 
 permissions:
@@ -128,6 +132,11 @@ jobs:
 dist
 .astro
 `,
+    ".notion-kanban-blog/managed.json": `${JSON.stringify(
+      { publisher: "astro", templateVersion: 1 },
+      null,
+      2,
+    )}\n`,
     "astro.config.mjs": `import { defineConfig } from "astro/config";
 
 export default defineConfig({
@@ -264,6 +273,40 @@ function parseGitHubName(value: string, field: string): string {
     throw new Error(`Invalid GitHub ${field}`);
   }
   return parsed;
+}
+
+function parseDefaultBranch(value: string): string {
+  const byteLength = encoder.encode(value).byteLength;
+  const segments = value.split("/");
+  const hasInvalidSegment = segments.some(
+    (segment) =>
+      segment.length === 0 ||
+      segment.startsWith(".") ||
+      segment.endsWith(".lock"),
+  );
+  const hasForbiddenCharacter = [...value].some((character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return (
+      codePoint <= 32 ||
+      codePoint === 127 ||
+      ["~", "^", ":", "?", "*", "["].includes(character)
+    );
+  });
+  if (
+    byteLength === 0 ||
+    byteLength > 255 ||
+    value === "@" ||
+    value.startsWith("-") ||
+    value.endsWith(".") ||
+    value.includes("..") ||
+    value.includes("@{") ||
+    value.includes("\\") ||
+    hasForbiddenCharacter ||
+    hasInvalidSegment
+  ) {
+    throw new Error("Invalid GitHub default branch");
+  }
+  return value;
 }
 
 function artifact(path: string, content: string): PublishArtifact {

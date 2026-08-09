@@ -7,7 +7,10 @@ import {
 import { entityId } from "@notion-kanban-blog/domain";
 import { describe, expect, it, vi } from "vitest";
 
-import type { GitHubRepositoryAdapter } from "@notion-kanban-blog/github";
+import type {
+  GitHubArtifact,
+  GitHubRepositoryAdapter,
+} from "@notion-kanban-blog/github";
 import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
 import type { NotionConnectionsPayload } from "../auth/notion";
 import {
@@ -92,7 +95,7 @@ async function fixture() {
     listPageTree: vi.fn(),
   };
   const getPagesRepository = vi.fn().mockResolvedValue({
-    defaultBranch: "main",
+    defaultBranch: "pages-production",
     fullName: "octocat/octocat.github.io",
     isPrivate: false,
     providerRepositoryId: "123456",
@@ -169,13 +172,24 @@ describe("publish orchestration", () => {
       USER_ID,
       "octocat",
     );
-    const artifacts = context.commitArtifacts.mock.calls[0]?.[1];
+    const artifacts = context.commitArtifacts.mock.calls[0]?.[1] as
+      | readonly GitHubArtifact[]
+      | undefined;
     expect(artifacts).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          path: ".notion-kanban-blog/managed.json",
+        }),
         expect.objectContaining({
           path: "src/content/blog/notion-9188c6a57381.md",
         }),
       ]),
+    );
+    const workflow = artifacts?.find(
+      (artifact) => artifact.path === ".github/workflows/deploy.yml",
+    );
+    expect(new TextDecoder().decode(workflow?.bytes)).toContain(
+      'branches: ["pages-production"]',
     );
     const serialized = JSON.stringify(body);
     expect(serialized).not.toContain("github-secret-token");
