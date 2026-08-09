@@ -50,11 +50,19 @@ export type NotionContentBlock =
       summary: NotionRichText[];
     };
 
+export type NotionPageProperty =
+  | { kind: "rich_text"; plainText: string }
+  | { kind: "select"; name: string | null }
+  | { kind: "multi_select"; names: readonly string[] }
+  | { kind: "date"; start: string | null }
+  | { kind: "unsupported"; providerType: string };
+
 export interface NotionPageContent {
   blocks: readonly NotionContentBlock[];
   createdAt: Date;
   lastEditedAt: Date;
   providerPageId: string;
+  publishingProperties: Readonly<Record<string, NotionPageProperty>>;
   title: string;
 }
 

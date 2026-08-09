@@ -3,6 +3,7 @@ import type {
   NotionContentAdapter,
   NotionOutlineNode,
   NotionPageContent,
+  NotionPageProperty,
   NotionPageSummary,
   NotionRichText,
 } from "@notion-kanban-blog/notion";
@@ -15,6 +16,21 @@ const PAGE_SIZE = 100;
 const MAX_PAGES = 10_000;
 const MAX_OUTLINE_BLOCKS = 5_000;
 const MAX_OUTLINE_DEPTH = 20;
+const MAX_NOTION_ARRAY_ITEMS = 100;
+const MAX_NOTION_TEXT_LENGTH = 2_000;
+const MAX_PUBLISHING_PROPERTIES_BYTES = 500_000;
+
+const publishingPropertyTypes = {
+  "Blog Category": "select",
+  "Blog Description": "rich_text",
+  "Blog Published At": "date",
+  "Blog Tags": "multi_select",
+} as const;
+type PublishingPropertyName = keyof typeof publishingPropertyTypes;
+const publishingPropertyNames = Object.keys(
+  publishingPropertyTypes,
+) as PublishingPropertyName[];
+const textEncoder = new TextEncoder();
 
 const richTextSchema = z
   .object({
@@ -31,6 +47,45 @@ const richTextSchema = z
     plain_text: z.string(),
   })
   .passthrough();
+
+const propertyRichTextSchema = richTextSchema.extend({
+  plain_text: z.string().max(MAX_NOTION_TEXT_LENGTH),
+});
+
+const propertyEnvelopeSchema = z
+  .object({
+    id: z.string().min(1).max(255),
+    type: z.string().min(1).max(255),
+  })
+  .passthrough();
+const selectPropertySchema = propertyEnvelopeSchema.extend({
+  select: z
+    .object({ name: z.string().max(MAX_NOTION_TEXT_LENGTH) })
+    .passthrough()
+    .nullable(),
+  type: z.literal("select"),
+});
+const multiSelectPropertySchema = propertyEnvelopeSchema.extend({
+  multi_select: z
+    .array(
+      z
+        .object({ name: z.string().max(MAX_NOTION_TEXT_LENGTH) })
+        .passthrough(),
+    )
+    .max(MAX_NOTION_ARRAY_ITEMS),
+  type: z.literal("multi_select"),
+});
+const richTextPropertySchema = propertyEnvelopeSchema.extend({
+  rich_text: z.array(propertyRichTextSchema).max(MAX_NOTION_ARRAY_ITEMS),
+  type: z.literal("rich_text"),
+});
+const datePropertySchema = propertyEnvelopeSchema.extend({
+  date: z
+    .object({ start: z.string().min(1).max(MAX_NOTION_TEXT_LENGTH) })
+    .passthrough()
+    .nullable(),
+  type: z.literal("date"),
+});
 
 const titlePropertySchema = z
   .object({
@@ -341,6 +396,9 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
     if (!page.success || page.data.in_trash === true) {
       throw new NotionProviderError("invalid_response");
     }
+    const publishingProperties = normalizePublishingProperties(
+      page.data.properties,
+    );
 
     const blocks: NotionContentBlock[] = [];
     const visited = new Set<string>();
@@ -395,6 +453,7 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
       createdAt: new Date(page.data.created_time),
       lastEditedAt: new Date(page.data.last_edited_time),
       providerPageId: page.data.id,
+      publishingProperties,
       title: pageTitle(page.data.properties),
     };
   }
@@ -537,6 +596,105 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
 }
 
 type ParsedBlock = z.infer<typeof blockSchema>;
+
+function normalizePublishingProperties(
+  properties: Record<string, unknown>,
+): Readonly<Record<string, NotionPageProperty>> {
+  const reservedEntries = publishingPropertyNames.flatMap((name) =>
+    Object.hasOwn(properties, name) ? [[name, properties[name]] as const] : [],
+  );
+  if (
+    textEncoder.encode(JSON.stringify(Object.fromEntries(reservedEntries)))
+      .byteLength > MAX_PUBLISHING_PROPERTIES_BYTES
+  ) {
+    throw new NotionProviderError("invalid_response");
+  }
+
+  return Object.fromEntries(
+    reservedEntries.map(([name, value]) => [
+      name,
+      normalizePublishingProperty(value, publishingPropertyTypes[name]),
+    ]),
+  );
+}
+
+function normalizePublishingProperty(
+  value: unknown,
+  expectedType: (typeof publishingPropertyTypes)[PublishingPropertyName],
+): NotionPageProperty {
+  const envelope = propertyEnvelopeSchema.safeParse(value);
+  if (!envelope.success) {
+    throw new NotionProviderError("invalid_response");
+  }
+
+  let normalized: Exclude<
+    NotionPageProperty,
+    { kind: "unsupported" }
+  >;
+  switch (envelope.data.type) {
+    case "select": {
+      const property = selectPropertySchema.safeParse(value);
+      if (!property.success) {
+        throw new NotionProviderError("invalid_response");
+      }
+      normalized = {
+        kind: "select",
+        name: property.data.select?.name ?? null,
+      };
+      break;
+    }
+    case "multi_select": {
+      const property = multiSelectPropertySchema.safeParse(value);
+      if (!property.success) {
+        throw new NotionProviderError("invalid_response");
+      }
+      normalized = {
+        kind: "multi_select",
+        names: property.data.multi_select.map((option) => option.name),
+      };
+      break;
+    }
+    case "rich_text": {
+      const property = richTextPropertySchema.safeParse(value);
+      if (!property.success) {
+        throw new NotionProviderError("invalid_response");
+      }
+      normalized = {
+        kind: "rich_text",
+        plainText: property.data.rich_text
+          .map((part) => part.plain_text)
+          .join(""),
+      };
+      break;
+    }
+    case "date": {
+      const property = datePropertySchema.safeParse(value);
+      if (!property.success) {
+        throw new NotionProviderError("invalid_response");
+      }
+      normalized = {
+        kind: "date",
+        start: property.data.date?.start ?? null,
+      };
+      break;
+    }
+    default:
+      if (!Object.hasOwn(envelope.data, envelope.data.type)) {
+        throw new NotionProviderError("invalid_response");
+      }
+      return {
+        kind: "unsupported",
+        providerType: envelope.data.type,
+      };
+  }
+
+  return normalized.kind === expectedType
+    ? normalized
+    : {
+        kind: "unsupported",
+        providerType: envelope.data.type,
+      };
+}
 
 function publishableBlocks(
   block: ParsedBlock,

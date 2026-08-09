@@ -15,7 +15,7 @@ function page(
   title: string,
   parent: Record<string, string>,
   overrides: Record<string, unknown> = {},
-) {
+): Record<string, unknown> & { properties: Record<string, unknown> } {
   return {
     icon: null,
     id,
@@ -121,7 +121,8 @@ describe("NotionRestContentAdapter", () => {
       fetch: fetchMock,
     });
 
-    await expect(adapter.getPageContent(ROOT_ID)).resolves.toMatchObject({
+    const content = await adapter.getPageContent(ROOT_ID);
+    expect(content).toMatchObject({
       blocks: [
         {
           kind: "paragraph",
@@ -159,6 +160,7 @@ describe("NotionRestContentAdapter", () => {
       providerPageId: ROOT_ID,
       title: "게시할 글",
     });
+    expect(content.publishingProperties).toEqual({});
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       `https://api.notion.com/v1/pages/${ROOT_ID}`,
@@ -168,6 +170,259 @@ describe("NotionRestContentAdapter", () => {
         }),
       }),
     );
+  });
+
+  it("normalizes only exact reserved publishing properties", async () => {
+    const sourcePage = page(
+      ROOT_ID,
+      "게시할 글",
+      { type: "workspace", workspace: "true" },
+      { created_time: "2026-07-18T09:00:00.000Z" },
+    );
+    sourcePage.properties = {
+      ...sourcePage.properties,
+      "Blog Category": {
+        id: "category",
+        select: {
+          color: "blue",
+          id: "category-option",
+          name: "Engineering",
+        },
+        type: "select",
+      },
+      "Blog Description": {
+        id: "description",
+        rich_text: [
+          {
+            annotations: { bold: true },
+            href: "https://example.com/private-provider-shape",
+            plain_text: "설명 ",
+          },
+          { plain_text: "본문" },
+        ],
+        type: "rich_text",
+      },
+      "Blog Published At": {
+        date: {
+          end: "2026-08-10",
+          start: "2026-08-09",
+          time_zone: null,
+        },
+        id: "published-at",
+        type: "date",
+      },
+      "Blog Tags": {
+        id: "tags",
+        multi_select: [
+          { color: "green", id: "tag-1", name: "TypeScript" },
+          { color: "orange", id: "tag-2", name: "Astro" },
+        ],
+        type: "multi_select",
+      },
+      "blog category": {
+        id: "lowercase-alias",
+        select: { name: "Must not leak" },
+        type: "select",
+      },
+      Secret: {
+        files: [{ external: { url: "https://example.com/private" } }],
+        id: "secret",
+        type: "files",
+      },
+    };
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(sourcePage))
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [],
+          }),
+        ),
+    });
+
+    const content = await adapter.getPageContent(ROOT_ID);
+
+    expect(content.publishingProperties).toEqual({
+      "Blog Category": { kind: "select", name: "Engineering" },
+      "Blog Description": { kind: "rich_text", plainText: "설명 본문" },
+      "Blog Published At": { kind: "date", start: "2026-08-09" },
+      "Blog Tags": {
+        kind: "multi_select",
+        names: ["TypeScript", "Astro"],
+      },
+    });
+    expect(JSON.stringify(content)).not.toContain("category-option");
+    expect(JSON.stringify(content)).not.toContain("private-provider-shape");
+    expect(JSON.stringify(content)).not.toContain("Must not leak");
+    expect(JSON.stringify(content)).not.toContain("Secret");
+  });
+
+  it("lowers well-formed wrong property types without raw values", async () => {
+    const sourcePage = page(
+      ROOT_ID,
+      "게시할 글",
+      { type: "workspace", workspace: "true" },
+      { created_time: "2026-07-18T09:00:00.000Z" },
+    );
+    sourcePage.properties = {
+      ...sourcePage.properties,
+      "Blog Category": {
+        id: "category",
+        rich_text: [{ plain_text: "wrong" }],
+        type: "rich_text",
+      },
+      "Blog Description": {
+        date: null,
+        id: "description",
+        type: "date",
+      },
+      "Blog Published At": {
+        formula: { string: "must not leak", type: "string" },
+        id: "published-at",
+        type: "formula",
+      },
+      "Blog Tags": {
+        id: "tags",
+        select: null,
+        type: "select",
+      },
+    };
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(sourcePage))
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [],
+          }),
+        ),
+    });
+
+    const content = await adapter.getPageContent(ROOT_ID);
+    expect(content).toMatchObject({
+      publishingProperties: {
+        "Blog Category": {
+          kind: "unsupported",
+          providerType: "rich_text",
+        },
+        "Blog Description": {
+          kind: "unsupported",
+          providerType: "date",
+        },
+        "Blog Published At": {
+          kind: "unsupported",
+          providerType: "formula",
+        },
+        "Blog Tags": {
+          kind: "unsupported",
+          providerType: "select",
+        },
+      },
+    });
+    expect(JSON.stringify(content)).not.toContain("must not leak");
+  });
+
+  it("rejects malformed reserved property envelopes", async () => {
+    const malformedProperties: unknown[] = [
+      "not-an-envelope",
+      { id: "category", select: null },
+      { id: "category", type: "select" },
+      { id: "category", select: { name: 42 }, type: "select" },
+      {
+        id: "category",
+        rich_text: [{ href: null }],
+        type: "rich_text",
+      },
+      { id: "category", multi_select: {}, type: "multi_select" },
+      { date: {}, id: "category", type: "date" },
+      { id: "category", type: "formula" },
+    ];
+
+    for (const malformedProperty of malformedProperties) {
+      const sourcePage = page(
+        ROOT_ID,
+        "게시할 글",
+        { type: "workspace", workspace: "true" },
+        { created_time: "2026-07-18T09:00:00.000Z" },
+      );
+      sourcePage.properties = {
+        ...sourcePage.properties,
+        "Blog Category": malformedProperty,
+      };
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json(sourcePage));
+      const adapter = new NotionRestContentAdapter({
+        accessToken: "secret",
+        apiVersion: "2026-03-11",
+        fetch: fetchMock,
+      });
+
+      await expect(adapter.getPageContent(ROOT_ID)).rejects.toMatchObject({
+        code: "invalid_response",
+      } satisfies Partial<NotionProviderError>);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("enforces provider count, text length, and byte caps", async () => {
+    const overLimitProperties: unknown[] = [
+      {
+        id: "description",
+        rich_text: Array.from({ length: 101 }, () => ({ plain_text: "x" })),
+        type: "rich_text",
+      },
+      {
+        id: "description",
+        rich_text: [{ plain_text: "x".repeat(2_001) }],
+        type: "rich_text",
+      },
+      {
+        id: "description",
+        multi_select: Array.from({ length: 101 }, (_, index) => ({
+          name: `tag-${index}`,
+        })),
+        type: "multi_select",
+      },
+      {
+        formula: { string: "🔥".repeat(125_000), type: "string" },
+        id: "description",
+        type: "formula",
+      },
+    ];
+
+    for (const overLimitProperty of overLimitProperties) {
+      const sourcePage = page(
+        ROOT_ID,
+        "게시할 글",
+        { type: "workspace", workspace: "true" },
+        { created_time: "2026-07-18T09:00:00.000Z" },
+      );
+      sourcePage.properties = {
+        ...sourcePage.properties,
+        "Blog Description": overLimitProperty,
+      };
+      const adapter = new NotionRestContentAdapter({
+        accessToken: "secret",
+        apiVersion: "2026-03-11",
+        fetch: vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(Response.json(sourcePage)),
+      });
+
+      await expect(adapter.getPageContent(ROOT_ID)).rejects.toMatchObject({
+        code: "invalid_response",
+      } satisfies Partial<NotionProviderError>);
+    }
   });
 
   it("paginates every visible page and builds a safe parent tree", async () => {
