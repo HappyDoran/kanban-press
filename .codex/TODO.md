@@ -124,7 +124,7 @@
   - 수용 기준: workflow branch가 실제 default branch와 일치한다.
   - 수용 기준: Pages custom workflow 준비 상태와 기존 파일 변경 범위를 게시 전에 확인한다.
   - 수용 기준: Actions URL과 provider별 복구 행동을 UI에서 제공한다.
-- [-] Notion 블로그 metadata와 공유 문서 조립 계약
+- [x] Notion 블로그 metadata와 공유 문서 조립 계약
   - 수용 기준: 예약 속성은 서버가 최신 Notion 원문에서만 읽고 strict validation한다.
   - 수용 기준: preview와 publish가 동일한 `PublishDocument` 조립 경계를 사용한다.
   - 수용 기준: 브라우저가 title, category, tag, Markdown, slug를 대신 전달하지 않는다.

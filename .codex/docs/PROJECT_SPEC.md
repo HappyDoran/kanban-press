@@ -407,4 +407,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 최신 Notion 본문 조회와 요청 기반 게시·배포 상태 복구가 구현됐다.
 - 기본 branch 기반 workflow, 관리 marker, Pages Actions 준비 상태, 기존 파일 보호,
   복구 UI와 Actions 로그 링크가 구현됐다.
+- 예약 Notion 블로그 속성 정규화, `PublishDocument` v2 strict 모델과 공유
+  `buildPublishDocument` 조립 경계가 구현됐다. template v2 호환 전까지 Markdown은
+  기존 v1 frontmatter로 투영한다.
 - 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.
