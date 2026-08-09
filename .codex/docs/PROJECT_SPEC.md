@@ -418,6 +418,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 기본 branch 기반 workflow, 관리 marker, Pages Actions 준비 상태, 기존 파일 보호,
   복구 UI와 Actions 로그 링크가 구현됐다.
 - 예약 Notion 블로그 속성 정규화, `PublishDocument` v2 strict 모델과 공유
-  `buildPublishDocument` 조립 경계가 구현됐다. template v2 호환 전까지 Markdown은
-  기존 v1 frontmatter로 투영한다.
+  `buildPublishDocument` 조립 경계가 구현됐다.
+- Astro template v2 compatibility reader가 schema 없는 기존 v1 글을 `미분류`로
+  정규화하고 strict v2 글과 함께 읽는다. Markdown writer는 v2 frontmatter를 출력하며
+  기존 글 경로와 URL은 다시 게시할 때도 유지된다.
 - 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.

@@ -128,7 +128,7 @@
   - 수용 기준: 예약 속성은 서버가 최신 Notion 원문에서만 읽고 strict validation한다.
   - 수용 기준: preview와 publish가 동일한 `PublishDocument` 조립 경계를 사용한다.
   - 수용 기준: 브라우저가 title, category, tag, Markdown, slug를 대신 전달하지 않는다.
-- [-] Astro template v2와 v1 게시물 호환
+- [x] Astro template v2와 v1 게시물 호환
   - 수용 기준: v1/v2 mixed collection이 user/project base path에서 build된다.
   - 수용 기준: 기존 글 URL을 유지하고 v1 metadata 누락은 `미분류`로 처리한다.
   - 수용 기준: compatibility reader를 v2 Markdown writer보다 먼저 배포한다.
