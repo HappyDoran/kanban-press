@@ -297,10 +297,40 @@ Pages 성공을 최우선으로 하고, Actions 실패 conclusion은 `failed`, �
 - repository 조건: 개인 계정 소유, public, 현재 사용자에게 push 권한이 있음
 - 게시 반영: GitHub Contents/Git Data API로 생성된 정적 파일을 직접 commit
 
+repository 확인 응답은 기본 branch와 함께 다음 readiness를 반환한다.
+
+```text
+GitHubPagesReadiness
+  state: ready | pages_setup_required | repository_not_managed
+  pagesSettingsUrl: GitHub repository Pages settings URL
+  managedPaths: 이번 게시가 생성·갱신할 repository 상대 경로 목록
+  conflictingPaths: 보호 때문에 게시를 차단한 기존 경로 목록
+```
+
+- `ready`: 빈 repository, 앱 marker가 있는 repository, 또는 앱이 생성한 v1 경로와
+  `src/content/blog/*.md`만 가진 legacy repository이며 Pages source가 GitHub Actions다.
+- `pages_setup_required`: repository는 게시 가능한 구조지만 Pages가 아직 없거나 source가
+  GitHub Actions가 아니다. 앱은 commit 전에 중단하고 Settings의 Pages 화면을 안내한다.
+- `repository_not_managed`: 비어 있지 않고 앱 marker/legacy 경로 규칙을 만족하지 않는다.
+  기존 파일을 보호하기 위해 게시를 중단하고 충돌 경로를 표시한다.
+
+publisher는 `.notion-kanban-blog/managed.json` marker를 결정적으로 생성한다. marker에는
+publisher와 template version만 두며 token, 사용자 ID, repository ID를 넣지 않는다.
+legacy repository는 다음 성공 게시에서 marker를 함께 받아 이후 앱 관리 repository가 된다.
+workflow의 push branch는 고정 `main`이 아니라 검증된 repository `defaultBranch`를 사용한다.
+게시 orchestration은 Notion 원문을 commit하기 직전에 readiness를 다시 확인하며 브라우저가
+전달한 readiness나 경로 목록을 신뢰하지 않는다.
+
 브라우저가 repository 이름이나 소유자를 선택하지 않는다. 서버는 매 확인·게시 요청마다
 OAuth token의 `public_repo` 또는 상위 `repo` scope와 `workflow` scope, repository
 owner numeric ID, 정확한 repository 이름, public 여부와 push 권한을 다시 확인한다.
 OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않는다.
+
+상태 조회가 반환하는 `actionsUrl`은 현재 화면의 게시 중·실패·완료 카드에서 GitHub Actions
+로그 링크로 제공한다. URL은 GitHub adapter가 검증한 `https://github.com/<owner>/<repo>/actions/`
+하위 URL만 허용하며 IndexedDB에 저장하지 않는다. readiness와 provider 오류는 안정적인
+오류 code로 구분해 repository 생성, OAuth 재동의, Pages 설정, 기존 파일 확인, Actions 로그
+열기 중 가능한 복구 행동을 UI에 연결한다.
 
 ## 6. 명시적 제약
 

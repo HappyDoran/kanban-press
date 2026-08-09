@@ -75,7 +75,10 @@ Notion provider 응답은 앱 orchestration에서 정규화하고 publisher는 �
 union만 받는다. publisher가 생성하는 repository 상대 경로와 Markdown text, URL,
 code fence는 commit 전에 다시 검증한다.
 GitHub adapter는 기본 branch head/tree 조회, blob/tree/commit 생성, non-force ref
-update와 Actions/Pages 상태 조회만 담당한다. content hash 계산과 Notion→publisher
+update, repository 관리 경계·Pages readiness 판별과 Actions/Pages 상태 조회만 담당한다.
+빈 repository와 marker가 있는 repository는 허용하고, marker가 없는 repository는 앱 v1의
+허용 경로만 있는 legacy 형태일 때만 다음 게시에서 marker를 추가한다. 그 외 repository는
+기존 콘텐츠 보호를 위해 mutation 전에 거절한다. content hash 계산과 Notion→publisher
 정규화, 두 adapter의 호출 순서는 `apps/web` orchestration이 소유한다.
 
 ## 5. 쿠키 envelope

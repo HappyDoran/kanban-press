@@ -41,6 +41,9 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
   `esbuild`만 `allowBuilds`로 허용
 - `actions/upload-pages-artifact@v5` + `actions/deploy-pages@v5` GitHub Pages workflow
 - GitHub Contents 또는 Git Data API로 결정적 파일 반영
+- Git tree 조회로 empty/app-managed/legacy/unmanaged repository를 구분하고 unmanaged
+  repository에는 commit하지 않음
+- GitHub Pages API로 `build_type=workflow` readiness 확인
 - GitHub Actions와 GitHub Pages가 build/deploy 수행
 - Web 앱은 GitHub API를 polling해 결과를 표시
 
