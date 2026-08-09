@@ -118,7 +118,37 @@
   - 수용 기준: 동일 콘텐츠의 반복 게시와 중복 commit을 허용한다.
   - 수용 기준: commit SHA를 반환하고 UI가 Actions/Pages 상태를 복구한다.
 
-## P3 — 신뢰성과 운영
+## P3 — GitHub Pages 블로그 경험 확장
+
+- [ ] Pages 내보내기 readiness와 repository 보호
+  - 수용 기준: workflow branch가 실제 default branch와 일치한다.
+  - 수용 기준: Pages custom workflow 준비 상태와 기존 파일 변경 범위를 게시 전에 확인한다.
+  - 수용 기준: Actions URL과 provider별 복구 행동을 UI에서 제공한다.
+- [ ] Notion 블로그 metadata와 공유 문서 조립 계약
+  - 수용 기준: 예약 속성은 서버가 최신 Notion 원문에서만 읽고 strict validation한다.
+  - 수용 기준: preview와 publish가 동일한 `PublishDocument` 조립 경계를 사용한다.
+  - 수용 기준: 브라우저가 title, category, tag, Markdown, slug를 대신 전달하지 않는다.
+- [ ] Astro template v2와 v1 게시물 호환
+  - 수용 기준: v1/v2 mixed collection이 user/project base path에서 build된다.
+  - 수용 기준: 기존 글 URL을 유지하고 v1 metadata 누락은 `미분류`로 처리한다.
+  - 수용 기준: compatibility reader를 v2 Markdown writer보다 먼저 배포한다.
+- [ ] 카테고리 기반 홈·전체 글·상세 블로그 UI
+  - 수용 기준: 홈, `/posts/`, category index/detail, post, 404가 정적으로 생성된다.
+  - 수용 기준: 320px부터 반응형이며 JavaScript 없이 핵심 탐색이 동작한다.
+  - 수용 기준: WCAG 2.2 AA와 user/project base path 회귀 검증을 통과한다.
+- [ ] 안전한 게시 전 preview API와 UI
+  - 수용 기준: preview는 현재 사용자 소유 Notion 원문을 매 요청 다시 읽고 GitHub mutation을 하지 않는다.
+  - 수용 기준: typed DTO만 반환하며 raw HTML, Markdown, provider property, credential을 노출하지 않는다.
+  - 수용 기준: 결과는 React memory에만 존재하고 IndexedDB v12와 게시 상태를 바꾸지 않는다.
+- [ ] provider image local asset 변환과 capability URL 차단
+  - 수용 기준: signed provider URL이 preview, Markdown, 로그, commit message에 남지 않는다.
+  - 수용 기준: MIME, byte, redirect, timeout, SSRF 제한을 contract test한다.
+- [ ] preview/category/template v2 통합 E2E와 rollout
+  - 수용 기준: preview 이후 원문·권한 변경 시 publish가 최신 상태를 재검증한다.
+  - 수용 기준: 실제 provider smoke와 전체 repository 검증이 통과한다.
+  - 수용 기준: 세부 문서와 실제 구현 상태가 일치한다.
+
+## P4 — 신뢰성과 운영
 
 - [ ] provider rate limit, timeout, 사용자 재시도 UX
 - [ ] secret redaction을 포함한 구조화 로그

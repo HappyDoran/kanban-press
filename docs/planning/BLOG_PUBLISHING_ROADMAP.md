@@ -124,7 +124,7 @@ fallback으로 게시할 수 있다.
 |---|---|---|---|---|
 | title 타입 속성 | `title` | `title` | `제목 없음`은 publish 불가 | trim 후 1~2,000자 |
 | `Blog Category` | `select` | `category.name` | `미분류` | trim 후 1~80자. 속성은 있는데 타입/값이 잘못되면 `422 invalid_blog_metadata` |
-| `Blog Tags` | `multi_select` | `tags` | `[]` | 중복·공백 제거, 최대 10개, 각 1~40자. 초과/잘못된 타입은 `422` |
+| `Blog Tags` | `multi_select` | `tags` | `[]` | 중복·공백 제거, 최대 5개, 각 1~40자. 초과/잘못된 타입은 `422` |
 | `Blog Description` | `rich_text` | `description` | 첫 paragraph/quote/heading, 없으면 title | plain text 0~1,000자. annotation과 link는 description에서 제거 |
 | `Blog Published At` | `date` | `publishedAt` | Notion `created_time` | 시작 시각만 사용, 유효한 offset 포함 ISO 8601. range end는 사용하지 않음 |
 | Notion `last_edited_time` | system field | `updatedAt`, preview freshness | 없음 | 유효한 offset 포함 ISO 8601 필수 |
