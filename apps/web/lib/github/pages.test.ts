@@ -14,6 +14,32 @@ const NOW = 2_000_000_000;
 const ORIGIN = "http://localhost:3000";
 const USER_ID = "583231";
 const KEY = randomBytes(32);
+const REPOSITORY = {
+  defaultBranch: "main",
+  fullName: "octocat/octocat.github.io",
+  isPrivate: false,
+  providerRepositoryId: "123456",
+} as const;
+const HEAD_SHA = "1".repeat(40);
+const TREE_SHA = "2".repeat(40);
+
+function readinessFetch(
+  tree: unknown,
+  pages: Response = Response.json({ build_type: "workflow" }),
+) {
+  return vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(Response.json({ object: { sha: HEAD_SHA } }))
+    .mockResolvedValueOnce(pages)
+    .mockResolvedValueOnce(
+      Response.json({ sha: HEAD_SHA, tree: { sha: TREE_SHA } }),
+    )
+    .mockResolvedValueOnce(Response.json(tree));
+}
+
+function blob(path: string) {
+  return { mode: "100644", path, sha: "3".repeat(40), type: "blob" };
+}
 
 function repositoryResponse(
   overrides: Record<string, unknown> = {},
@@ -146,6 +172,143 @@ describe("GitHubPagesClient", () => {
     ).rejects.toMatchObject({
       code: "git_resource_not_found",
     } satisfies Partial<GitHubPagesError>);
+  });
+
+  it("allows an empty repository when Pages uses a workflow", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 409 }))
+        .mockResolvedValueOnce(Response.json({ build_type: "workflow" })),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toEqual({
+      conflictingPaths: [],
+      managedPaths: ["package.json"],
+      pagesSettingsUrl:
+        "https://github.com/octocat/octocat.github.io/settings/pages",
+      state: "ready",
+    });
+  });
+
+  it("allows a marker repository regardless of other regular files", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: readinessFetch({
+        tree: [
+          blob(".notion-kanban-blog/managed.json"),
+          blob("existing-user-note.txt"),
+        ],
+        truncated: false,
+      }),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toMatchObject({ conflictingPaths: [], state: "ready" });
+  });
+
+  it("allows only v1 template files and direct Markdown blog posts as legacy", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: readinessFetch({
+        tree: [
+          blob("package.json"),
+          blob("src/content/blog/first.md"),
+          blob("src/pages/posts/[...slug].astro"),
+        ],
+        truncated: false,
+      }),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toMatchObject({ conflictingPaths: [], state: "ready" });
+  });
+
+  it("protects unmanaged repository files and reports conflicts", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: readinessFetch({
+        tree: [blob("README.md"), blob("src/content/blog/first.md")],
+        truncated: false,
+      }),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toMatchObject({
+      conflictingPaths: ["README.md"],
+      state: "repository_not_managed",
+    });
+  });
+
+  it("requires Pages setup when the repository structure is publishable", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 409 }))
+        .mockResolvedValueOnce(new Response(null, { status: 404 })),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toMatchObject({ state: "pages_setup_required" });
+  });
+
+  it("reads the configured default branch head and its recursive tree", async () => {
+    const fetchMock = readinessFetch({ tree: [], truncated: false });
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: fetchMock,
+    });
+
+    await client.getRepositoryReadiness(
+      { ...REPOSITORY, defaultBranch: "release/site" },
+      ["package.json"],
+    );
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/git/ref/heads/release%2Fsite",
+    );
+    expect(String(fetchMock.mock.calls[3]?.[0])).toBe(
+      `https://api.github.com/repos/octocat/octocat.github.io/git/trees/${TREE_SHA}?recursive=1`,
+    );
+  });
+
+  it.each([
+    { tree: [blob("package.json")], truncated: true },
+    {
+      tree: [
+        {
+          mode: "120000",
+          path: "package.json",
+          sha: "3".repeat(40),
+          type: "blob",
+        },
+      ],
+      truncated: false,
+    },
+  ])("never allows a truncated or malformed tree: %j", async (tree) => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: readinessFetch(tree),
+    });
+
+    await expect(
+      client.getRepositoryReadiness(REPOSITORY, ["package.json"]),
+    ).resolves.toMatchObject({ state: "repository_not_managed" });
   });
 
   it("creates one Git commit and updates the default branch without force", async () => {
@@ -326,6 +489,34 @@ describe("GitHubPagesClient", () => {
       state: "succeeded",
     });
   });
+
+  it("drops an Actions URL outside the current repository Actions subtree", async () => {
+    const commitSha = "5".repeat(40);
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            workflow_runs: [
+              {
+                conclusion: "failure",
+                head_sha: commitSha,
+                html_url:
+                  "https://github.com/attacker/attacker.github.io/actions/runs/1",
+                status: "completed",
+              },
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(Response.json({ status: "failed" })),
+    });
+
+    await expect(
+      client.getDeploymentStatus(REPOSITORY, commitSha),
+    ).resolves.toMatchObject({ actionsUrl: null, state: "failed" });
+  });
 });
 
 describe("GitHub Pages repository route orchestration", () => {
@@ -348,6 +539,13 @@ describe("GitHub Pages repository route orchestration", () => {
       isPrivate: false,
       providerRepositoryId: "123456",
     });
+    const getRepositoryReadiness = vi.fn().mockResolvedValue({
+      conflictingPaths: [],
+      managedPaths: ["package.json"],
+      pagesSettingsUrl:
+        "https://github.com/octocat/octocat.github.io/settings/pages",
+      state: "ready",
+    });
 
     const response = await getGitHubPagesRepository(
       new Request(`${ORIGIN}/api/github/pages-repository`, {
@@ -360,15 +558,30 @@ describe("GitHub Pages repository route orchestration", () => {
             commitArtifacts: vi.fn(),
             getDeploymentStatus: vi.fn(),
             getPagesRepository,
+            getRepositoryReadiness,
           };
         },
         sessionCodec,
       },
     );
     const body = await response.text();
+    const parsedBody = JSON.parse(body) as Record<string, unknown>;
 
     expect(response.status).toBe(200);
     expect(body).not.toContain("never-return-this-oauth-token");
+    expect(parsedBody).toMatchObject({
+      readiness: {
+        conflictingPaths: [],
+        pagesSettingsUrl:
+          "https://github.com/octocat/octocat.github.io/settings/pages",
+        state: "ready",
+      },
+      repository: { defaultBranch: "main" },
+    });
     expect(getPagesRepository).toHaveBeenCalledWith(USER_ID, "octocat");
+    expect(getRepositoryReadiness).toHaveBeenCalledWith(
+      expect.objectContaining({ fullName: "octocat/octocat.github.io" }),
+      expect.arrayContaining(["package.json", "src/pages/index.astro"]),
+    );
   });
 });

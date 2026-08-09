@@ -23,11 +23,23 @@ export interface GitHubDeploymentStatus {
   state: "failed" | "in_progress" | "queued" | "succeeded";
 }
 
+export interface GitHubPagesReadiness {
+  conflictingPaths: readonly string[];
+  managedPaths: readonly string[];
+  pagesSettingsUrl: string;
+  state: "pages_setup_required" | "ready" | "repository_not_managed";
+}
+
 export interface GitHubRepositoryAdapter {
   getPagesRepository(
     ownerUserId: UserId,
     ownerLogin: string,
   ): Promise<GitHubRepository>;
+
+  getRepositoryReadiness(
+    repository: GitHubRepository,
+    managedPaths: readonly string[],
+  ): Promise<GitHubPagesReadiness>;
 
   commitArtifacts(
     repository: GitHubRepository,

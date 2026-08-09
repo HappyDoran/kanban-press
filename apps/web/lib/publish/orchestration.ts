@@ -117,10 +117,25 @@ export async function publishNotionPage(
       left.path.localeCompare(right.path),
     );
     const contentHash = artifactHash(artifacts);
+    const commitMessage =
+      `Publish ${page.title.slice(0, 150)} ` +
+      `(${contentHash.slice(0, 12)}; ${randomUUID()})`;
+    const readiness = await github.getRepositoryReadiness(
+      repository,
+      artifacts.map((artifact) => artifact.path),
+    );
+    if (readiness.state !== "ready") {
+      return errorResponse(
+        409,
+        readiness.state === "pages_setup_required"
+          ? "github_pages_setup_required"
+          : "github_repository_not_managed",
+      );
+    }
     const committed = await github.commitArtifacts(
       repository,
       artifacts,
-      `Publish ${page.title.slice(0, 150)} (${contentHash.slice(0, 12)}; ${randomUUID()})`,
+      commitMessage,
     );
     return Response.json(
       {

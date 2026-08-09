@@ -3,9 +3,11 @@ import type {
   GitHubArtifact,
   GitHubCommitResult,
   GitHubDeploymentStatus,
+  GitHubPagesReadiness,
   GitHubRepository,
   GitHubRepositoryAdapter,
 } from "@notion-kanban-blog/github";
+import { createAstroTemplateManifest } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
 import {
@@ -72,6 +74,60 @@ const workflowRunsSchema = z
 const pagesDeploymentSchema = z
   .object({ status: z.string() })
   .passthrough();
+const pagesSettingsSchema = z
+  .object({ build_type: z.string() })
+  .passthrough();
+const gitTreePathSchema = z.string().min(1).max(1_024).refine(
+  (path) =>
+    !path.startsWith("/") &&
+    path
+      .split("/")
+      .every(
+        (segment) =>
+          segment.length > 0 && segment !== "." && segment !== "..",
+      ),
+);
+const gitTreeSchema = z
+  .object({
+    tree: z.array(
+      z.discriminatedUnion("type", [
+        z
+          .object({
+            mode: z.literal("100644"),
+            path: gitTreePathSchema,
+            sha: gitShaSchema,
+            type: z.literal("blob"),
+          })
+          .passthrough(),
+        z
+          .object({
+            mode: z.literal("040000"),
+            path: gitTreePathSchema,
+            sha: gitShaSchema,
+            type: z.literal("tree"),
+          })
+          .passthrough(),
+      ]),
+    ),
+    truncated: z.boolean(),
+  })
+  .passthrough();
+
+const MANAGED_MARKER_PATH = ".notion-kanban-blog/managed.json";
+const LEGACY_V1_PATHS = new Set([
+  ".github/workflows/deploy.yml",
+  ".gitignore",
+  "astro.config.mjs",
+  "package.json",
+  "pnpm-workspace.yaml",
+  "src/content.config.ts",
+  "src/content/blog/.gitkeep",
+  "src/layouts/BaseLayout.astro",
+  "src/pages/index.astro",
+  "src/pages/posts/[...slug].astro",
+  "tsconfig.json",
+]);
+const LEGACY_BLOG_POST_PATH = /^src\/content\/blog\/[^/]+\.md$/;
 
 export interface GitHubPagesDependencies {
   client: GitHubRepositoryAdapter;
@@ -242,6 +298,86 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     return { commitSha: commit.sha, created: true };
   }
 
+  async getRepositoryReadiness(
+    repository: GitHubRepository,
+    managedPaths: readonly string[],
+  ): Promise<GitHubPagesReadiness> {
+    const target = repositoryTarget(repository);
+    const paths = parseManagedPaths(managedPaths);
+    const pagesSettingsUrl = repositoryPagesSettingsUrl(repository);
+    const encodedBranch = encodeURIComponent(repository.defaultBranch);
+    const [reference, pages] = await Promise.all([
+      this.#optionalJson(
+        `${GITHUB_API_ORIGIN}/repos/${target}/git/ref/heads/${encodedBranch}`,
+        gitRefSchema,
+        new Set([404, 409]),
+      ),
+      this.#optionalJson(
+        `${GITHUB_API_ORIGIN}/repos/${target}/pages`,
+        pagesSettingsSchema,
+      ),
+    ]);
+
+    let conflictingPaths: string[] = [];
+    if (reference !== null) {
+      const headCommit = await this.#json(
+        `/repos/${target}/git/commits/${reference.object.sha}`,
+        gitCommitSchema,
+      );
+      const treeUrl = new URL(
+        `${GITHUB_API_ORIGIN}/repos/${target}/git/trees/${headCommit.tree.sha}`,
+      );
+      treeUrl.searchParams.set("recursive", "1");
+      const response = await this.#fetch(treeUrl, {
+        headers: this.#headers(),
+      });
+      if (!response.ok) {
+        throw providerError(response, "git_resource_not_found");
+      }
+      const parsedTree = gitTreeSchema.safeParse(await safeJson(response));
+      if (
+        !parsedTree.success ||
+        parsedTree.data.truncated ||
+        hasDuplicateTreePaths(parsedTree.data.tree)
+      ) {
+        return {
+          conflictingPaths: [],
+          managedPaths: paths,
+          pagesSettingsUrl,
+          state: "repository_not_managed",
+        };
+      }
+      const blobs = parsedTree.data.tree
+        .filter((entry) => entry.type === "blob")
+        .map((entry) => entry.path);
+      const hasMarker = blobs.includes(MANAGED_MARKER_PATH);
+      if (!hasMarker) {
+        conflictingPaths = blobs
+          .filter(
+            (path) =>
+              !LEGACY_V1_PATHS.has(path) && !LEGACY_BLOG_POST_PATH.test(path),
+          )
+          .sort((left, right) => left.localeCompare(right));
+      }
+    }
+
+    if (conflictingPaths.length > 0) {
+      return {
+        conflictingPaths,
+        managedPaths: paths,
+        pagesSettingsUrl,
+        state: "repository_not_managed",
+      };
+    }
+    return {
+      conflictingPaths: [],
+      managedPaths: paths,
+      pagesSettingsUrl,
+      state:
+        pages?.build_type === "workflow" ? "ready" : "pages_setup_required",
+    };
+  }
+
   async getDeploymentStatus(
     repository: GitHubRepository,
     commitSha: string,
@@ -268,7 +404,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
 
     if (pages?.status === "succeed") {
       return {
-        actionsUrl: run?.html_url ?? null,
+        actionsUrl: safeActionsUrl(repository, run?.html_url),
         pageUrl,
         state: "succeeded",
       };
@@ -278,7 +414,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       ["cancelled", "error", "errored", "failed"].includes(pages.status)
     ) {
       return {
-        actionsUrl: run?.html_url ?? null,
+        actionsUrl: safeActionsUrl(repository, run?.html_url),
         pageUrl,
         state: "failed",
       };
@@ -289,13 +425,21 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       run.conclusion !== "neutral" &&
       run.conclusion !== "skipped"
     ) {
-      return { actionsUrl: run.html_url, pageUrl, state: "failed" };
+      return {
+        actionsUrl: safeActionsUrl(repository, run.html_url),
+        pageUrl,
+        state: "failed",
+      };
     }
     if (run?.status === "completed" && run.conclusion === "success") {
-      return { actionsUrl: run.html_url, pageUrl, state: "in_progress" };
+      return {
+        actionsUrl: safeActionsUrl(repository, run.html_url),
+        pageUrl,
+        state: "in_progress",
+      };
     }
     return {
-      actionsUrl: run?.html_url ?? null,
+      actionsUrl: safeActionsUrl(repository, run?.html_url),
       pageUrl,
       state: run?.status === "in_progress" ? "in_progress" : "queued",
     };
@@ -362,6 +506,15 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     }
     return parsed.data;
   }
+
+  #headers(): HeadersInit {
+    return {
+      accept: "application/vnd.github+json",
+      authorization: `Bearer ${this.#accessToken}`,
+      "user-agent": "notion-kanban-blog",
+      "x-github-api-version": this.#apiVersion,
+    };
+  }
 }
 
 export class GitHubPagesError extends Error {
@@ -401,11 +554,23 @@ export async function getGitHubPagesRepository(
   }
 
   try {
-    const repository = await dependencies
-      .createClient(session.accessToken)
-      .getPagesRepository(session.userId, session.githubLogin);
+    const client = dependencies.createClient(session.accessToken);
+    const repository = await client.getPagesRepository(
+      session.userId,
+      session.githubLogin,
+    );
+    const [owner = "", name = ""] = repository.fullName.split("/");
+    const managedPaths = createAstroTemplateManifest({
+      defaultBranch: repository.defaultBranch,
+      owner,
+      repository: name,
+    }).artifacts.map((artifact) => artifact.path);
+    const readiness = await client.getRepositoryReadiness(
+      repository,
+      managedPaths,
+    );
     return Response.json(
-      { repository },
+      { readiness, repository },
       { headers: { "cache-control": "no-store" } },
     );
   } catch (error) {
@@ -504,6 +669,50 @@ function parseArtifacts(
     }
     return artifact;
   });
+}
+
+function parseManagedPaths(paths: readonly string[]): string[] {
+  if (paths.length === 0 || paths.length > 200) {
+    throw new GitHubPagesError("invalid_response");
+  }
+  const parsed = paths.map((path) => gitTreePathSchema.parse(path));
+  if (new Set(parsed).size !== parsed.length) {
+    throw new GitHubPagesError("invalid_response");
+  }
+  return parsed.sort((left, right) => left.localeCompare(right));
+}
+
+function hasDuplicateTreePaths(
+  entries: readonly { path: string }[],
+): boolean {
+  return new Set(entries.map((entry) => entry.path)).size !== entries.length;
+}
+
+function repositoryPagesSettingsUrl(repository: GitHubRepository): string {
+  const [owner, name] = repository.fullName.split("/");
+  return `https://github.com/${owner}/${name}/settings/pages`;
+}
+
+function safeActionsUrl(
+  repository: GitHubRepository,
+  candidate: string | undefined,
+): string | null {
+  if (candidate === undefined) {
+    return null;
+  }
+  try {
+    const url = new URL(candidate);
+    const [owner, name] = repository.fullName.split("/");
+    const requiredPrefix = `/${owner}/${name}/actions/`.toLowerCase();
+    return url.origin === "https://github.com" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.pathname.toLowerCase().startsWith(requiredPrefix)
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function providerError(

@@ -104,6 +104,13 @@ async function fixture() {
     commitSha: COMMIT_SHA,
     created: true,
   });
+  const getRepositoryReadiness = vi.fn().mockResolvedValue({
+    conflictingPaths: [],
+    managedPaths: ["package.json"],
+    pagesSettingsUrl:
+      "https://github.com/octocat/octocat.github.io/settings/pages",
+    state: "ready",
+  });
   const getDeploymentStatus = vi.fn().mockResolvedValue({
     actionsUrl:
       "https://github.com/octocat/octocat.github.io/actions/runs/1",
@@ -114,6 +121,7 @@ async function fixture() {
     commitArtifacts,
     getDeploymentStatus,
     getPagesRepository,
+    getRepositoryReadiness,
   };
   const dependencies: PublishDependencies = {
     appOrigin: ORIGIN,
@@ -136,6 +144,7 @@ async function fixture() {
     getDeploymentStatus,
     getPageContent,
     getPagesRepository,
+    getRepositoryReadiness,
   };
 }
 
@@ -171,6 +180,13 @@ describe("publish orchestration", () => {
     expect(context.getPagesRepository).toHaveBeenCalledWith(
       USER_ID,
       "octocat",
+    );
+    expect(context.getRepositoryReadiness).toHaveBeenCalledWith(
+      expect.objectContaining({ fullName: "octocat/octocat.github.io" }),
+      expect.arrayContaining([
+        "package.json",
+        "src/content/blog/notion-9188c6a57381.md",
+      ]),
     );
     const artifacts = context.commitArtifacts.mock.calls[0]?.[1] as
       | readonly GitHubArtifact[]
@@ -223,6 +239,46 @@ describe("publish orchestration", () => {
     expect(secondMessage).not.toBe(firstMessage);
   });
 
+  it.each([
+    ["pages_setup_required", "github_pages_setup_required"],
+    ["repository_not_managed", "github_repository_not_managed"],
+  ] as const)(
+    "stops with 409 before commit when readiness is %s",
+    async (state, code) => {
+      const context = await fixture();
+      context.getRepositoryReadiness.mockResolvedValue({
+        conflictingPaths:
+          state === "repository_not_managed" ? ["README.md"] : [],
+        managedPaths: ["package.json"],
+        pagesSettingsUrl:
+          "https://github.com/octocat/octocat.github.io/settings/pages",
+        state,
+      });
+
+      const response = await publishNotionPage(
+        new Request(`${ORIGIN}/api/publish`, {
+          body: JSON.stringify({
+            connectionId: CONNECTION_ID,
+            providerPageId: PAGE_ID,
+          }),
+          headers: {
+            "content-type": "application/json",
+            cookie: context.cookie,
+            origin: ORIGIN,
+          },
+          method: "POST",
+        }),
+        context.dependencies,
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({ error: code });
+      expect(context.getPageContent).toHaveBeenCalledWith(PAGE_ID);
+      expect(context.getRepositoryReadiness).toHaveBeenCalledOnce();
+      expect(context.commitArtifacts).not.toHaveBeenCalled();
+    },
+  );
+
   it("rejects cross-origin mutations before using provider credentials", async () => {
     const context = await fixture();
     const response = await publishNotionPage(
@@ -237,6 +293,34 @@ describe("publish orchestration", () => {
     expect(response.status).toBe(403);
     expect(context.getPageContent).not.toHaveBeenCalled();
     expect(context.getPagesRepository).not.toHaveBeenCalled();
+  });
+
+  it("rejects browser-supplied readiness input", async () => {
+    const context = await fixture();
+    const response = await publishNotionPage(
+      new Request(`${ORIGIN}/api/publish`, {
+        body: JSON.stringify({
+          connectionId: CONNECTION_ID,
+          providerPageId: PAGE_ID,
+          readiness: { state: "ready" },
+        }),
+        headers: {
+          "content-type": "application/json",
+          cookie: context.cookie,
+          origin: ORIGIN,
+        },
+        method: "POST",
+      }),
+      context.dependencies,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_publish_request",
+    });
+    expect(context.getPageContent).not.toHaveBeenCalled();
+    expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
+    expect(context.commitArtifacts).not.toHaveBeenCalled();
   });
 
   it("revalidates repository ownership before restoring deployment status", async () => {
