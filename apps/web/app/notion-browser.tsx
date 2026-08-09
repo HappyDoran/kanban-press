@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -9,6 +10,7 @@ import {
 } from "react";
 
 import { BoardRepository } from "../lib/board/repository";
+import { formatEditedAt } from "../lib/format-date";
 import {
   hasConfirmedNavigableChildren,
   pageActionAvailability,
@@ -25,6 +27,7 @@ import { GitHubPagesTarget } from "./github-pages-target";
 import { KanbanBoard, type KanbanRecord } from "./kanban-board";
 
 import type { BoardColumn } from "@notion-kanban-blog/domain";
+import type { ReactNode } from "react";
 import type { BoardRecord } from "../lib/board/repository";
 
 interface Connection {
@@ -49,11 +52,11 @@ type OutlineNode = ClientOutlineNode;
 type LoadState = "error" | "loading" | "ready";
 type SessionState = "error" | "loading" | "signed-in" | "signed-out";
 type PublishViewState =
-  | { column: "published"; publishedUrl: string }
-  | { column: "publishing"; publishedUrl: null };
+  | { column: "published"; publishedUrl: string; startedAt: null }
+  | { column: "publishing"; publishedUrl: null; startedAt: number };
 const STRUCTURE_INSPECTION_CONCURRENCY = 3;
 
-export function NotionBrowser() {
+export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
   const [sessionState, setSessionState] = useState<SessionState>("loading");
   const [githubLogin, setGitHubLogin] = useState("");
   const [githubUserId, setGitHubUserId] = useState<string | null>(null);
@@ -356,6 +359,7 @@ export function NotionBrowser() {
             ...record,
             column: view?.column ?? "stored",
             publishedUrl: view?.publishedUrl ?? null,
+            publishStartedAt: view?.startedAt ?? null,
           };
         }),
     [boardRecords, publishViewStates],
@@ -538,7 +542,11 @@ export function NotionBrowser() {
     });
     setPublishViewStates((current) => ({
       ...current,
-      [key]: { column: "publishing", publishedUrl: null },
+      [key]: {
+        column: "publishing",
+        publishedUrl: null,
+        startedAt: Date.now(),
+      },
     }));
     try {
       const current = await repository.get(
@@ -606,6 +614,7 @@ export function NotionBrowser() {
                 [key]: {
                   column: "published",
                   publishedUrl: result.pageUrl,
+                  startedAt: null,
                 },
               }));
             }
@@ -659,32 +668,70 @@ export function NotionBrowser() {
   );
 
   return (
-    <section aria-labelledby="notion-browser-title" className="notionBrowser">
-      <div className="sectionHeading">
-        <p className="eyebrow">Your workspace</p>
-        <div>
-          <h2 id="notion-browser-title">Notion 문서 탐색</h2>
+    <>
+      <nav aria-label="주요 탐색" className="navigation">
+        <Link aria-label="Notion Kanban Blog 홈" className="brand" href="/">
+          <span aria-hidden="true" className="brandMark">
+            ●
+          </span>
+          <span>Notion Kanban Blog</span>
+        </Link>
+        <div className="navigationActions">
           {sessionState === "signed-in" ? (
-            <p className="sectionDescription">
-              @{githubLogin} 계정에 연결된 문서만 표시합니다.
-            </p>
+            <>
+              <span className="sessionChip">@{githubLogin}</span>
+              <Link
+                className="notionLink"
+                href="/auth/notion/start?returnTo=%2F"
+                prefetch={false}
+              >
+                Notion 연결
+              </Link>
+              <Link
+                className="quietLink"
+                href="/auth/logout"
+                prefetch={false}
+              >
+                로그아웃
+              </Link>
+            </>
+          ) : null}
+          {sessionState === "signed-out" ? (
+            <Link
+              className="loginLink"
+              href="/auth/github/start?returnTo=%2F"
+              prefetch={false}
+            >
+              GitHub로 시작
+            </Link>
           ) : null}
         </div>
-      </div>
-
-      {sessionState === "loading" ? (
-        <StatusPanel message="연결 정보를 확인하고 있습니다." />
-      ) : null}
+      </nav>
 
       {sessionState === "signed-out" ? (
-        <StatusPanel
-          actionHref="/auth/github/start?returnTo=%2F"
-          actionLabel="GitHub로 시작"
-          message="GitHub로 로그인하면 개인 Notion 문서 공간을 불러올 수 있습니다."
-        />
-      ) : null}
+        marketing
+      ) : (
+        <section
+          aria-labelledby="notion-browser-title"
+          className="notionBrowser"
+        >
+          <div className="sectionHeading">
+            <p className="eyebrow">Your workspace</p>
+            <div>
+              <h2 id="notion-browser-title">Notion 문서 탐색</h2>
+              {sessionState === "signed-in" ? (
+                <p className="sectionDescription">
+                  @{githubLogin} 계정에 연결된 문서만 표시합니다.
+                </p>
+              ) : null}
+            </div>
+          </div>
 
-      {sessionState === "error" || connectionState === "error" ? (
+          {sessionState === "loading" ? (
+            <StatusPanel message="연결 정보를 확인하고 있습니다." />
+          ) : null}
+
+          {sessionState === "error" || connectionState === "error" ? (
         <StatusPanel
           action={() => setReloadKey((value) => value + 1)}
           actionLabel="다시 시도"
@@ -799,10 +846,12 @@ export function NotionBrowser() {
         </div>
       ) : null}
 
-      {sessionState === "signed-in" ? (
-        <GitHubPagesTarget githubLogin={githubLogin} />
-      ) : null}
-    </section>
+          {sessionState === "signed-in" ? (
+            <GitHubPagesTarget githubLogin={githubLogin} />
+          ) : null}
+        </section>
+      )}
+    </>
   );
 }
 
@@ -1450,11 +1499,6 @@ function pageErrorMessage(error: unknown): string {
   return "Notion 문서를 불러오지 못했습니다.";
 }
 
-function formatEditedAt(value: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}
 
 async function safeJson(response: Response): Promise<unknown> {
   try {

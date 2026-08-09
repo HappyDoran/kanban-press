@@ -19,8 +19,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { BOARD_COLUMNS } from "@notion-kanban-blog/domain";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { formatEditedAt } from "../lib/format-date";
 import {
   boardDropAction,
   preferredPointerDropId,
@@ -41,12 +42,19 @@ import type { BoardRecord } from "../lib/board/repository";
 export type KanbanRecord = Omit<BoardRecord, "column"> & {
   column: BoardColumn;
   publishedUrl: string | null;
+  publishStartedAt: number | null;
 };
 
 const COLUMN_LABELS: Readonly<Record<BoardColumn, string>> = {
   published: "게시 완료",
   publishing: "게시 중",
   stored: "보관 중",
+};
+
+const COLUMN_MARKS: Readonly<Record<BoardColumn, string>> = {
+  published: "●",
+  publishing: "◐",
+  stored: "○",
 };
 
 interface KanbanBoardProps {
@@ -177,6 +185,31 @@ export function KanbanBoard({
         </div>
       ) : (
         <DndContext
+          accessibility={{
+            announcements: {
+              onDragCancel: () => "카드 이동을 취소했습니다.",
+              onDragEnd: ({ over }) => {
+                const label = overColumnLabel(over, grouped);
+                return label === null
+                  ? "카드를 원래 자리에 두었습니다."
+                  : `카드를 ${label}에 놓았습니다.`;
+              },
+              onDragOver: ({ over }) => {
+                const label = overColumnLabel(over, grouped);
+                return label === null
+                  ? "놓을 수 있는 위치 밖입니다."
+                  : `${label} 위에 있습니다.`;
+              },
+              onDragStart: ({ active }) => {
+                const record = findRecord(active, records);
+                return `${record?.title ?? "카드"}를 집었습니다.`;
+              },
+            },
+            screenReaderInstructions: {
+              draggable:
+                "스페이스 키로 카드를 집고 화살표 키로 이동한 뒤 스페이스 키로 놓습니다. Esc 키로 취소합니다.",
+            },
+          }}
           collisionDetection={kanbanCollisionDetection}
           onDragCancel={() => setActiveId(null)}
           onDragEnd={(event) => void handleDragEnd(event)}
@@ -242,6 +275,9 @@ function KanbanColumn({
       ref={setNodeRef}
     >
       <header>
+        <span aria-hidden="true" className="columnMark">
+          {COLUMN_MARKS[column]}
+        </span>
         <h3>{COLUMN_LABELS[column]}</h3>
         <span>{records.length}</span>
       </header>
@@ -390,10 +426,21 @@ function BoardCard({
         ) : null}
       </div>
       <h4>{record.title}</h4>
-      <p>원문 수정 {formatDate(record.sourceLastEditedAt)}</p>
+      <p>원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
       {!overlay && record.column === "publishing" ? (
         <p className="publishStatus" role="status">
-          GitHub Pages 배포 상태를 확인하고 있습니다.
+          <span aria-hidden="true" className="pulseDot">
+            ◐
+          </span>
+          <span>
+            GitHub Pages 배포 중
+            {record.publishStartedAt === null ? null : (
+              <>
+                {" · "}
+                <PublishElapsed since={record.publishStartedAt} />
+              </>
+            )}
+          </span>
         </p>
       ) : null}
       {!overlay &&
@@ -417,6 +464,29 @@ function BoardCard({
       ) : null}
     </article>
   );
+}
+
+function PublishElapsed({ since }: { since: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const seconds = Math.max(0, Math.floor((now - since) / 1_000));
+  const minutes = Math.floor(seconds / 60);
+  return (
+    <>
+      {minutes}:{String(seconds % 60).padStart(2, "0")} 경과
+    </>
+  );
+}
+
+function overColumnLabel(
+  over: Over | null,
+  grouped: Readonly<Record<BoardColumn, readonly KanbanRecord[]>>,
+): string | null {
+  const target = dropTarget(over, grouped);
+  return target === null ? null : COLUMN_LABELS[target.column];
 }
 
 function dropTarget(
@@ -470,6 +540,7 @@ function compareRecords(left: KanbanRecord, right: KanbanRecord): number {
   return left.position - right.position;
 }
 
+// ponytail: announcements가 render마다 새 객체 — dnd-kit이 ref로 들고 있어 무해, 문제 생기면 useMemo.
 const kanbanCollisionDetection: CollisionDetection = (arguments_) => {
   const pointerCollisions = pointerWithin(arguments_);
   if (pointerCollisions.length > 0) {
@@ -499,9 +570,3 @@ const kanbanCollisionDetection: CollisionDetection = (arguments_) => {
     (collision) => collision.id !== arguments_.active.id,
   );
 };
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}

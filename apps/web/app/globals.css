@@ -1,11 +1,36 @@
+/* ── 토큰: 편집실(proof room) 시스템 ─────────────────────────── */
 :root {
   color-scheme: light;
-  --background: #f4f1e8;
-  --foreground: #171713;
-  --muted: #67665f;
-  --line: #d6d1c5;
-  --accent: #da4f34;
-  --surface: rgba(255, 255, 255, 0.44);
+
+  /* 지면 */
+  --paper: #f6f6f1;
+  --card: #ffffff;
+  --ink: #1c2230;
+  --graphite: #5b6270;
+  --rule: #d8d9cf;
+  --rule-soft: color-mix(in srgb, var(--rule) 65%, transparent);
+
+  /* 브랜드 · 상태 */
+  --indigo: #34509e;
+  --indigo-soft: color-mix(in srgb, var(--indigo) 8%, transparent);
+  --amber: #96690f;
+  --amber-soft: color-mix(in srgb, #b7791f 12%, transparent);
+  --green: #2e7d4f;
+  --green-soft: color-mix(in srgb, var(--green) 10%, transparent);
+  --proof-red: #b0402a;
+  --proof-red-soft: color-mix(in srgb, var(--proof-red) 9%, transparent);
+
+  /* 타이포 */
+  --font-title: var(--font-display), "Gowun Batang", Georgia, serif;
+  --font-ui: var(--font-body), "IBM Plex Sans KR", "Apple SD Gothic Neo",
+    sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* 형태 */
+  --radius-s: 0.3rem;
+  --radius-m: 0.55rem;
+  --shadow-card: 0 1px 2px rgba(28, 34, 48, 0.05);
+  --shadow-lift: 0 0.8rem 2rem rgba(28, 34, 48, 0.16);
 }
 
 * {
@@ -13,109 +38,29 @@
 }
 
 html {
-  background: var(--background);
+  background: var(--paper);
 }
 
 body {
   margin: 0;
-  color: var(--foreground);
-  background:
-    radial-gradient(circle at 80% 6%, rgba(218, 79, 52, 0.12), transparent 28rem),
-    var(--background);
-  font-family:
-    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: var(--font-ui);
 }
 
 a {
   color: inherit;
 }
 
+:focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+}
+
 main {
   width: min(100% - 2rem, 76rem);
   min-height: 100vh;
   margin: 0 auto;
-}
-
-.navigation {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 5.5rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.brand {
-  display: inline-flex;
-  gap: 0.7rem;
-  align-items: center;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-decoration: none;
-  letter-spacing: -0.02em;
-}
-
-.brandMark {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  color: white;
-  background: var(--foreground);
-  border-radius: 0.35rem;
-  place-items: center;
-}
-
-.status {
-  padding: 0.45rem 0.75rem;
-  color: var(--muted);
-  font-size: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-
-.navigationActions {
-  display: flex;
-  gap: 0.65rem;
-  align-items: center;
-}
-
-.loginLink {
-  padding: 0.55rem 0.85rem;
-  color: white;
-  background: var(--foreground);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: 999px;
-}
-
-.notionLink {
-  padding: 0.55rem 0.85rem;
-  color: var(--foreground);
-  background: var(--surface);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-}
-
-.notionLink:focus-visible,
-.loginLink:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  outline-offset: 3px;
-}
-
-.hero {
-  padding: clamp(5rem, 12vw, 10rem) 0 clamp(5rem, 10vw, 8rem);
-}
-
-.eyebrow {
-  margin: 0 0 1.25rem;
-  color: var(--accent);
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
 }
 
 h1,
@@ -125,99 +70,303 @@ p {
   text-wrap: pretty;
 }
 
-h1 {
-  max-width: 14ch;
-  margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(3.2rem, 9vw, 7.8rem);
+/* ── 내비게이션 ──────────────────────────────────────────────── */
+.navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.brand {
+  display: inline-flex;
+  gap: 0.7rem;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.brandMark {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  color: #fff;
+  background: var(--indigo);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  border-radius: var(--radius-s);
+  place-items: center;
+}
+
+.navigationActions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.sessionChip {
+  padding: 0.4rem 0.7rem;
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-s);
+}
+
+.loginLink,
+.notionLink,
+.quietLink {
+  padding: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: var(--radius-s);
+}
+
+.loginLink {
+  color: #fff;
+  background: var(--ink);
+}
+
+.notionLink {
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--rule);
+}
+
+.quietLink {
+  color: var(--graphite);
   font-weight: 500;
-  line-height: 0.95;
-  letter-spacing: -0.065em;
+}
+
+/* ── 히어로 + 발행 궤도(rail) ────────────────────────────────── */
+.hero {
+  padding: clamp(4rem, 10vw, 8rem) 0 clamp(3rem, 7vw, 5rem);
+}
+
+.eyebrow {
+  margin: 0 0 1.1rem;
+  color: var(--indigo);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: clamp(2.6rem, 7vw, 5.4rem);
+  font-weight: 400;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
 }
 
 .lede {
   max-width: 38rem;
-  margin: 2.5rem 0 0 auto;
-  color: var(--muted);
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  line-height: 1.75;
+  margin: 2rem 0 0;
+  color: var(--graphite);
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.8;
 }
 
+.heroActions {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-top: 2.25rem;
+}
+
+.heroCta {
+  padding: 0.75rem 1.3rem;
+  color: #fff;
+  background: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: var(--radius-s);
+}
+
+.rail {
+  display: flex;
+  margin-top: clamp(2.5rem, 6vw, 4rem);
+  align-items: center;
+  gap: 0.9rem;
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
+.railStop {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  opacity: 0;
+  animation: railIn 0.45s ease forwards;
+}
+
+.railStop:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.railStop:nth-child(5) {
+  animation-delay: 0.6s;
+}
+
+.railLine {
+  flex: 0 1 5rem;
+  border-top: 1px solid var(--rule);
+}
+
+.railDot {
+  color: var(--indigo);
+  font-size: 0.85rem;
+}
+
+@keyframes railIn {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 섹션 공통 ──────────────────────────────────────────────── */
 .workflow {
-  padding: 3rem 0 6rem;
-  border-top: 1px solid var(--line);
+  padding: 3rem 0 5rem;
+  border-top: 1px solid var(--rule);
 }
 
 .notionBrowser {
-  padding: 4rem 0;
-  border-top: 1px solid var(--line);
+  padding: 3.5rem 0;
 }
 
 .notionBrowser .sectionHeading > div {
   max-width: 38rem;
 }
 
+.sectionHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 2.25rem;
+}
+
+.sectionHeading .eyebrow {
+  margin: 0;
+}
+
+h2 {
+  margin: 0;
+  font-family: var(--font-title);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .sectionDescription {
-  margin: 0.65rem 0 0;
-  color: var(--muted);
+  margin: 0.6rem 0 0;
+  color: var(--graphite);
   font-size: 0.85rem;
 }
 
+h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.workflowGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.workflowGrid li {
+  padding: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
+}
+
+.stepMark {
+  display: block;
+  margin-bottom: 2.75rem;
+  color: var(--indigo);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+
+.workflowGrid p {
+  margin: 0;
+  color: var(--graphite);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+/* ── 상태 패널 ──────────────────────────────────────────────── */
 .statusPanel {
   display: flex;
-  min-height: 12rem;
+  min-height: 11rem;
   padding: 1.5rem;
   align-items: center;
   justify-content: center;
   flex-direction: column;
   gap: 1rem;
   text-align: center;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
 }
 
 .statusPanel.compact {
-  min-height: 10rem;
+  min-height: 9rem;
   margin: 1rem;
 }
 
 .statusPanel p {
   max-width: 36rem;
   margin: 0;
-  color: var(--muted);
+  color: var(--graphite);
   font-size: 0.9rem;
   line-height: 1.6;
 }
 
 .statusPanel a,
 .statusPanel button {
-  padding: 0.6rem 0.9rem;
-  color: white;
-  background: var(--foreground);
+  padding: 0.6rem 0.95rem;
+  color: #fff;
+  background: var(--ink);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
   text-decoration: none;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-s);
   cursor: pointer;
 }
 
+/* ── 문서 탐색기 ────────────────────────────────────────────── */
 .documentExplorer {
   display: grid;
   min-height: 30rem;
   grid-template-columns: minmax(12rem, 17rem) 1fr;
   overflow: hidden;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
 }
 
 .workspaceList {
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.22);
-  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--paper) 55%, var(--card));
+  border-right: 1px solid var(--rule);
 }
 
 .workspaceListHeading,
@@ -229,16 +378,18 @@ h1 {
 
 .workspaceListHeading {
   padding: 0.45rem 0.5rem 1rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 800;
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
 
 .workspaceListHeading a {
-  color: var(--accent);
-  font-size: 0.72rem;
+  color: var(--indigo);
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  font-weight: 700;
   text-decoration: none;
   text-transform: none;
   letter-spacing: normal;
@@ -247,26 +398,26 @@ h1 {
 .workspaceButton {
   display: flex;
   width: 100%;
-  padding: 0.75rem;
+  padding: 0.7rem 0.75rem;
   align-items: center;
   gap: 0.7rem;
-  color: var(--foreground);
+  color: var(--ink);
   background: transparent;
   font: inherit;
   font-size: 0.84rem;
   text-align: left;
   border: 0;
-  border-radius: 0.45rem;
+  border-radius: var(--radius-s);
   cursor: pointer;
 }
 
 .workspaceButton:hover {
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--indigo-soft);
 }
 
 .workspaceButton[aria-pressed="true"] {
-  background: white;
-  box-shadow: 0 1px 0 rgba(23, 23, 19, 0.04);
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--rule);
 }
 
 .workspaceIcon,
@@ -280,11 +431,11 @@ h1 {
 .workspaceIcon {
   width: 1.8rem;
   height: 1.8rem;
-  background: var(--background);
+  background: var(--paper);
   font-size: 0.78rem;
-  font-weight: 800;
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
+  font-weight: 700;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-s);
 }
 
 .workspaceIcon.image,
@@ -299,9 +450,9 @@ h1 {
 }
 
 .pagePanelHeading {
-  min-height: 4.6rem;
+  min-height: 4.4rem;
   padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--rule);
 }
 
 .pagePanelHeading > div {
@@ -310,10 +461,12 @@ h1 {
   gap: 0.25rem;
 }
 
-.panelLabel,
-.pageCount {
-  color: var(--muted);
-  font-size: 0.7rem;
+.panelLabel {
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 .pagePanelHeading strong {
@@ -322,8 +475,11 @@ h1 {
 
 .pageCount {
   padding: 0.35rem 0.55rem;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 999px;
+  color: var(--graphite);
+  background: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  border-radius: var(--radius-s);
 }
 
 .pageMetrics,
@@ -342,12 +498,13 @@ h1 {
 .boardNotice {
   padding: 0.7rem 1.25rem;
   margin: 0;
-  color: #8d3424;
-  background: rgba(218, 79, 52, 0.09);
+  color: var(--proof-red);
+  background: var(--proof-red-soft);
   font-size: 0.78rem;
-  border-bottom: 1px solid rgba(218, 79, 52, 0.2);
+  border-bottom: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
 }
 
+/* ── 페이지 트리 ────────────────────────────────────────────── */
 .pageTree,
 .pageTree ul {
   padding: 0;
@@ -363,22 +520,22 @@ h1 {
 
 .pageTree ul {
   margin-left: 1.45rem;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--rule-soft);
 }
 
 .pageRow {
   display: flex;
   min-width: 0;
-  min-height: 2.8rem;
+  min-height: 2.7rem;
   padding: 0.25rem 0.55rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-s);
 }
 
 .pageRow:hover {
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--indigo-soft);
 }
 
 .pageToggle {
@@ -387,7 +544,7 @@ h1 {
   padding: 0;
   align-items: center;
   gap: 0.6rem;
-  color: var(--foreground);
+  color: var(--ink);
   background: transparent;
   font: inherit;
   border: 0;
@@ -400,47 +557,49 @@ h1 {
 
 .pageToggle > span:first-child {
   width: 0.8rem;
-  color: var(--muted);
+  color: var(--graphite);
+  font-family: var(--font-mono);
 }
 
 .documentIcon {
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--accent);
+  color: var(--indigo);
   font-size: 0.8rem;
 }
 
 .pageTitle {
   overflow: hidden;
   font-size: 0.86rem;
-  font-weight: 650;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pageRow time {
   flex: 0 0 auto;
-  color: var(--muted);
-  font-size: 0.7rem;
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
 }
 
 .draftButton {
   min-width: 4.6rem;
   padding: 0.42rem 0.6rem;
-  color: white;
-  background: var(--foreground);
+  color: #fff;
+  background: var(--ink);
   font: inherit;
   font-size: 0.7rem;
   font-weight: 700;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-s);
   cursor: pointer;
 }
 
 .draftButton.added {
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid var(--line);
+  color: var(--graphite);
+  background: var(--card);
+  border: 1px solid var(--rule);
 }
 
 .draftButton:disabled {
@@ -453,60 +612,16 @@ h1 {
   place-items: center;
 }
 
+/* ── 칸반 ───────────────────────────────────────────────────── */
 .kanbanSection {
   padding: 4rem 0 1rem;
   margin-top: 4rem;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--rule);
 }
 
 .documentExplorer .kanbanSection {
   padding: 2rem 1rem 1rem;
   margin-top: 0;
-}
-
-.pagesTarget {
-  display: grid;
-  padding: 2rem;
-  margin-top: 2rem;
-  align-items: center;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, auto);
-  gap: 2rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
-}
-
-.pagesTarget .eyebrow {
-  margin-bottom: 0.65rem;
-}
-
-.pagesTargetStatus {
-  display: flex;
-  min-width: 16rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.pagesTargetStatus strong {
-  color: var(--foreground);
-  font-size: 0.9rem;
-}
-
-.pagesTargetStatus a,
-.pagesTargetStatus button {
-  padding: 0.52rem 0.75rem;
-  color: white;
-  background: var(--foreground);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-decoration: none;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
 }
 
 .kanbanHeading {
@@ -524,7 +639,7 @@ h1 {
 .kanbanHeading > p {
   max-width: 31rem;
   margin: 0;
-  color: var(--muted);
+  color: var(--graphite);
   font-size: 0.82rem;
   line-height: 1.6;
 }
@@ -532,23 +647,23 @@ h1 {
 .kanbanNotice {
   padding: 0.75rem 1rem;
   margin: 0 0 1rem;
-  color: #8d3424;
-  background: rgba(218, 79, 52, 0.09);
+  color: var(--proof-red);
+  background: var(--proof-red-soft);
   font-size: 0.78rem;
-  border: 1px solid rgba(218, 79, 52, 0.2);
-  border-radius: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
+  border-radius: var(--radius-s);
 }
 
 .emptyBoard {
   display: grid;
   min-height: 11rem;
   padding: 1.5rem;
-  color: var(--muted);
-  background: var(--surface);
+  color: var(--graphite);
+  background: var(--card);
   font-size: 0.88rem;
   text-align: center;
-  border: 1px dashed var(--line);
-  border-radius: 0.6rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius-m);
   place-items: center;
 }
 
@@ -564,42 +679,50 @@ h1 {
 .kanbanColumn {
   min-height: 24rem;
   padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.32);
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--paper) 60%, var(--card));
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
   transition:
     border-color 150ms ease,
     background-color 150ms ease;
 }
 
 .kanbanColumn.over {
-  background: rgba(218, 79, 52, 0.06);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--indigo-soft);
+  border-color: color-mix(in srgb, var(--indigo) 55%, var(--rule));
 }
 
 .kanbanColumn > header {
   display: flex;
-  min-height: 2.8rem;
+  min-height: 2.6rem;
   padding: 0.2rem 0.25rem 0.75rem;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.columnMark {
+  color: var(--indigo);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
 }
 
 .kanbanColumn > header h3 {
   margin: 0;
-  font-size: 0.8rem;
-  letter-spacing: -0.02em;
+  font-size: 0.82rem;
+  letter-spacing: -0.01em;
 }
 
-.kanbanColumn > header span {
+.kanbanColumn > header span:last-child {
   display: grid;
   min-width: 1.5rem;
   height: 1.5rem;
   padding: 0 0.35rem;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.65);
+  margin-left: auto;
+  color: var(--graphite);
+  background: var(--card);
+  font-family: var(--font-mono);
   font-size: 0.68rem;
-  border-radius: 999px;
+  border-radius: var(--radius-s);
   place-items: center;
 }
 
@@ -617,15 +740,15 @@ h1 {
 
 .boardCard {
   padding: 0.85rem;
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
-  border-radius: 0.5rem;
-  box-shadow: 0 0.15rem 0.5rem rgba(23, 23, 19, 0.04);
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-s);
+  box-shadow: var(--shadow-card);
 }
 
 .boardCard.overlay {
   width: 14.5rem;
-  box-shadow: 0 0.8rem 2rem rgba(23, 23, 19, 0.18);
+  box-shadow: var(--shadow-lift);
   transform: rotate(1.5deg);
 }
 
@@ -638,11 +761,6 @@ h1 {
   cursor: grabbing;
 }
 
-.boardCard.draggable:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 48%, transparent);
-  outline-offset: 2px;
-}
-
 .boardCardTopline {
   display: flex;
   min-height: 1.5rem;
@@ -653,24 +771,25 @@ h1 {
 
 .boardCardTopline > span {
   overflow: hidden;
-  color: var(--accent);
-  font-size: 0.65rem;
-  font-weight: 750;
+  color: var(--indigo);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .boardCard h4 {
-  margin: 0.75rem 0 0.45rem;
+  margin: 0.7rem 0 0.45rem;
   font-size: 0.9rem;
-  line-height: 1.35;
-  letter-spacing: -0.025em;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .boardCard > p {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.66rem;
+  color: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
 }
 
 .publishedLink {
@@ -679,20 +798,15 @@ h1 {
   padding: 0.55rem 0.7rem;
   margin-top: 0.8rem;
   color: #fff;
-  background: var(--accent);
+  background: var(--green);
   font: inherit;
   font-size: 0.72rem;
-  font-weight: 750;
+  font-weight: 700;
   text-align: center;
+  text-decoration: none;
   border: 0;
-  border-radius: 0.4rem;
+  border-radius: var(--radius-s);
   cursor: pointer;
-}
-
-.publishedLink:focus-visible,
-.removeCardButton:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 48%, transparent);
-  outline-offset: 2px;
 }
 
 .boardCardControls {
@@ -705,19 +819,19 @@ h1 {
   display: grid;
   width: 1.65rem;
   height: 1.65rem;
-  color: var(--muted);
+  color: var(--graphite);
   background: transparent;
   font: inherit;
   font-size: 1rem;
   border: 0;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-s);
   cursor: pointer;
   place-items: center;
 }
 
 .removeCardButton:hover {
-  color: #a33a28;
-  background: var(--background);
+  color: var(--proof-red);
+  background: var(--paper);
 }
 
 .removeCardButton:disabled {
@@ -726,94 +840,113 @@ h1 {
 }
 
 .boardCard > .publishStatus {
-  padding-top: 0.75rem;
+  display: flex;
+  padding: 0.5rem 0.6rem;
   margin-top: 0.8rem;
-  border-top: 1px solid var(--line);
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--amber);
+  background: var(--amber-soft);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  border-radius: var(--radius-s);
+}
+
+.pulseDot {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
 }
 
 .boardCard > .publishError {
   margin-top: 0.65rem;
-  color: #a33a28;
-  line-height: 1.45;
+  color: var(--proof-red);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  line-height: 1.5;
 }
 
 .emptyColumn {
   display: grid;
   min-height: 7rem;
   margin: 0;
-  color: color-mix(in srgb, var(--muted) 60%, transparent);
+  color: color-mix(in srgb, var(--graphite) 60%, transparent);
   font-size: 0.7rem;
   text-align: center;
-  border: 1px dashed color-mix(in srgb, var(--line) 75%, transparent);
-  border-radius: 0.4rem;
+  border: 1px dashed var(--rule-soft);
+  border-radius: var(--radius-s);
   place-items: center;
 }
 
-.sectionHeading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 2.5rem;
-}
-
-.sectionHeading .eyebrow {
-  margin: 0;
-}
-
-h2 {
-  margin: 0;
-  font-size: clamp(1.5rem, 3vw, 2.25rem);
-  letter-spacing: -0.045em;
-}
-
-.workflowGrid {
+/* ── 게시 대상 ──────────────────────────────────────────────── */
+.pagesTarget {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  padding: 0;
-  margin: 0;
-  list-style: none;
+  padding: 2rem;
+  margin-top: 2rem;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, auto);
+  gap: 2rem;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-card);
 }
 
-.workflowGrid li {
-  min-height: 15rem;
-  padding: 1.4rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 0.6rem;
+.pagesTarget .eyebrow {
+  margin-bottom: 0.65rem;
 }
 
-.stepNumber {
-  display: block;
-  margin-bottom: 4rem;
-  color: var(--accent);
-  font-family: Georgia, "Times New Roman", serif;
+.pagesTargetStatus {
+  display: flex;
+  min-width: 16rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  color: var(--graphite);
+  font-size: 0.78rem;
+}
+
+.pagesTargetStatus strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
   font-size: 0.85rem;
 }
 
-h3 {
-  margin: 0 0 0.75rem;
-  font-size: 1.15rem;
+.pagesTargetStatus a,
+.pagesTargetStatus button {
+  padding: 0.52rem 0.75rem;
+  color: #fff;
+  background: var(--ink);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 0;
+  border-radius: var(--radius-s);
+  cursor: pointer;
 }
 
-.workflowGrid p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-  line-height: 1.65;
-}
-
+/* ── 반응형 ─────────────────────────────────────────────────── */
 @media (max-width: 48rem) {
   main {
     width: min(100% - 1.25rem, 76rem);
   }
 
-  .status {
+  .sessionChip {
     display: none;
   }
 
   .lede {
     margin-left: 0;
+  }
+
+  .rail {
+    gap: 0.5rem;
+    font-size: 0.66rem;
   }
 
   .sectionHeading {
@@ -828,13 +961,17 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  .stepMark {
+    margin-bottom: 1.5rem;
+  }
+
   .documentExplorer {
     grid-template-columns: 1fr;
   }
 
   .workspaceList {
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--rule);
   }
 
   .pageRow time {
@@ -852,20 +989,17 @@ h3 {
   .pagesTarget {
     grid-template-columns: 1fr;
   }
-
-  .workflowGrid li {
-    min-height: auto;
-  }
-
-  .stepNumber {
-    margin-bottom: 2rem;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
+    animation: none !important;
     scroll-behavior: auto !important;
+  }
+
+  .railStop {
+    opacity: 1;
   }
 }

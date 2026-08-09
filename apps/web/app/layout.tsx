@@ -1,7 +1,21 @@
+import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
+
+import "./globals.css";
+
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import "./globals.css";
+const display = Gowun_Batang({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "700"],
+});
+
+const body = IBM_Plex_Sans_KR({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "700"],
+});
 
 export const metadata: Metadata = {
   description:
@@ -15,7 +29,11 @@ type RootLayoutProps = Readonly<{
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="ko">
+    <html
+      className={`${display.variable} ${body.variable}`}
+      lang="ko"
+      suppressHydrationWarning
+    >
       <body>{children}</body>
     </html>
   );
