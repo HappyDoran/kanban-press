@@ -81,34 +81,42 @@ describe("createMarkdownArtifact", () => {
     expect(markdown).toContain("`` child()` ``");
   });
 
-  it("projects a validated v2 document to legacy v1 frontmatter", () => {
+  it("renders exact deterministic v2 frontmatter and preserves the post path", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,
-      blocks: [],
+      blocks: [{ kind: "paragraph", richText: [{ text: "안전한 본문" }] }],
     });
     const markdown = decoder.decode(artifact.bytes);
-    const frontmatter = markdown.split("---")[1];
 
-    expect(frontmatter).toBe(
+    expect(artifact.path).toBe("src/content/blog/hello-notion.md");
+    expect(markdown).toBe(
       [
-        "",
+        "---",
+        "schemaVersion: 2",
         'title: "Notion에서 온 글"',
         'description: "안전한 게시 fixture"',
+        'category: "Engineering"',
+        'categorySlug: "engineering-a1b2c3d4"',
+        'tags: ["Notion", "Publishing"]',
         'publishedAt: "2026-07-19T01:00:00.000Z"',
         'updatedAt: "2026-07-19T02:00:00.000Z"',
+        "---",
+        "",
+        "안전한 본문",
         "",
       ].join("\n"),
     );
-    expect(frontmatter).not.toContain("schemaVersion:");
-    expect(frontmatter).not.toContain("category:");
-    expect(frontmatter).not.toContain("categorySlug:");
-    expect(frontmatter).not.toContain("tags:");
   });
 
-  it("escapes dangerous HTML and Markdown and drops unsafe links", () => {
+  it("JSON-escapes frontmatter and escapes dangerous body content", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,
-      description: '"><script>alert(1)</script>',
+      category: {
+        name: 'Docs: "safe" & <typed>',
+        slug: "docs-safe-a1b2c3d4",
+      },
+      description: '"><script>\nalert(1)</script>',
+      tags: ['YAML: "quoted"', "HTML & <safe>"],
       title: "</title><script>alert(1)</script>",
       blocks: [
         {
@@ -125,11 +133,43 @@ describe("createMarkdownArtifact", () => {
     const markdown = decoder.decode(artifact.bytes);
 
     expect(markdown).not.toContain("<script>");
+    expect(markdown).toContain(
+      'title: "\\u003c/title\\u003e\\u003cscript\\u003ealert(1)\\u003c/script\\u003e"',
+    );
+    expect(markdown).toContain(
+      'description: "\\"\\u003e\\u003cscript\\u003e\\nalert(1)\\u003c/script\\u003e"',
+    );
+    expect(markdown).toContain(
+      'category: "Docs: \\"safe\\" \\u0026 \\u003ctyped\\u003e"',
+    );
+    expect(markdown).toContain(
+      'tags: ["HTML \\u0026 \\u003csafe\\u003e", "YAML: \\"quoted\\""]',
+    );
     expect(markdown).not.toContain("[&lt;script&gt;");
     expect(markdown).not.toContain("](<javascript:");
     expect(markdown).toContain(
       "&lt;script&gt;\\[click\\]\\(javascript:alert\\(1\\)\\)&lt;/script&gt;",
     );
+  });
+
+  it("sorts tags deterministically without mutating the input", () => {
+    const tags = ["zeta", "가나다", "Alpha"];
+    const first = createMarkdownArtifact({
+      ...baseDocument,
+      blocks: [],
+      tags,
+    });
+    const second = createMarkdownArtifact({
+      ...baseDocument,
+      blocks: [],
+      tags: ["Alpha", "zeta", "가나다"],
+    });
+
+    expect(decoder.decode(first.bytes)).toBe(decoder.decode(second.bytes));
+    expect(decoder.decode(first.bytes)).toContain(
+      'tags: ["Alpha", "zeta", "가나다"]',
+    );
+    expect(tags).toEqual(["zeta", "가나다", "Alpha"]);
   });
 
   it.each([
@@ -196,7 +236,7 @@ describe("createMarkdownArtifact", () => {
     ).toThrow();
   });
 
-  it("rejects unknown document and category fields", () => {
+  it("strictly rejects unknown document and category metadata fields", () => {
     expect(() =>
       createMarkdownArtifact({
         ...baseDocument,
