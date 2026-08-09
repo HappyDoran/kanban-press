@@ -120,7 +120,7 @@
 
 ## P3 — GitHub Pages 블로그 경험 확장
 
-- [-] Pages 내보내기 readiness와 repository 보호
+- [x] Pages 내보내기 readiness와 repository 보호
   - 수용 기준: workflow branch가 실제 default branch와 일치한다.
   - 수용 기준: Pages custom workflow 준비 상태와 기존 파일 변경 범위를 게시 전에 확인한다.
   - 수용 기준: Actions URL과 provider별 복구 행동을 UI에서 제공한다.
