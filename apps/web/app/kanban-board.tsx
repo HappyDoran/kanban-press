@@ -41,6 +41,7 @@ import type { BoardRecord } from "../lib/board/repository";
 
 export type KanbanRecord = Omit<BoardRecord, "column"> & {
   column: BoardColumn;
+  publishActionsUrl: string | null;
   publishedUrl: string | null;
   publishStartedAt: number | null;
 };
@@ -66,7 +67,9 @@ interface KanbanBoardProps {
   ) => Promise<void>;
   onPublish: (record: KanbanRecord) => Promise<void>;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishErrors: Readonly<Record<string, string>>;
+  publishFailures: Readonly<
+    Record<string, { actionsUrl: string | null; message: string }>
+  >;
   records: readonly KanbanRecord[];
 }
 
@@ -75,7 +78,7 @@ export function KanbanBoard({
   onMove,
   onPublish,
   onRemove,
-  publishErrors,
+  publishFailures,
   records,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -224,7 +227,7 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onRemove={remove}
-                publishErrors={publishErrors}
+                publishFailures={publishFailures}
                 records={grouped[column]}
               />
             ))}
@@ -252,14 +255,16 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onRemove,
-  publishErrors,
+  publishFailures,
   records,
 }: {
   column: BoardColumn;
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishErrors: Readonly<Record<string, string>>;
+  publishFailures: Readonly<
+    Record<string, { actionsUrl: string | null; message: string }>
+  >;
   records: readonly KanbanRecord[];
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -295,7 +300,7 @@ function KanbanColumn({
               disabled={movingId === recordId(record)}
               key={recordId(record)}
               onRemove={onRemove}
-              publishError={publishErrors[recordId(record)]}
+              publishFailure={publishFailures[recordId(record)]}
               record={record}
             />
           ))}
@@ -318,13 +323,15 @@ function SortableBoardCard({
   connectionName,
   disabled,
   onRemove,
-  publishError,
+  publishFailure,
   record,
 }: {
   connectionName: string;
   disabled: boolean;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishError?: string | undefined;
+  publishFailure?:
+    | { actionsUrl: string | null; message: string }
+    | undefined;
   record: KanbanRecord;
 }) {
   const {
@@ -358,14 +365,14 @@ function SortableBoardCard({
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
         onRemove={onRemove}
-        publishError={publishError}
+        publishFailure={publishFailure}
         record={record}
       />
     </div>
   );
 }
 
-function BoardCard({
+export function BoardCard({
   connectionName,
   disabled = false,
   dragAttributes,
@@ -373,7 +380,7 @@ function BoardCard({
   dragRef,
   onRemove,
   overlay = false,
-  publishError,
+  publishFailure,
   record,
 }: {
   connectionName: string;
@@ -383,7 +390,9 @@ function BoardCard({
   dragRef?: (element: HTMLElement | null) => void;
   onRemove?: (record: KanbanRecord) => Promise<void>;
   overlay?: boolean;
-  publishError?: string | undefined;
+  publishFailure?:
+    | { actionsUrl: string | null; message: string }
+    | undefined;
   record: KanbanRecord;
 }) {
   const draggable =
@@ -443,6 +452,18 @@ function BoardCard({
           </span>
         </p>
       ) : null}
+      {!overlay && record.publishActionsUrl !== null ? (
+        <a
+          className="actionsLink"
+          href={record.publishActionsUrl}
+          onKeyDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub Actions 로그 보기
+        </a>
+      ) : null}
       {!overlay &&
       record.column === "published" &&
       record.publishedUrl !== null ? (
@@ -457,9 +478,9 @@ function BoardCard({
           게시된 글 보기
         </a>
       ) : null}
-      {!overlay && publishError ? (
+      {!overlay && publishFailure ? (
         <p className="publishError" role="alert">
-          {publishError}
+          {publishFailure.message}
         </p>
       ) : null}
     </article>

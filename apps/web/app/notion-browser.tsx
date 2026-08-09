@@ -52,8 +52,22 @@ type OutlineNode = ClientOutlineNode;
 type LoadState = "error" | "loading" | "ready";
 type SessionState = "error" | "loading" | "signed-in" | "signed-out";
 type PublishViewState =
-  | { column: "published"; publishedUrl: string; startedAt: null }
-  | { column: "publishing"; publishedUrl: null; startedAt: number };
+  | {
+      actionsUrl: string | null;
+      column: "published";
+      publishedUrl: string;
+      startedAt: null;
+    }
+  | {
+      actionsUrl: string | null;
+      column: "publishing";
+      publishedUrl: null;
+      startedAt: number;
+    };
+interface PublishFailure {
+  actionsUrl: string | null;
+  message: string;
+}
 const STRUCTURE_INSPECTION_CONCURRENCY = 3;
 
 export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
@@ -73,8 +87,8 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
   const [pageState, setPageState] = useState<LoadState>("loading");
   const [pageError, setPageError] = useState("");
   const [boardRecords, setBoardRecords] = useState<readonly BoardRecord[]>([]);
-  const [publishErrors, setPublishErrors] = useState<
-    Readonly<Record<string, string>>
+  const [publishFailures, setPublishFailures] = useState<
+    Readonly<Record<string, PublishFailure>>
   >({});
   const [publishViewStates, setPublishViewStates] = useState<
     Readonly<Record<string, PublishViewState>>
@@ -119,6 +133,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
         if (meResponse.status === 401) {
           setGitHubUserId(null);
           setBoardRecords([]);
+          setPublishFailures({});
           setPublishViewStates({});
           setSessionState("signed-out");
           return;
@@ -189,6 +204,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       .then((records) => {
         if (active) {
           removedBoardKeys.current.clear();
+          setPublishFailures({});
           setPublishViewStates({});
           setBoardRecords(records);
           setBoardState("ready");
@@ -358,11 +374,15 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           return {
             ...record,
             column: view?.column ?? "stored",
+            publishActionsUrl:
+              view?.actionsUrl ?? publishFailures[
+                boardPageKey(record.connectionId, record.providerPageId)
+              ]?.actionsUrl ?? null,
             publishedUrl: view?.publishedUrl ?? null,
             publishStartedAt: view?.startedAt ?? null,
           };
         }),
-    [boardRecords, publishViewStates],
+    [boardRecords, publishFailures, publishViewStates],
   );
 
   async function togglePageVisibility(page: PageSummary): Promise<void> {
@@ -513,7 +533,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       delete next[key];
       return next;
     });
-    setPublishErrors((current) => {
+    setPublishFailures((current) => {
       const next = { ...current };
       delete next[key];
       return next;
@@ -535,7 +555,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       return;
     }
     removedBoardKeys.current.delete(key);
-    setPublishErrors((current) => {
+    setPublishFailures((current) => {
       const next = { ...current };
       delete next[key];
       return next;
@@ -543,11 +563,14 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
     setPublishViewStates((current) => ({
       ...current,
       [key]: {
+        actionsUrl: null,
         column: "publishing",
         publishedUrl: null,
         startedAt: Date.now(),
       },
     }));
+    let latestActionsUrl: string | null = null;
+    let failureCode = "publish_unavailable";
     try {
       const current = await repository.get(
         record.connectionId,
@@ -574,9 +597,13 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      const result = parsePublishResult(await safeJson(publishResponse));
-      if (!publishResponse.ok || result === null) {
-        throw new Error("publish_request_failed");
+      const publishPayload = await safeJson(publishResponse);
+      if (!publishResponse.ok) {
+        throw new Error(parseProviderErrorCode(publishPayload));
+      }
+      const result = parsePublishResult(publishPayload);
+      if (result === null) {
+        throw new Error("invalid_publish_response");
       }
       for (let attempt = 0; attempt < 120; attempt += 1) {
         if (!mounted.current) {
@@ -586,9 +613,28 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           `/api/publish/status?commitSha=${encodeURIComponent(result.commitSha)}`,
           { cache: "no-store" },
         );
-        const status = parsePublishStatus(await safeJson(response));
-        if (!response.ok || status === null) {
-          throw new Error("publish_status_failed");
+        const statusPayload = await safeJson(response);
+        if (!response.ok) {
+          throw new Error(parseProviderErrorCode(statusPayload));
+        }
+        const status = parsePublishStatus(statusPayload, githubLogin);
+        if (status === null) {
+          throw new Error("invalid_publish_status_response");
+        }
+        if (status.actionsUrl !== null) {
+          latestActionsUrl = status.actionsUrl;
+          setPublishViewStates((currentStates) => {
+            const currentState = currentStates[key];
+            return currentState === undefined
+              ? currentStates
+              : {
+                  ...currentStates,
+                  [key]: {
+                    ...currentState,
+                    actionsUrl: status.actionsUrl,
+                  },
+                };
+          });
         }
         if (status.state === "succeeded") {
           const latest = await repository.get(
@@ -612,6 +658,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
               setPublishViewStates((currentStates) => ({
                 ...currentStates,
                 [key]: {
+                  actionsUrl: latestActionsUrl,
                   column: "published",
                   publishedUrl: result.pageUrl,
                   startedAt: null,
@@ -627,7 +674,8 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
         await pollingDelay(3_000);
       }
       throw new Error("deployment_timeout");
-    } catch {
+    } catch (error) {
+      failureCode = error instanceof Error ? error.message : failureCode;
       if (!mounted.current) {
         return;
       }
@@ -641,13 +689,16 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           delete next[key];
           return next;
         });
-        setPublishErrors((current) => ({
+        setPublishFailures((current) => ({
           ...current,
-          [key]: "게시하지 못했습니다. 권한과 배포 로그를 확인한 뒤 다시 시도해 주세요.",
+          [key]: {
+            actionsUrl: latestActionsUrl,
+            message: publishErrorMessage(failureCode),
+          },
         }));
       }
     }
-  }, []);
+  }, [githubLogin]);
 
   const publishBoardRecord = useCallback(
     async (record: KanbanRecord): Promise<void> => {
@@ -838,7 +889,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 onMove={moveBoardRecord}
                 onPublish={publishBoardRecord}
                 onRemove={removeBoardRecord}
-                publishErrors={publishErrors}
+                publishFailures={publishFailures}
                 records={kanbanRecords}
               />
             ) : null}
@@ -1546,7 +1597,8 @@ function parsePublishResult(value: unknown): {
   };
 }
 
-function parsePublishStatus(value: unknown): {
+export function parsePublishStatus(value: unknown, githubLogin: string): {
+  actionsUrl: string | null;
   state: "failed" | "in_progress" | "queued" | "succeeded";
 } | null {
   if (
@@ -1555,17 +1607,103 @@ function parsePublishStatus(value: unknown): {
     !("state" in value) ||
     !["failed", "in_progress", "queued", "succeeded"].includes(
       String(value.state),
+    ) ||
+    !("actionsUrl" in value) ||
+    !(
+      value.actionsUrl === null ||
+      parseActionsUrl(value.actionsUrl, githubLogin) !== null
     )
   ) {
     return null;
   }
   return {
+    actionsUrl:
+      value.actionsUrl === null
+        ? null
+        : parseActionsUrl(value.actionsUrl, githubLogin),
     state: value.state as
       | "failed"
       | "in_progress"
       | "queued"
       | "succeeded",
   };
+}
+
+export function parseActionsUrl(
+  value: unknown,
+  githubLogin: string,
+): string | null {
+  if (
+    typeof value !== "string" ||
+    !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(
+      githubLogin,
+    )
+  ) {
+    return null;
+  }
+  try {
+    const url = new URL(value);
+    const repository = `${githubLogin}.github.io`;
+    const actionsPrefix = `/${githubLogin}/${repository}/actions/`.toLowerCase();
+    if (
+      url.protocol !== "https:" ||
+      url.hostname !== "github.com" ||
+      url.port !== "" ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.search !== "" ||
+      url.hash !== "" ||
+      !url.pathname.toLowerCase().startsWith(actionsPrefix) ||
+      url.pathname.length <= actionsPrefix.length
+    ) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function publishErrorMessage(code: string): string {
+  const stableCode = code.replace(/^(github|notion)_/, "");
+  switch (stableCode) {
+    case "repository_not_managed":
+      return "기존 저장소 파일을 보호하기 위해 게시를 중단했습니다. 아래 GitHub Pages 대상에서 충돌 경로를 확인해 주세요.";
+    case "pages_setup_required":
+      return "GitHub Pages 배포 소스를 Actions로 설정한 뒤 대상 상태를 다시 확인해 주세요.";
+    case "oauth_scope_missing":
+      return "GitHub의 repository 및 workflow 권한을 다시 승인한 뒤 게시해 주세요.";
+    case "conflict":
+      return "게시 중 기본 branch가 변경되었습니다. GitHub의 최신 변경을 확인한 뒤 다시 시도해 주세요.";
+    case "rate_limited":
+      return "요청 한도에 도달했습니다. 잠시 기다린 뒤 다시 시도해 주세요.";
+    case "repository_not_found":
+      return "공개 GitHub Pages 저장소를 만든 뒤 대상 상태를 다시 확인해 주세요.";
+    case "repository_must_be_public":
+      return "GitHub Pages 저장소를 public으로 전환한 뒤 다시 확인해 주세요.";
+    case "repository_owner_mismatch":
+    case "repository_write_denied":
+      return "현재 계정이 소유하고 쓸 수 있는 GitHub Pages 저장소인지 확인해 주세요.";
+    case "access_denied":
+      return "Notion 페이지 접근 권한을 다시 공유하거나 워크스페이스를 다시 연결해 주세요.";
+    case "authentication_required":
+      return "GitHub에 다시 로그인한 뒤 게시해 주세요.";
+    case "deployment_failed":
+      return "GitHub Pages 배포가 실패했습니다. Actions 로그를 확인한 뒤 다시 게시해 주세요.";
+    case "deployment_timeout":
+      return "배포 확인 시간이 초과되었습니다. Actions 로그에서 진행 상태를 확인해 주세요.";
+    default:
+      return "게시하지 못했습니다. 권한과 GitHub Pages 상태를 확인한 뒤 다시 시도해 주세요.";
+  }
+}
+
+function parseProviderErrorCode(value: unknown): string {
+  return typeof value === "object" &&
+    value !== null &&
+    "error" in value &&
+    typeof value.error === "string"
+    ? value.error
+    : "publish_unavailable";
 }
 
 function pollingDelay(milliseconds: number): Promise<void> {

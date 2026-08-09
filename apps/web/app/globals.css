@@ -792,7 +792,8 @@ h3 {
   font-size: 0.64rem;
 }
 
-.publishedLink {
+.publishedLink,
+.actionsLink {
   display: block;
   width: 100%;
   padding: 0.55rem 0.7rem;
@@ -807,6 +808,12 @@ h3 {
   border: 0;
   border-radius: var(--radius-s);
   cursor: pointer;
+}
+
+.actionsLink {
+  color: var(--indigo);
+  background: var(--indigo-soft);
+  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
 }
 
 .boardCardControls {
@@ -908,6 +915,59 @@ h3 {
   gap: 0.45rem;
   color: var(--graphite);
   font-size: 0.78rem;
+}
+
+.pagesReadiness,
+.pagesRecovery {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.pagesReadiness.warning,
+.pagesReadiness.danger,
+.pagesRecovery {
+  padding: 0.85rem;
+  border-radius: var(--radius-s);
+}
+
+.pagesReadiness.warning {
+  color: var(--amber);
+  background: var(--amber-soft);
+  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
+.pagesReadiness.danger,
+.pagesRecovery {
+  color: var(--proof-red);
+  background: var(--proof-red-soft);
+  border: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
+}
+
+.readinessLabel {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.pagesTargetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.conflictingPaths {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  margin: 0;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--card) 75%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.6;
+  list-style-position: inside;
+  border-radius: var(--radius-s);
 }
 
 .pagesTargetStatus strong {
