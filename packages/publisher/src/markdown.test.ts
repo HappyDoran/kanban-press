@@ -8,9 +8,12 @@ import {
 
 const decoder = new TextDecoder();
 const baseDocument = {
+  category: { name: "Engineering", slug: "engineering-a1b2c3d4" },
   description: "안전한 게시 fixture",
   publishedAt: "2026-07-19T01:00:00.000Z",
+  schemaVersion: 2,
   slug: "hello-notion",
+  tags: ["Notion", "Publishing"],
   title: "Notion에서 온 글",
   updatedAt: "2026-07-19T02:00:00.000Z",
 } satisfies Omit<PublishDocument, "blocks">;
@@ -78,6 +81,30 @@ describe("createMarkdownArtifact", () => {
     expect(markdown).toContain("`` child()` ``");
   });
 
+  it("projects a validated v2 document to legacy v1 frontmatter", () => {
+    const artifact = createMarkdownArtifact({
+      ...baseDocument,
+      blocks: [],
+    });
+    const markdown = decoder.decode(artifact.bytes);
+    const frontmatter = markdown.split("---")[1];
+
+    expect(frontmatter).toBe(
+      [
+        "",
+        'title: "Notion에서 온 글"',
+        'description: "안전한 게시 fixture"',
+        'publishedAt: "2026-07-19T01:00:00.000Z"',
+        'updatedAt: "2026-07-19T02:00:00.000Z"',
+        "",
+      ].join("\n"),
+    );
+    expect(frontmatter).not.toContain("schemaVersion:");
+    expect(frontmatter).not.toContain("category:");
+    expect(frontmatter).not.toContain("categorySlug:");
+    expect(frontmatter).not.toContain("tags:");
+  });
+
   it("escapes dangerous HTML and Markdown and drops unsafe links", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,
@@ -118,6 +145,74 @@ describe("createMarkdownArtifact", () => {
         blocks: [],
         slug,
       }),
+    ).toThrow();
+  });
+
+  it.each([
+    "../escape",
+    "nested/escape",
+    "/absolute",
+    "Uppercase",
+    "two--dashes",
+  ])("rejects unsafe category slug %s", (slug) => {
+    expect(() =>
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [],
+        category: { name: "Engineering", slug },
+      }),
+    ).toThrow();
+  });
+
+  it.each([
+    { category: { name: "", slug: "engineering" } },
+    { category: { name: "x".repeat(81), slug: "engineering" } },
+    { publishedAt: "2026-07-19" },
+    { schemaVersion: 1 },
+    { updatedAt: "not-a-date" },
+  ])("rejects invalid v2 metadata %#", (override) => {
+    expect(() =>
+      createMarkdownArtifact({
+        ...baseDocument,
+        ...override,
+        blocks: [],
+      } as PublishDocument),
+    ).toThrow();
+  });
+
+  it.each([
+    { tags: [""] },
+    { tags: ["x".repeat(41)] },
+    { tags: Array.from({ length: 11 }, (_, index) => `tag-${index}`) },
+    { tags: ["React", " react "] },
+    { tags: ["TypeScript", "ＴｙｐｅＳｃｒｉｐｔ"] },
+  ])("rejects invalid or duplicate tags %#", ({ tags }) => {
+    expect(() =>
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [],
+        tags,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unknown document and category fields", () => {
+    expect(() =>
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [],
+        providerPageId: "secret-provider-id",
+      } as PublishDocument),
+    ).toThrow();
+    expect(() =>
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [],
+        category: {
+          ...baseDocument.category,
+          providerCategoryId: "secret-category-id",
+        },
+      } as PublishDocument),
     ).toThrow();
   });
 

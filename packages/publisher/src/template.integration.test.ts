@@ -82,9 +82,12 @@ describe("Astro template build", () => {
             summary: [{ text: "자세히 보기" }],
           },
         ],
+        category: { name: "Engineering", slug: "engineering-a1b2c3d4" },
         description: "Build fixture",
         publishedAt: "2026-07-19T01:00:00.000Z",
+        schemaVersion: 2,
         slug: "hello",
+        tags: ["Notion", "Publishing"],
         title: "Hello",
         updatedAt: "2026-07-19T02:00:00.000Z",
       });

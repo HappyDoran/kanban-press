@@ -10,6 +10,30 @@ const slugSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const isoDateSchema = z.iso.datetime({ offset: true });
+const categorySchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    slug: slugSchema,
+  })
+  .strict();
+const tagSchema = z.string().trim().min(1).max(40);
+const tagsSchema = z
+  .array(tagSchema)
+  .max(10)
+  .superRefine((tags, context) => {
+    const seen = new Set<string>();
+    for (const [index, tag] of tags.entries()) {
+      const normalizedTag = normalizeTag(tag);
+      if (seen.has(normalizedTag)) {
+        context.addIssue({
+          code: "custom",
+          message: "Tags must be unique after normalization",
+          path: [index],
+        });
+      }
+      seen.add(normalizedTag);
+    }
+  });
 const richTextSchema = z
   .object({
     bold: z.boolean().optional(),
@@ -85,9 +109,12 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
 const publishDocumentSchema = z
   .object({
     blocks: z.array(blockSchema).max(5_000),
+    category: categorySchema,
     description: z.string().max(1_000),
     publishedAt: isoDateSchema,
+    schemaVersion: z.literal(2),
     slug: slugSchema,
+    tags: tagsSchema,
     title: z.string().trim().min(1).max(2_000),
     updatedAt: isoDateSchema,
   })
@@ -95,9 +122,15 @@ const publishDocumentSchema = z
 
 export interface PublishDocument {
   blocks: PublishBlock[];
+  category: {
+    name: string;
+    slug: string;
+  };
   description: string;
   publishedAt: string;
+  schemaVersion: 2;
   slug: string;
+  tags: string[];
   title: string;
   updatedAt: string;
 }
@@ -251,6 +284,14 @@ function frontmatterString(value: string): string {
 
 function normalizeNewlines(value: string): string {
   return value.replace(/\r\n?/g, "\n");
+}
+
+function normalizeTag(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .toLowerCase();
 }
 
 function safeUrl(
