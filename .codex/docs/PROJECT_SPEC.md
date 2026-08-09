@@ -266,6 +266,16 @@ category는 trim 후 1~80자, tag는 각각 1~40자, description은 0~1,000자�
 `422 invalid_blog_metadata`로 실패한다. Notion adapter는 이 네 속성만 제한된
 `rich_text | select | multi_select | date | unsupported` union으로 정규화하며 원시
 property, formula, relation, people, file 등의 값을 반환하지 않는다.
+제목은 trim 후 1~2,000자여야 하며 Notion의 fallback인 `제목 없음`은 게시하지 않는다.
+
+```text
+NotionPageProperty
+  { kind: rich_text, plainText }
+  { kind: select, name }
+  { kind: multi_select, names }
+  { kind: date, start }
+  { kind: unsupported, providerType }
+```
 
 category route slug는 category display name을 `NFKC`, trim, 연속 공백 축약,
 lowercase한 값에서 ASCII 영숫자 base를 만들고 정규화 원문의 SHA-256 앞 8자를 붙인다.

@@ -104,6 +104,18 @@ describe("shared publish document assembly", () => {
     expect(deriveBlogMetadata(titleOnly).description).toBe("한글 게시 글");
   });
 
+  it.each(["", "   ", "제목 없음"])(
+    "rejects an unavailable page title %j",
+    (title) => {
+      const source = page();
+      source.title = title;
+
+      expect(() => buildPublishDocument(source)).toThrowError(
+        InvalidBlogMetadataError,
+      );
+    },
+  );
+
   it("creates a hashed category slug after NFKC and whitespace normalization", () => {
     expect(categorySlug("  ＡPI   Design  ")).toBe(
       "api-design-76f1e543",

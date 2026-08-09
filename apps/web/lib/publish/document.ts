@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type {
   NotionContentBlock,
   NotionPageContent,
+  NotionPageProperty,
 } from "@notion-kanban-blog/notion";
 import type {
   PublishBlock,
@@ -23,19 +24,10 @@ type PublishingPropertyName =
   | "Blog Description"
   | "Blog Published At"
   | "Blog Tags";
-
-type PublishingProperty =
-  | { readonly kind: "select"; readonly name: string | null }
-  | { readonly kind: "multi_select"; readonly names: readonly string[] }
-  | { readonly kind: "rich_text"; readonly plainText: string }
-  | { readonly kind: "date"; readonly start: string | null }
-  | { readonly kind: "unsupported"; readonly providerType: string };
-
-type PageWithPublishingProperties = NotionPageContent & {
-  readonly publishingProperties?: Readonly<
-    Partial<Record<PublishingPropertyName, PublishingProperty>>
-  >;
-};
+type BlogMetadataField =
+  | PublishingPropertyName
+  | "last_edited_time"
+  | "title";
 
 export interface BlogMetadata {
   category: { name: string; slug: string };
@@ -44,24 +36,17 @@ export interface BlogMetadata {
   tags: string[];
 }
 
-export type PublishDocumentV2 = PublishDocument & {
-  category: BlogMetadata["category"];
-  schemaVersion: 2;
-  tags: string[];
-};
-
 export class InvalidBlogMetadataError extends Error {
   readonly code = "invalid_blog_metadata";
   override readonly name = "InvalidBlogMetadataError";
 
-  constructor(readonly property: PublishingPropertyName) {
+  constructor(readonly property: BlogMetadataField) {
     super(`Invalid blog metadata: ${property}`);
   }
 }
 
 export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
-  const properties = (page as PageWithPublishingProperties)
-    .publishingProperties;
+  const properties = page.publishingProperties;
   const categoryName = category(properties?.["Blog Category"]);
 
   return {
@@ -83,8 +68,12 @@ export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
 
 export function buildPublishDocument(
   page: NotionPageContent,
-): PublishDocumentV2 {
+): PublishDocument {
   const metadata = deriveBlogMetadata(page);
+  const title = page.title.trim();
+  if (!title || title === "제목 없음") {
+    throw new InvalidBlogMetadataError("title");
+  }
 
   return {
     blocks: page.blocks.flatMap(toPublishBlock),
@@ -92,10 +81,10 @@ export function buildPublishDocument(
     description: metadata.description,
     publishedAt: metadata.publishedAt,
     schemaVersion: 2,
-    slug: pageSlug(page.title, page.providerPageId),
+    slug: pageSlug(title, page.providerPageId),
     tags: metadata.tags,
-    title: page.title,
-    updatedAt: validDate(page.lastEditedAt, "Blog Published At"),
+    title,
+    updatedAt: validDate(page.lastEditedAt, "last_edited_time"),
   };
 }
 
@@ -139,7 +128,7 @@ export function pageSlug(title: string, providerPageId: string): string {
   return `${base}-${suffix}`;
 }
 
-function category(property: PublishingProperty | undefined): string {
+function category(property: NotionPageProperty | undefined): string {
   if (property === undefined) {
     return UNCATEGORIZED_NAME;
   }
@@ -157,7 +146,7 @@ function category(property: PublishingProperty | undefined): string {
   return name;
 }
 
-function tags(property: PublishingProperty | undefined): string[] {
+function tags(property: NotionPageProperty | undefined): string[] {
   if (property === undefined) {
     return [];
   }
@@ -190,7 +179,7 @@ function tags(property: PublishingProperty | undefined): string[] {
 }
 
 function description(
-  property: PublishingProperty | undefined,
+  property: NotionPageProperty | undefined,
   page: NotionPageContent,
 ): string {
   if (property === undefined) {
@@ -227,7 +216,7 @@ function fallbackDescription(page: NotionPageContent): string {
 }
 
 function publishedAt(
-  property: PublishingProperty | undefined,
+  property: NotionPageProperty | undefined,
   createdAt: Date,
 ): string {
   if (property === undefined) {
@@ -245,7 +234,7 @@ function publishedAt(
   return validDate(parsed, "Blog Published At");
 }
 
-function validDate(date: Date, property: PublishingPropertyName): string {
+function validDate(date: Date, property: BlogMetadataField): string {
   if (!Number.isFinite(date.getTime())) {
     throw new InvalidBlogMetadataError(property);
   }
