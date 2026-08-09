@@ -251,14 +251,44 @@ job에서 배포한다.
 orchestration이 최신 Notion page를 조회한 뒤 제목, 설명, 게시/수정 시각과 아래의
 정규화된 block만 `packages/publisher`에 전달한다.
 
+블로그 metadata는 최신 page retrieve 응답의 예약 속성만 사용한다. 속성 이름은
+대소문자를 포함해 정확히 일치하며 alias나 브라우저 입력은 허용하지 않는다.
+
+| 예약 속성 | Notion 타입 | 게시 값 | 누락 시 fallback |
+|---|---|---|---|
+| `Blog Category` | `select` | category name | `미분류` |
+| `Blog Tags` | `multi_select` | 중복 제거한 최대 10개 tag | `[]` |
+| `Blog Description` | `rich_text` | annotation을 제거한 plain text | 첫 paragraph/quote/heading, 없으면 title |
+| `Blog Published At` | `date` | range start | Notion `created_time` |
+
+category는 trim 후 1~80자, tag는 각각 1~40자, description은 0~1,000자다.
+속성이 존재하지만 타입, 값, 개수 또는 날짜가 계약에 맞지 않으면 fallback하지 않고
+`422 invalid_blog_metadata`로 실패한다. Notion adapter는 이 네 속성만 제한된
+`rich_text | select | multi_select | date | unsupported` union으로 정규화하며 원시
+property, formula, relation, people, file 등의 값을 반환하지 않는다.
+
+category route slug는 category display name을 `NFKC`, trim, 연속 공백 축약,
+lowercase한 값에서 ASCII 영숫자 base를 만들고 정규화 원문의 SHA-256 앞 8자를 붙인다.
+ASCII base가 없으면 `category-<hash8>`을 사용하며 `미분류`는 `uncategorized`로 고정한다.
+post slug는 기존 title과 Notion page ID 조합을 유지해 category 변경으로 URL이 바뀌지 않는다.
+
 ```text
 PublishDocument
+  schemaVersion: 2
   slug, title, description, publishedAt, updatedAt
+  category: { name, slug }
+  tags: string[]
   blocks:
     paragraph | heading | quote | code | image | toggle | divider
   richText:
     text, href?, bold?, italic?, strikethrough?, code?
 ```
+
+`apps/web/lib/publish`의 공유 `buildPublishDocument`만 metadata fallback, category slug,
+tag 정규화, post slug와 block level 변환을 조립한다. publish와 이후 preview는 이 함수를
+사용하며 request body는 계속 `{ connectionId, providerPageId }`만 받는다. Astro template
+v1/v2 호환 리더가 배포되기 전까지 현재 Markdown writer는 이 v2 모델에서 기존 v1
+frontmatter만 출력하고 category/tag는 다음 단계에서 활성화한다.
 
 publisher는 `src/content/blog/<slug>.md` 하나를 생성한다. slug는 소문자 영숫자와
 단일 `-` 구분만 허용해 절대 경로와 `..` 경로를 차단한다. 사용자 text의 HTML과

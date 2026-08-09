@@ -71,9 +71,12 @@ package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/w
 6. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다.
 
 클라이언트가 전달한 markdown, repository 소유권, 사용자 ID를 그대로 신뢰하지 않는다.
-Notion provider 응답은 앱 orchestration에서 정규화하고 publisher는 제한된 block
-union만 받는다. publisher가 생성하는 repository 상대 경로와 Markdown text, URL,
-code fence는 commit 전에 다시 검증한다.
+Notion provider 응답은 adapter에서 예약 블로그 속성만 제한된 property union으로
+정규화하고 앱 orchestration의 공유 `buildPublishDocument`가 metadata와 block을 조립한다.
+publisher는 provider 독립 `PublishDocument`와 제한된 block union만 받는다. publisher가
+생성하는 repository 상대 경로와 Markdown text, URL, code fence는 commit 전에 다시 검증한다.
+브라우저는 title, description, category, tag, slug 또는 Markdown을 게시 입력으로 전달하지
+않으며 preview도 같은 공유 조립 경계를 사용한다.
 GitHub adapter는 기본 branch head/tree 조회, blob/tree/commit 생성, non-force ref
 update, repository 관리 경계·Pages readiness 판별과 Actions/Pages 상태 조회만 담당한다.
 빈 repository와 marker가 있는 repository는 허용하고, marker가 없는 repository는 앱 v1의
