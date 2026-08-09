@@ -297,8 +297,17 @@ PublishDocument
 `apps/web/lib/publish`의 공유 `buildPublishDocument`만 metadata fallback, category slug,
 tag 정규화, post slug와 block level 변환을 조립한다. publish와 이후 preview는 이 함수를
 사용하며 request body는 계속 `{ connectionId, providerPageId }`만 받는다. Astro template
-v1/v2 호환 리더가 배포되기 전까지 현재 Markdown writer는 이 v2 모델에서 기존 v1
-frontmatter만 출력하고 category/tag는 다음 단계에서 활성화한다.
+v2는 content frontmatter를 다음 순서로 해석한다.
+
+- `schemaVersion`이 없으면 v1으로 간주하고 `category=미분류`,
+  `categorySlug=uncategorized`, `tags=[]`를 주입한다.
+- `schemaVersion: 2`는 category, categorySlug와 tags를 필수로 strict 검증한다.
+- 알 수 없는 schema version과 v2의 누락·추가 field는 build를 실패시킨다.
+
+template v2 marker와 v1/v2 compatibility reader를 먼저 배포하고 user/project base path의
+mixed collection build를 통과시킨 뒤에만 Markdown writer가 v2 frontmatter 출력을
+활성화한다. 기존 `src/content/blog/<slug>.md`와 `/posts/<slug>/` 경로는 변경하지 않으며
+v1 글을 일괄 rewrite하지 않는다. 기존 글은 다시 게시될 때 같은 경로에서 v2로 승격된다.
 
 publisher는 `src/content/blog/<slug>.md` 하나를 생성한다. slug는 소문자 영숫자와
 단일 `-` 구분만 허용해 절대 경로와 `..` 경로를 차단한다. 사용자 text의 HTML과
@@ -357,6 +366,7 @@ GitHubPagesReadiness
 publisher는 `.notion-kanban-blog/managed.json` marker를 결정적으로 생성한다. marker에는
 publisher와 template version만 두며 token, 사용자 ID, repository ID를 넣지 않는다.
 legacy repository는 다음 성공 게시에서 marker를 함께 받아 이후 앱 관리 repository가 된다.
+현재 template version은 2이며 marker가 없는 repository는 v1 legacy로 취급한다.
 workflow의 push branch는 고정 `main`이 아니라 검증된 repository `defaultBranch`를 사용한다.
 게시 orchestration은 Notion 원문을 commit하기 직전에 readiness를 다시 확인하며 브라우저가
 전달한 readiness나 경로 목록을 신뢰하지 않는다.

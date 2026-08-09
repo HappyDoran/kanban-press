@@ -35,7 +35,8 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 ## 게시
 
 - Notion 예약 page property와 block → 공유 `PublishDocument` v2 → Markdown/MDX 변환
-- template v2 호환 전에는 v2 조립 모델을 기존 v1 frontmatter로 투영하는 단계적 rollout
+- Astro content schema가 v1 frontmatter를 `미분류`로 정규화하고 v2 metadata를 strict 검증
+- template v2 compatibility reader 검증 후 v2 Markdown writer를 활성화하는 단계적 rollout
 - Astro 7.1.1 정적 블로그 template
 - `actions/setup-node@v6` + `pnpm/action-setup@v6`로 명시적인 lockfile 없는 build
 - pnpm dependency build script는 `pnpm-workspace.yaml`에서 Astro가 요구하는
