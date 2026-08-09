@@ -140,7 +140,6 @@ export function createMarkdownArtifact(
 ): PublishArtifact {
   const document = publishDocumentSchema.parse(input) as PublishDocument;
   const body = renderBlocks(document.blocks, 0);
-  const tags = [...document.tags].sort(compareTags);
   const frontmatter = [
     "---",
     `schemaVersion: ${document.schemaVersion}`,
@@ -148,7 +147,7 @@ export function createMarkdownArtifact(
     `description: ${frontmatterString(document.description)}`,
     `category: ${frontmatterString(document.category.name)}`,
     `categorySlug: ${frontmatterString(document.category.slug)}`,
-    `tags: [${tags.map(frontmatterString).join(", ")}]`,
+    `tags: [${document.tags.map(frontmatterString).join(", ")}]`,
     `publishedAt: ${frontmatterString(document.publishedAt)}`,
     `updatedAt: ${frontmatterString(document.updatedAt)}`,
     "---",
@@ -297,16 +296,6 @@ function normalizeTag(value: string): string {
     .trim()
     .replace(/\s+/gu, " ")
     .toLowerCase();
-}
-
-function compareTags(left: string, right: string): number {
-  const normalizedLeft = normalizeTag(left);
-  const normalizedRight = normalizeTag(right);
-  return normalizedLeft < normalizedRight
-    ? -1
-    : normalizedLeft > normalizedRight
-      ? 1
-      : 0;
 }
 
 function safeUrl(

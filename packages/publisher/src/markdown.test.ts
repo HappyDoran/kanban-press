@@ -143,7 +143,7 @@ describe("createMarkdownArtifact", () => {
       'category: "Docs: \\"safe\\" \\u0026 \\u003ctyped\\u003e"',
     );
     expect(markdown).toContain(
-      'tags: ["HTML \\u0026 \\u003csafe\\u003e", "YAML: \\"quoted\\""]',
+      'tags: ["YAML: \\"quoted\\"", "HTML \\u0026 \\u003csafe\\u003e"]',
     );
     expect(markdown).not.toContain("[&lt;script&gt;");
     expect(markdown).not.toContain("](<javascript:");
@@ -152,7 +152,7 @@ describe("createMarkdownArtifact", () => {
     );
   });
 
-  it("sorts tags deterministically without mutating the input", () => {
+  it("preserves tag display order and repeats byte-identically", () => {
     const tags = ["zeta", "가나다", "Alpha"];
     const first = createMarkdownArtifact({
       ...baseDocument,
@@ -162,13 +162,19 @@ describe("createMarkdownArtifact", () => {
     const second = createMarkdownArtifact({
       ...baseDocument,
       blocks: [],
+      tags: [...tags],
+    });
+    const reordered = createMarkdownArtifact({
+      ...baseDocument,
+      blocks: [],
       tags: ["Alpha", "zeta", "가나다"],
     });
 
     expect(decoder.decode(first.bytes)).toBe(decoder.decode(second.bytes));
     expect(decoder.decode(first.bytes)).toContain(
-      'tags: ["Alpha", "zeta", "가나다"]',
+      'tags: ["zeta", "가나다", "Alpha"]',
     );
+    expect(decoder.decode(reordered.bytes)).not.toBe(decoder.decode(first.bytes));
     expect(tags).toEqual(["zeta", "가나다", "Alpha"]);
   });
 
