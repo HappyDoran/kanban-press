@@ -51,7 +51,7 @@ export type PublishBlock =
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
   | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
-  | { kind: "image"; caption: PublishRichText[]; url: string }
+  | { assetPath: string; caption: PublishRichText[]; kind: "image" }
   | { kind: "paragraph"; richText: PublishRichText[] }
   | { kind: "quote"; richText: PublishRichText[] }
   | {
@@ -79,9 +79,14 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
       .strict(),
     z
       .object({
+        assetPath: z
+          .string()
+          .max(240)
+          .regex(
+            /^\.\.\/\.\.\/assets\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*\/image-\d{3}\.(?:gif|jpg|png|webp)$/,
+          ),
         caption: z.array(richTextSchema).max(1_000),
         kind: z.literal("image"),
-        url: z.string().max(4_096),
       })
       .strict(),
     z
@@ -139,7 +144,7 @@ export function createMarkdownArtifact(
   input: PublishDocument,
 ): PublishArtifact {
   const document = publishDocumentSchema.parse(input) as PublishDocument;
-  const body = renderBlocks(document.blocks, 0);
+  const body = renderBlocks(document.blocks, 0, document.slug);
   const frontmatter = [
     "---",
     `schemaVersion: ${document.schemaVersion}`,
@@ -162,17 +167,22 @@ export function createMarkdownArtifact(
 function renderBlocks(
   blocks: readonly PublishBlock[],
   depth: number,
+  documentSlug: string,
 ): string {
   if (depth > MAX_BLOCK_DEPTH) {
     throw new Error("Document block depth exceeds the safe limit");
   }
   return blocks
-    .map((block) => renderBlock(block, depth))
+    .map((block) => renderBlock(block, depth, documentSlug))
     .filter(Boolean)
     .join("\n\n");
 }
 
-function renderBlock(block: PublishBlock, depth: number): string {
+function renderBlock(
+  block: PublishBlock,
+  depth: number,
+  documentSlug: string,
+): string {
   switch (block.kind) {
     case "paragraph":
       return renderRichText(block.richText);
@@ -191,16 +201,20 @@ function renderBlock(block: PublishBlock, depth: number): string {
       return `${fence}${language}\n${normalizeNewlines(block.code)}\n${fence}`;
     }
     case "image": {
-      const url = safeUrl(block.url, new Set(["https:"]));
-      if (url === null) {
-        throw new Error("Image URL must use HTTPS");
+      const expectedPrefix = `../../assets/blog/${documentSlug}/`;
+      if (!block.assetPath.startsWith(expectedPrefix)) {
+        throw new Error("Image asset path must belong to the document");
       }
       const caption = escapeMarkdown(plainText(block.caption));
-      return `![${caption}](<${escapeLinkDestination(url)}>)`;
+      return `![${caption}](<${block.assetPath}>)`;
     }
     case "toggle": {
       const summary = escapeHtml(plainText(block.summary));
-      const children = renderBlocks(block.children, depth + 1);
+      const children = renderBlocks(
+        block.children,
+        depth + 1,
+        documentSlug,
+      );
       return [
         "<details>",
         `<summary>${summary || "자세히 보기"}</summary>`,

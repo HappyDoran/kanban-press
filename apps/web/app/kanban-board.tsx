@@ -66,6 +66,7 @@ interface KanbanBoardProps {
     targetIndex: number,
   ) => Promise<void>;
   onPublish: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
   onRemove: (record: KanbanRecord) => Promise<void>;
   publishFailures: Readonly<
     Record<string, { actionsUrl: string | null; message: string }>
@@ -77,6 +78,7 @@ export function KanbanBoard({
   connectionNames,
   onMove,
   onPublish,
+  onPreview,
   onRemove,
   publishFailures,
   records,
@@ -227,6 +229,7 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onRemove={remove}
+                onPreview={onPreview}
                 publishFailures={publishFailures}
                 records={grouped[column]}
               />
@@ -255,6 +258,7 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onRemove,
+  onPreview,
   publishFailures,
   records,
 }: {
@@ -262,6 +266,7 @@ function KanbanColumn({
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
   publishFailures: Readonly<
     Record<string, { actionsUrl: string | null; message: string }>
   >;
@@ -300,6 +305,7 @@ function KanbanColumn({
               disabled={movingId === recordId(record)}
               key={recordId(record)}
               onRemove={onRemove}
+              onPreview={onPreview}
               publishFailure={publishFailures[recordId(record)]}
               record={record}
             />
@@ -323,12 +329,14 @@ function SortableBoardCard({
   connectionName,
   disabled,
   onRemove,
+  onPreview,
   publishFailure,
   record,
 }: {
   connectionName: string;
   disabled: boolean;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
   publishFailure?:
     | { actionsUrl: string | null; message: string }
     | undefined;
@@ -365,6 +373,7 @@ function SortableBoardCard({
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
         onRemove={onRemove}
+        onPreview={onPreview}
         publishFailure={publishFailure}
         record={record}
       />
@@ -379,6 +388,7 @@ export function BoardCard({
   dragListeners,
   dragRef,
   onRemove,
+  onPreview,
   overlay = false,
   publishFailure,
   record,
@@ -389,6 +399,7 @@ export function BoardCard({
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
   onRemove?: (record: KanbanRecord) => Promise<void>;
+  onPreview?: (record: KanbanRecord) => void;
   overlay?: boolean;
   publishFailure?:
     | { actionsUrl: string | null; message: string }
@@ -415,6 +426,18 @@ export function BoardCard({
         <span>{connectionName}</span>
         {!overlay ? (
           <div className="boardCardControls">
+            {record.column === "stored" && onPreview !== undefined ? (
+              <button
+                className="previewCardButton"
+                disabled={disabled}
+                onClick={() => onPreview(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                미리보기
+              </button>
+            ) : null}
             <button
               aria-label={`${record.title} 칸반에서 제거`}
               className="removeCardButton"

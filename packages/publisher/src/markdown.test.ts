@@ -48,7 +48,7 @@ describe("createMarkdownArtifact", () => {
         {
           caption: [{ text: "대표 이미지" }],
           kind: "image",
-          url: "https://images.example.com/cover.png",
+          assetPath: "../../assets/blog/hello-notion/image-001.png",
         },
         {
           children: [
@@ -74,7 +74,7 @@ describe("createMarkdownArtifact", () => {
       "````text\nconst fence = ```;\nconsole.log(fence);\n````",
     );
     expect(markdown).toContain(
-      "![대표 이미지](<https://images.example.com/cover.png>)",
+      "![대표 이미지](<../../assets/blog/hello-notion/image-001.png>)",
     );
     expect(markdown).toContain("<details>");
     expect(markdown).toContain("<summary>자세히 &lt;보기&gt;</summary>");
@@ -262,15 +262,19 @@ describe("createMarkdownArtifact", () => {
     ).toThrow();
   });
 
-  it.each(["http://images.example.com/cover.png", "javascript:alert(1)"])(
-    "rejects unsafe image URL %s",
-    (url) => {
+  it.each([
+    "https://images.example.com/cover.png",
+    "../../assets/blog/other-post/image-001.png",
+    "../../assets/blog/hello-notion/../secret.png",
+  ])(
+    "rejects unsafe or foreign image asset path %s",
+    (assetPath) => {
       expect(() =>
         createMarkdownArtifact({
           ...baseDocument,
-          blocks: [{ caption: [], kind: "image", url }],
+          blocks: [{ assetPath, caption: [], kind: "image" }],
         }),
-      ).toThrow("Image URL must use HTTPS");
+      ).toThrow();
     },
   );
 

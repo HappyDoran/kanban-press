@@ -25,6 +25,10 @@ import {
 import { shouldShowBoardRecord } from "./board-drop";
 import { GitHubPagesTarget } from "./github-pages-target";
 import { KanbanBoard, type KanbanRecord } from "./kanban-board";
+import {
+  PublishPreviewDialog,
+  type PublishPreviewTarget,
+} from "./publish-preview";
 
 import type { BoardColumn } from "@notion-kanban-blog/domain";
 import type { ReactNode } from "react";
@@ -94,6 +98,8 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
     Readonly<Record<string, PublishViewState>>
   >({});
   const [boardState, setBoardState] = useState<LoadState>("loading");
+  const [previewTarget, setPreviewTarget] =
+    useState<PublishPreviewTarget | null>(null);
   const [pendingPageIds, setPendingPageIds] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -135,6 +141,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           setBoardRecords([]);
           setPublishFailures({});
           setPublishViewStates({});
+          setPreviewTarget(null);
           setSessionState("signed-out");
           return;
         }
@@ -878,6 +885,13 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 boardRecordsByPageKey={boardRecordsByPageKey}
                 connectionId={selectedConnectionId ?? ""}
                 onInspectStructure={inspectPageStructure}
+                onPreview={(page) =>
+                  setPreviewTarget({
+                    connectionId: selectedConnectionId ?? "",
+                    providerPageId: page.providerPageId,
+                    title: page.title,
+                  })
+                }
                 onToggleVisibility={togglePageVisibility}
                 pages={pages}
                 pendingPageIds={pendingPageIds}
@@ -888,6 +902,13 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 connectionNames={connectionNames}
                 onMove={moveBoardRecord}
                 onPublish={publishBoardRecord}
+                onPreview={(record) =>
+                  setPreviewTarget({
+                    connectionId: record.connectionId,
+                    providerPageId: record.providerPageId,
+                    title: record.title,
+                  })
+                }
                 onRemove={removeBoardRecord}
                 publishFailures={publishFailures}
                 records={kanbanRecords}
@@ -902,6 +923,13 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           ) : null}
         </section>
       )}
+      {previewTarget === null ? null : (
+        <PublishPreviewDialog
+          key={`${previewTarget.connectionId}:${previewTarget.providerPageId}`}
+          onClose={() => setPreviewTarget(null)}
+          target={previewTarget}
+        />
+      )}
     </>
   );
 }
@@ -910,6 +938,7 @@ function PageTree({
   boardRecordsByPageKey,
   connectionId,
   onInspectStructure,
+  onPreview,
   onToggleVisibility,
   pages,
   pendingPageIds,
@@ -917,6 +946,7 @@ function PageTree({
   boardRecordsByPageKey: ReadonlyMap<string, BoardRecord>;
   connectionId: string;
   onInspectStructure: (page: PageSummary) => Promise<OutlineNode[]>;
+  onPreview: (page: PageSummary) => void;
   onToggleVisibility: (page: PageSummary) => Promise<void>;
   pages: PageSummary[];
   pendingPageIds: ReadonlySet<string>;
@@ -950,6 +980,7 @@ function PageTree({
           connectionId={connectionId}
           key={`${connectionId}:${page.providerPageId}`}
           onInspectStructure={onInspectStructure}
+          onPreview={onPreview}
           onToggleVisibility={onToggleVisibility}
           page={page}
           pagesById={pagesById}
@@ -966,6 +997,7 @@ function PageNode({
   childPagesByParent,
   connectionId,
   onInspectStructure,
+  onPreview,
   onToggleVisibility,
   page,
   pagesById,
@@ -976,6 +1008,7 @@ function PageNode({
   childPagesByParent: ReadonlyMap<string, PageSummary[]>;
   connectionId: string;
   onInspectStructure: (page: PageSummary) => Promise<OutlineNode[]>;
+  onPreview: (page: PageSummary) => void;
   onToggleVisibility: (page: PageSummary) => Promise<void>;
   page: PageSummary;
   pagesById: ReadonlyMap<string, PageSummary>;
@@ -1110,6 +1143,16 @@ function PageNode({
           ) : null}
           {primaryAction === "visibility" ? (
             <button
+              aria-label={`${page.title} 게시 전 미리보기`}
+              className="previewTreeButton"
+              onClick={() => onPreview(page)}
+              type="button"
+            >
+              미리보기
+            </button>
+          ) : null}
+          {primaryAction === "visibility" ? (
+            <button
               aria-label={`${page.title}을 칸반에서 ${visible ? "숨기기" : "표시하기"}`}
               className={
                 visible ? "draftButton added" : "draftButton"
@@ -1140,6 +1183,7 @@ function PageNode({
               childPagesByParent={childPagesByParent}
               connectionId={connectionId}
               onInspectStructure={onInspectStructure}
+              onPreview={onPreview}
               onToggleVisibility={onToggleVisibility}
               outline={outline ?? []}
               pagesById={pagesById}
@@ -1159,6 +1203,7 @@ function PageChildren({
   childPagesByParent,
   connectionId,
   onInspectStructure,
+  onPreview,
   onToggleVisibility,
   outline,
   pagesById,
@@ -1170,6 +1215,7 @@ function PageChildren({
   childPagesByParent: ReadonlyMap<string, PageSummary[]>;
   connectionId: string;
   onInspectStructure: (page: PageSummary) => Promise<OutlineNode[]>;
+  onPreview: (page: PageSummary) => void;
   onToggleVisibility: (page: PageSummary) => Promise<void>;
   outline: OutlineNode[];
   pagesById: ReadonlyMap<string, PageSummary>;
@@ -1235,6 +1281,7 @@ function PageChildren({
           key={node.nodeId}
           node={node}
           onInspectStructure={onInspectStructure}
+          onPreview={onPreview}
           onToggleVisibility={onToggleVisibility}
           outlineChildren={outlineChildren}
           pagesById={pagesById}
@@ -1249,6 +1296,7 @@ function PageChildren({
           connectionId={connectionId}
           key={child.providerPageId}
           onInspectStructure={onInspectStructure}
+          onPreview={onPreview}
           onToggleVisibility={onToggleVisibility}
           page={child}
           pagesById={pagesById}
@@ -1267,6 +1315,7 @@ function OutlineBranch({
   databasePages,
   node,
   onInspectStructure,
+  onPreview,
   onToggleVisibility,
   outlineChildren,
   pagesById,
@@ -1279,6 +1328,7 @@ function OutlineBranch({
   databasePages: ReadonlyMap<string, PageSummary[]>;
   node: OutlineNode;
   onInspectStructure: (page: PageSummary) => Promise<OutlineNode[]>;
+  onPreview: (page: PageSummary) => void;
   onToggleVisibility: (page: PageSummary) => Promise<void>;
   outlineChildren: ReadonlyMap<string, OutlineNode[]>;
   pagesById: ReadonlyMap<string, PageSummary>;
@@ -1297,6 +1347,7 @@ function OutlineBranch({
         childPagesByParent={childPagesByParent}
         connectionId={connectionId}
         onInspectStructure={onInspectStructure}
+        onPreview={onPreview}
         onToggleVisibility={onToggleVisibility}
         page={page}
         pagesById={pagesById}
@@ -1346,6 +1397,7 @@ function OutlineBranch({
               key={child.nodeId}
               node={child}
               onInspectStructure={onInspectStructure}
+              onPreview={onPreview}
               onToggleVisibility={onToggleVisibility}
               outlineChildren={outlineChildren}
               pagesById={pagesById}
@@ -1360,6 +1412,7 @@ function OutlineBranch({
               connectionId={connectionId}
               key={page.providerPageId}
               onInspectStructure={onInspectStructure}
+              onPreview={onPreview}
               onToggleVisibility={onToggleVisibility}
               page={page}
               pagesById={pagesById}
@@ -1688,6 +1741,8 @@ export function publishErrorMessage(code: string): string {
       return "Notion 페이지 접근 권한을 다시 공유하거나 워크스페이스를 다시 연결해 주세요.";
     case "authentication_required":
       return "GitHub에 다시 로그인한 뒤 게시해 주세요.";
+    case "invalid_publish_image":
+      return "이미지를 안전하게 가져오지 못했습니다. Notion에서 이미지 파일을 다시 첨부한 뒤 게시해 주세요.";
     case "deployment_failed":
       return "GitHub Pages 배포가 실패했습니다. Actions 로그를 확인한 뒤 다시 게시해 주세요.";
     case "deployment_timeout":

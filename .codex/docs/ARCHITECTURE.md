@@ -28,6 +28,7 @@ apps/web (stateless Next.js)
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | 보관 문서 정렬, 게시 후 숨김과 page 표시·자동 역할·legacy 역할 override | IndexedDB | 비신뢰 입력 |
 | 게시 중·완료 상태와 현재 완료 링크 | React 메모리 | 새로고침 시 소멸 |
+| 게시 전 프리뷰 DTO와 dialog 상태 | React 메모리 | 닫기·새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |
 | 배포 상태 | GitHub Actions/Pages | GitHub API에서 조회 |
 
@@ -67,8 +68,9 @@ package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/w
 2. 브라우저 payload를 schema로 검증한다.
 3. Notion 페이지 접근과 GitHub repository 접근을 다시 확인한다.
 4. 최신 원문을 서버에서 가져온다.
-5. artifact와 진단용 content hash를 생성한다.
-6. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다.
+5. image capability URL을 제한된 HTTPS downloader로 읽어 로컬 asset artifact로 바꾼다.
+6. Markdown을 포함한 artifact와 진단용 content hash를 생성한다.
+7. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다.
 
 클라이언트가 전달한 markdown, repository 소유권, 사용자 ID를 그대로 신뢰하지 않는다.
 Notion provider 응답은 adapter에서 예약 블로그 속성만 제한된 property union으로
@@ -83,6 +85,25 @@ update, repository 관리 경계·Pages readiness 판별과 Actions/Pages 상태
 허용 경로만 있는 legacy 형태일 때만 다음 게시에서 marker를 추가한다. 그 외 repository는
 기존 콘텐츠 보호를 위해 mutation 전에 거절한다. content hash 계산과 Notion→publisher
 정규화, 두 adapter의 호출 순서는 `apps/web` orchestration이 소유한다.
+
+이미지 downloader는 `apps/web`의 게시 전용 경계다. HTTPS URL과 매 redirect의 hostname을
+DNS로 해석해 public unicast 주소만 남기고 그 주소를 TLS socket lookup에 고정한다.
+credential/fragment, private·reserved IP, protocol downgrade, redirect 3회 초과, 10초
+timeout, 허용 MIME 외 응답, 이미지당 8 MiB·문서당 32 MiB·20개 초과를 거절한다.
+성공 byte만 결정적 `src/assets/blog/<slug>/image-<순번>.<확장자>` artifact가 되며
+publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한다. 실패 오류는 URL을
+포함하지 않는 안정적인 code로만 응답한다.
+
+### 게시 전 프리뷰 요청
+
+1. 동일 origin POST, 세션과 현재 사용자 소유 Notion connection을 검증한다.
+2. 현재 credential로 page와 block pagination을 다시 읽는다.
+3. publish와 같은 `buildPublishDocument`로 조립한다.
+4. raw HTML, Markdown, provider property와 image URL을 제외한 versioned DTO만
+   `no-store`로 반환한다.
+
+프리뷰는 GitHub adapter를 생성하지 않고 repository를 조회·변경하지 않는다. 브라우저는
+프리뷰 결과를 React 메모리에만 두며 IndexedDB나 게시 상태를 변경하지 않는다.
 
 ## 5. 쿠키 envelope
 

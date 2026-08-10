@@ -6,8 +6,8 @@ import type {
   NotionPageProperty,
 } from "@notion-kanban-blog/notion";
 import type {
-  PublishBlock,
   PublishDocument,
+  PublishRichText,
 } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
@@ -34,6 +34,24 @@ export interface BlogMetadata {
   description: string;
   publishedAt: string;
   tags: string[];
+}
+
+export type PublishSourceBlock =
+  | { code: string; kind: "code"; language: string }
+  | { kind: "divider" }
+  | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
+  | { caption: PublishRichText[]; kind: "image"; sourceUrl: string }
+  | { kind: "paragraph"; richText: PublishRichText[] }
+  | { kind: "quote"; richText: PublishRichText[] }
+  | {
+      children: PublishSourceBlock[];
+      kind: "toggle";
+      summary: PublishRichText[];
+    };
+
+export interface PublishSourceDocument
+  extends Omit<PublishDocument, "blocks"> {
+  blocks: PublishSourceBlock[];
 }
 
 export class InvalidBlogMetadataError extends Error {
@@ -68,7 +86,7 @@ export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
 
 export function buildPublishDocument(
   page: NotionPageContent,
-): PublishDocument {
+): PublishSourceDocument {
   const metadata = deriveBlogMetadata(page);
   const title = page.title.trim();
   if (!title || title === "제목 없음") {
@@ -245,7 +263,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function toPublishBlock(block: NotionContentBlock): PublishBlock[] {
+function toPublishBlock(block: NotionContentBlock): PublishSourceBlock[] {
   switch (block.kind) {
     case "heading":
       return [
@@ -261,6 +279,14 @@ function toPublishBlock(block: NotionContentBlock): PublishBlock[] {
           children: block.children.flatMap(toPublishBlock),
           kind: "toggle",
           summary: block.summary,
+        },
+      ];
+    case "image":
+      return [
+        {
+          caption: block.caption,
+          kind: "image",
+          sourceUrl: block.url,
         },
       ];
     default:

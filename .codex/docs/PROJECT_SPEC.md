@@ -229,18 +229,56 @@ page 역할 판별이 끝나기 전에는 개별 액션을 노출하지 않고 �
 - 상태 조회: `GET /api/publish/status?commitSha=<SHA>`
   - response: `{ commitSha, state, actionsUrl, pageUrl }`
   - state: `queued | in_progress | succeeded | failed`
+- 게시 전 프리뷰: `POST /api/publish/preview`
+  - body: `{ connectionId, providerPageId }` 외 필드 거절
+  - response: `previewSchemaVersion: 1`, `templateVersion: 2`, 최신 원문 수정 시각,
+    metadata와 제한된 block union, warning만 포함하는 strict DTO
+  - `Cache-Control: no-store`, `Pragma: no-cache`, `X-Content-Type-Options: nosniff`
 
-두 endpoint 모두 GitHub 세션과 고정 Pages repository 권한을 다시 확인한다.
+게시 및 상태 조회 endpoint는 GitHub 세션과 고정 Pages repository 권한을 다시 확인한다.
 게시 요청은 소유한 Notion connection을 다시 찾고 page retrieve와 block children
 조회가 현재 credential로 모두 성공해야 진행한다. 브라우저가 제목, Markdown, slug,
 repository 또는 commit SHA 외의 provider 결과를 대신 전달하지 않는다.
+
+프리뷰 POST는 동일 origin, GitHub 세션, 현재 사용자가 소유한 Notion connection을
+검증한 뒤 현재 credential로 page와 모든 block을 매 요청 다시 읽는다. 공유
+`buildPublishDocument` 결과를 raw HTML이나 Markdown이 없는 client DTO로 투영하며
+GitHub adapter, repository readiness, commit API를 호출하지 않는다. rich text 링크는
+`http:`, `https:`, `mailto:`만 남기고 image URL은 provider 종류와 관계없이 DTO에서
+제거해 placeholder와 warning으로 전달한다. 원시 Notion property, credential, cookie,
+repository 정보는 응답하지 않는다. 프리뷰를 닫거나 새로고침하면 결과를 버리며
+IndexedDB v12 record와 게시 중·완료 상태를 변경하지 않는다. 실제 게시 요청은 프리뷰
+DTO를 재사용하지 않고 최신 Notion 원문과 GitHub 권한을 다시 검증한다.
+
+게시의 image block은 provider capability URL을 Markdown이나 GitHub artifact에 직접
+기록하지 않는다. `apps/web`은 게시 요청 안에서만 각 HTTPS URL을 내려받아 허용된
+`image/jpeg`, `image/png`, `image/gif`, `image/webp`인지 확인하고
+`src/assets/blog/<post-slug>/image-<순번>.<확장자>` artifact로 만든다. Markdown에는
+해당 content file에서 자산으로 향하는 검증된 상대 경로만 기록한다. 이미지 URL은
+프리뷰 응답, 오류 응답, commit message, content hash 입력의 path/text와 로그에 남기지
+않는다.
+
+이미지 fetch는 URL credential과 fragment를 거절하고 HTTPS만 허용한다. 최초 요청과
+모든 redirect hop은 DNS를 다시 검증해 loopback, private, link-local, multicast,
+documentation/reserved 주소를 차단하며, 검증한 public IP를 실제 TLS 연결에 고정한다.
+redirect는 최대 3회, 이미지당 timeout은 10초, 이미지당 최대 8 MiB, 문서 전체 최대
+32 MiB, 문서당 최대 20개다. `Content-Type`과 파일 signature, `Content-Length`와 실제
+stream byte를 모두 검사하고
+허용하지 않는 MIME, 누락된 MIME, redirect downgrade/loop/초과, DNS/IP 오류와 timeout은
+commit 전에 `422 invalid_publish_image`로 실패한다. SVG와 MIME sniff fallback은
+허용하지 않는다.
 
 `packages/publisher`는 GitHub owner와 repository 이름을 검증한 뒤 결정적인 Astro
 template manifest를 생성한다. manifest에는 정렬된 repository 상대 경로와 byte
 content, `siteUrl`, `basePath`, template version이 포함된다. user site인
 `<owner>.github.io`는 `/`, project site는 `/<repository>`를 base로 사용한다.
-template은 Astro content collection, 목록/글 layout, 정적 build 설정과 GitHub Pages
-workflow를 포함하며 절대 경로와 `..` 경로를 허용하지 않는다. 생성 repository에는
+template은 Astro content collection, 공통 header/main/footer와 skip link, 홈 최신 글,
+전체 글, category index/detail, 기존 permalink의 글 상세, 404 정적 route와 GitHub Pages
+workflow를 포함하며 절대 경로와 `..` 경로를 허용하지 않는다. 내부 링크는 모두
+user/project site의 base path를 반영하며 핵심 탐색은 client JavaScript 없이 동작한다.
+로컬 image artifact는 Astro passthrough image service로 원본 byte를 유지한 채 build
+asset으로 복사해 Sharp나 추가 native dependency를 요구하지 않는다.
+생성 repository에는
 lockfile을 포함하지 않으므로 workflow는 Node와 pnpm 버전을 명시하고 dependency
 cache를 끈 뒤 `pnpm install --no-frozen-lockfile`로 설치한다. pnpm의 dependency
 build 차단은 유지하되 Astro 빌드에 필요한 `esbuild`만 `pnpm-workspace.yaml`의
@@ -290,6 +328,7 @@ PublishDocument
   tags: string[]
   blocks:
     paragraph | heading | quote | code | image | toggle | divider
+    image: { caption, assetPath }
   richText:
     text, href?, bold?, italic?, strikethrough?, code?
 ```
@@ -309,11 +348,14 @@ mixed collection build를 통과시킨 뒤에만 Markdown writer가 v2 frontmatt
 활성화한다. 기존 `src/content/blog/<slug>.md`와 `/posts/<slug>/` 경로는 변경하지 않으며
 v1 글을 일괄 rewrite하지 않는다. 기존 글은 다시 게시될 때 같은 경로에서 v2로 승격된다.
 
-publisher는 `src/content/blog/<slug>.md` 하나를 생성한다. slug는 소문자 영숫자와
+publisher는 `src/content/blog/<slug>.md`와 게시 orchestration이 내려받은 로컬 image
+artifact를 생성한다. slug는 소문자 영숫자와
 단일 `-` 구분만 허용해 절대 경로와 `..` 경로를 차단한다. 사용자 text의 HTML과
-Markdown 제어 문자를 escape하고, 링크는 `https:`, `http:`, `mailto:`만, 이미지는
-`https:`만 허용한다. 허용하지 않는 링크는 일반 text로 낮추고 허용하지 않는 이미지는
-변환 실패로 처리한다. code fence 길이는 본문보다 길게 생성하고 language 식별자를
+Markdown 제어 문자를 escape하고, 링크는 `https:`, `http:`, `mailto:`만 허용한다.
+이미지는 `src/assets/blog/<slug>/image-<순번>.<확장자>`에서 현재 Markdown 기준
+`../../assets/blog/<slug>/...`로 향하는 정규화된 상대 경로만 허용한다. 허용하지 않는
+링크는 일반 text로 낮추고 provider URL 또는 경로 이탈 이미지는 변환 실패로 처리한다.
+code fence 길이는 본문보다 길게 생성하고 language 식별자를
 제한한다. toggle의 `<details>` wrapper만 publisher가 생성한 신뢰 HTML로 허용하며
 summary와 자식 내용은 동일한 escape 규칙을 적용한다.
 
@@ -422,4 +464,14 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - Astro template v2 compatibility reader가 schema 없는 기존 v1 글을 `미분류`로
   정규화하고 strict v2 글과 함께 읽는다. Markdown writer는 v2 frontmatter를 출력하며
   기존 글 경로와 URL은 다시 게시할 때도 유지된다.
+- 정적 블로그는 홈 최신 글 12개, 전체 글, category index/detail, breadcrumb·목차·분류·태그가
+  있는 글 상세와 404를 생성한다. 공통 반응형 shell, 명시적인 focus, reduced-motion,
+  user/project base path와 JavaScript 없는 탐색을 Astro fixture build로 검증한다.
+- `POST /api/publish/preview`는 현재 사용자 소유 Notion 원문을 다시 읽고 공유 문서 조립
+  경계를 거쳐 URL 없는 image placeholder를 포함한 strict DTO만 반환한다. 보관 카드와
+  판별 완료 문서 행의 dialog는 글/홈 보기, 3개 viewport, loading/error/retry를 제공하며
+  닫기·새로고침 뒤 결과를 복구하거나 IndexedDB·게시 상태를 변경하지 않는다.
+- 게시 image는 제한된 HTTPS downloader가 public IP에 고정해 받아 로컬 Astro asset으로
+  commit한다. provider capability URL은 preview·Markdown·commit message에 남지 않으며
+  MIME, byte, redirect, timeout, SSRF 제한을 contract test한다.
 - 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.

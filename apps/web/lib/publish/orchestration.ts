@@ -37,6 +37,12 @@ import {
   buildPublishDocument,
   InvalidBlogMetadataError,
 } from "./document";
+import {
+  createPublishImageDependencies,
+  InvalidPublishImageError,
+  materializePublishImages,
+  type PublishImageDependencies,
+} from "./image-assets";
 
 export { pageSlug } from "./document";
 
@@ -56,6 +62,7 @@ export interface PublishDependencies {
   appOrigin: string;
   createGitHubAdapter: (accessToken: string) => GitHubRepositoryAdapter;
   createNotionAdapter: (accessToken: string) => NotionContentAdapter;
+  imageDependencies: PublishImageDependencies;
   notionAuth: Pick<
     NotionAuthDependencies,
     "connectionsCodec" | "sessionCodec"
@@ -102,16 +109,22 @@ export async function publishNotionPage(
     if (page.providerPageId !== input.data.providerPageId) {
       return errorResponse(403, "notion_page_mismatch");
     }
-    const document = buildPublishDocument(page);
+    const sourceDocument = buildPublishDocument(page);
     const template = createAstroTemplateManifest({
       defaultBranch: repository.defaultBranch,
       owner: session.githubLogin,
       repository: repository.fullName.split("/")[1] ?? "",
     });
-    const markdown = createMarkdownArtifact(document);
-    const artifacts = [...template.artifacts, markdown].sort((left, right) =>
-      left.path.localeCompare(right.path),
+    const materialized = await materializePublishImages(
+      sourceDocument,
+      dependencies.imageDependencies,
     );
+    const markdown = createMarkdownArtifact(materialized.document);
+    const artifacts = [
+      ...template.artifacts,
+      ...materialized.artifacts,
+      markdown,
+    ].sort((left, right) => left.path.localeCompare(right.path));
     const contentHash = artifactHash(artifacts);
     const commitMessage =
       `Publish ${page.title.slice(0, 150)} ` +
@@ -138,7 +151,7 @@ export async function publishNotionPage(
         commitSha: committed.commitSha,
         contentHash,
         created: committed.created,
-        pageUrl: `${template.siteUrl}/posts/${document.slug}/`,
+        pageUrl: `${template.siteUrl}/posts/${materialized.document.slug}/`,
       },
       { headers: { "cache-control": "no-store" } },
     );
@@ -197,6 +210,7 @@ export function createPublishDependencies(
         accessToken,
         apiVersion: parsed.NOTION_API_VERSION,
       }),
+    imageDependencies: createPublishImageDependencies(),
     notionAuth: createNotionAuthDependencies(environment),
     sessionCodec: githubAuth.sessionCodec,
   };
@@ -239,6 +253,9 @@ function publishErrorResponse(error: unknown): Response {
           ? 429
           : 502;
     return errorResponse(status, `notion_${error.code}`);
+  }
+  if (error instanceof InvalidPublishImageError) {
+    return errorResponse(422, error.code);
   }
   if (error instanceof GitHubPagesError) {
     const status =

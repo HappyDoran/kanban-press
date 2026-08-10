@@ -44,6 +44,17 @@ describe("createAstroTemplateManifest", () => {
     const paths = first.artifacts.map(({ path }) => path);
     expect(paths).toEqual([...paths].sort());
     expect(paths).toContain(".notion-kanban-blog/managed.json");
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        "src/components/Breadcrumbs.astro",
+        "src/components/PostCard.astro",
+        "src/lib/blog.ts",
+        "src/pages/404.astro",
+        "src/pages/categories/[slug].astro",
+        "src/pages/categories/index.astro",
+        "src/pages/posts/index.astro",
+      ]),
+    );
 
     const contentConfig = readArtifact(
       first.artifacts,
@@ -54,6 +65,9 @@ describe("createAstroTemplateManifest", () => {
     expect(contentConfig).toContain('category: "미분류"');
     expect(contentConfig).toContain('categorySlug: "uncategorized"');
     expect(contentConfig).toContain(".strict()");
+    expect(readArtifact(first.artifacts, "src/lib/blog.ts")).toContain(
+      'export const base = "/"',
+    );
   });
 
   it("creates a project-site template with a repository base path", () => {
@@ -66,6 +80,9 @@ describe("createAstroTemplateManifest", () => {
     expect(manifest.basePath).toBe("/notion-notes");
     expect(readArtifact(manifest.artifacts, "astro.config.mjs")).toContain(
       'base: "/notion-notes"',
+    );
+    expect(readArtifact(manifest.artifacts, "src/lib/blog.ts")).toContain(
+      'export const base = "/notion-notes/"',
     );
     expect(
       readArtifact(manifest.artifacts, ".github/workflows/deploy.yml"),

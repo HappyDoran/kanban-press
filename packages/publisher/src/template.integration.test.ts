@@ -3,6 +3,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -45,6 +46,20 @@ tags:
 ---
 
 This post uses v2 metadata.
+
+## Start
+
+First section.
+
+## Build
+
+Second section.
+
+![Local image](../../assets/blog/version-two/image-001.png)
+
+## Ship
+
+Third section.
 `;
 
 const compatibilityPage = `---
@@ -114,6 +129,16 @@ describe("Astro template build", () => {
           writeFixture(root, `src/content/blog/${name}`, content),
         ),
       );
+      if ("version-two.md" in posts) {
+        await writeFixture(
+          root,
+          "src/assets/blog/version-two/image-001.png",
+          Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "base64",
+          ),
+        );
+      }
 
       await build(root);
 
@@ -126,8 +151,38 @@ describe("Astro template build", () => {
         join(root, "dist/compatibility/index.html"),
         "utf8",
       );
+      const postsHtml = await readFile(
+        join(root, "dist/posts/index.html"),
+        "utf8",
+      );
+      const categoriesHtml = await readFile(
+        join(root, "dist/categories/index.html"),
+        "utf8",
+      );
+      const uncategorizedHtml = await readFile(
+        join(root, "dist/categories/uncategorized/index.html"),
+        "utf8",
+      );
+      const notFoundHtml = await readFile(join(root, "dist/404.html"), "utf8");
       expect(indexHtml).toContain(`${expectedBase}posts/legacy-post/`);
+      expect(indexHtml).toContain(`${expectedBase}posts/`);
+      expect(indexHtml).toContain(`${expectedBase}categories/`);
+      expect(indexHtml).toContain("본문으로 건너뛰기");
+      expect(indexHtml).toContain('aria-current="page"');
+      expect(indexHtml).not.toContain("<script");
       expect(legacyHtml).toContain("<h1>Legacy Post</h1>");
+      expect(legacyHtml).toContain(
+        `${expectedBase}categories/uncategorized/`,
+      );
+      expect(postsHtml).toContain("전체 글");
+      expect(postsHtml).toContain(`${expectedBase}posts/legacy-post/`);
+      expect(categoriesHtml).toContain("카테고리");
+      expect(categoriesHtml).toContain(
+        `${expectedBase}categories/uncategorized/`,
+      );
+      expect(uncategorizedHtml).toContain("Legacy Post");
+      expect(notFoundHtml).toContain("페이지를 찾을 수 없습니다");
+      expect(notFoundHtml).toContain(`${expectedBase}posts/legacy-post/`);
       expect(compatibilityHtml).toContain('data-category="미분류"');
       expect(compatibilityHtml).toContain('data-category-slug="uncategorized"');
       expect(compatibilityHtml).toContain('data-schema-version="1"');
@@ -135,12 +190,27 @@ describe("Astro template build", () => {
 
       if ("version-two.md" in posts) {
         expect(indexHtml).toContain(`${expectedBase}posts/version-two/`);
-        expect(
-          await readFile(
-            join(root, "dist/posts/version-two/index.html"),
-            "utf8",
+        const v2Html = await readFile(
+          join(root, "dist/posts/version-two/index.html"),
+          "utf8",
+        );
+        const engineeringHtml = await readFile(
+          join(
+            root,
+            "dist/categories/engineering-a1b2c3d4/index.html",
           ),
-        ).toContain("<h1>Version Two</h1>");
+          "utf8",
+        );
+        expect(v2Html).toContain("<h1>Version Two</h1>");
+        expect(v2Html).toContain("Strict v2 content");
+        expect(v2Html).toContain("#Notion");
+        expect(v2Html).toContain('href="#start"');
+        expect(v2Html).toMatch(/<img[^>]+src="[^"]+_astro\/image-001\.[^"]+\.png"/);
+        expect(v2Html).toContain('aria-label="현재 위치"');
+        expect(categoriesHtml).toContain(
+          `${expectedBase}categories/engineering-a1b2c3d4/`,
+        );
+        expect(engineeringHtml).toContain("Version Two");
         expect(compatibilityHtml).toContain('data-category="Engineering"');
         expect(compatibilityHtml).toContain('data-schema-version="2"');
         expect(compatibilityHtml).toContain("version-two:Notion,Publishing");
@@ -153,6 +223,59 @@ describe("Astro template build", () => {
       ).toBe(true);
     },
   );
+
+  it("limits the home page to twelve posts while keeping every post discoverable", async () => {
+    const { root } = await createFixture({
+      defaultBranch: "main",
+      owner: "HappyDoran",
+      repository: "HappyDoran.github.io",
+    });
+    await Promise.all(
+      Array.from({ length: 13 }, (_, index) => {
+        const number = String(index).padStart(2, "0");
+        return writeFixture(
+          root,
+          `src/content/blog/post-${number}.md`,
+          `---
+schemaVersion: 2
+title: Post ${number}
+description: Description ${number}
+publishedAt: 2026-07-${String(index + 1).padStart(2, "0")}T01:00:00.000Z
+updatedAt: 2026-07-${String(index + 1).padStart(2, "0")}T02:00:00.000Z
+category: ${index < 8 ? "Engineering" : "Notes"}
+categorySlug: ${index < 8 ? "engineering-a1b2c3d4" : "notes-b1c2d3e4"}
+tags: []
+---
+
+Post ${number} body.
+`,
+        );
+      }),
+    );
+
+    await build(root);
+
+    const indexHtml = await readFile(join(root, "dist/index.html"), "utf8");
+    const postsHtml = await readFile(
+      join(root, "dist/posts/index.html"),
+      "utf8",
+    );
+    const categoriesHtml = await readFile(
+      join(root, "dist/categories/index.html"),
+      "utf8",
+    );
+    const css = await readBuiltCss(root);
+    expect(indexHtml).toContain("Post 12");
+    expect(indexHtml).not.toContain("Post 00");
+    expect(postsHtml).toContain("Post 12");
+    expect(postsHtml).toContain("Post 00");
+    expect(categoriesHtml.indexOf("Engineering")).toBeLessThan(
+      categoriesHtml.indexOf("Notes"),
+    );
+    expect(css).toContain("min-width:20rem");
+    expect(css).toContain("prefers-reduced-motion:reduce");
+    expect(indexHtml).not.toContain("<script");
+  });
 
   it.each([
     {
@@ -237,4 +360,15 @@ async function build(root: string): Promise<void> {
     cwd: root,
     env: { ...process.env, NO_COLOR: "1" },
   });
+}
+
+async function readBuiltCss(root: string): Promise<string> {
+  const assetDirectory = join(root, "dist/_astro");
+  const files = await readdir(assetDirectory);
+  const stylesheets = files.filter((file) => file.endsWith(".css"));
+  return (
+    await Promise.all(
+      stylesheets.map((file) => readFile(join(assetDirectory, file), "utf8")),
+    )
+  ).join("\n");
 }

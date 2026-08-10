@@ -37,7 +37,8 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 - Notion 예약 page property와 block → 공유 `PublishDocument` v2 → Markdown/MDX 변환
 - Astro content schema가 v1 frontmatter를 `미분류`로 정규화하고 v2 metadata를 strict 검증
 - template v2 compatibility reader와 v2 Markdown writer를 순서대로 적용한 mixed collection 지원
-- Astro 7.1.1 정적 블로그 template
+- Astro 7.1.1 정적 블로그 template: 반응형 홈·전체 글·category index/detail·글 상세·404
+- Astro passthrough image service로 로컬 게시 자산을 변환 의존성 없이 base path에 맞춰 복사
 - `actions/setup-node@v6` + `pnpm/action-setup@v6`로 명시적인 lockfile 없는 build
 - pnpm dependency build script는 `pnpm-workspace.yaml`에서 Astro가 요구하는
   `esbuild`만 `allowBuilds`로 허용
@@ -48,6 +49,10 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 - GitHub Pages API로 `build_type=workflow` readiness 확인
 - GitHub Actions와 GitHub Pages가 build/deploy 수행
 - Web 앱은 GitHub API를 polling해 결과를 표시
+- preview route는 공유 `PublishDocument`를 strict Zod DTO로 투영하고 React dialog가
+  raw HTML 없이 렌더링하며 image URL 없는 placeholder로 표시
+- Node HTTPS + DNS lookup 고정 방식의 image downloader가 public HTTPS endpoint만 허용하고
+  JPEG/PNG/GIF/WebP를 bounded stream으로 받아 `src/assets/blog/<slug>/` artifact로 변환
 
 ## 테스트
 

@@ -88,6 +88,34 @@ describe("shouldShowBoardRecord", () => {
 });
 
 describe("BoardCard", () => {
+  it("offers preview only for stored cards", () => {
+    const stored = renderToStaticMarkup(
+      createElement(BoardCard, {
+        connectionName: "테스트 워크스페이스",
+        onPreview: () => undefined,
+        record: card,
+      }),
+    );
+    const publishing = renderToStaticMarkup(
+      createElement(BoardCard, {
+        connectionName: "테스트 워크스페이스",
+        onPreview: () => undefined,
+        record: { ...card, column: "publishing" },
+      }),
+    );
+    const published = renderToStaticMarkup(
+      createElement(BoardCard, {
+        connectionName: "테스트 워크스페이스",
+        onPreview: () => undefined,
+        record: { ...card, column: "published" },
+      }),
+    );
+
+    expect(stored).toContain(">미리보기</button>");
+    expect(publishing).not.toContain(">미리보기</button>");
+    expect(published).not.toContain(">미리보기</button>");
+  });
+
   it("shows an accessible Actions link with an actionable failure alert", () => {
     const html = renderToStaticMarkup(
       createElement(BoardCard, {
