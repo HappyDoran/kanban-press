@@ -118,6 +118,36 @@ mise exec -- corepack pnpm test:integration
 mise exec -- corepack pnpm build
 ```
 
+### 실제 provider smoke
+
+release 전 read-only smoke는 예시를 복사해 `apps/web/.env.smoke.local`을 만들고 실제
+테스트 credential과 identity를 설정합니다.
+이 파일은 gitignore 대상이며 실제 token을 commit하거나 명령행 인자로 전달하지 않습니다.
+
+```bash
+cp apps/web/smoke.env.example apps/web/.env.smoke.local
+```
+
+```text
+SMOKE_NOTION_ACCESS_TOKEN
+SMOKE_NOTION_PAGE_ID
+SMOKE_GITHUB_ACCESS_TOKEN
+SMOKE_GITHUB_USER_ID
+SMOKE_GITHUB_LOGIN
+GITHUB_API_VERSION
+NOTION_API_VERSION
+```
+
+테스트용 Notion page는 현재 integration에 공유되어 있어야 하며 GitHub identity는 공개
+`<login>.github.io` repository를 소유하고 `public_repo workflow` scope를 가져야 합니다.
+
+```bash
+mise exec -- corepack pnpm --filter @notion-kanban-blog/web test:smoke
+```
+
+smoke는 Notion 원문 조회, 로컬 이미지 변환, GitHub repository readiness까지만 확인하며
+commit이나 Pages 설정 변경을 수행하지 않습니다.
+
 ## 구조
 
 ```text

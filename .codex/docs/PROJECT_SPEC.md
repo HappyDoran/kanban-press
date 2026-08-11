@@ -250,6 +250,20 @@ repository 정보는 응답하지 않는다. 프리뷰를 닫거나 새로고침
 IndexedDB v12 record와 게시 중·완료 상태를 변경하지 않는다. 실제 게시 요청은 프리뷰
 DTO를 재사용하지 않고 최신 Notion 원문과 GitHub 권한을 다시 검증한다.
 
+rollout 통합 검증은 preview와 publish를 서로 독립된 요청으로 실행한다. mutable fake
+provider의 원문 category, tag, 본문과 수정 시각을 preview 뒤 변경했을 때 publish artifact는
+preview snapshot이 아니라 두 번째 Notion 조회 결과만 포함해야 한다. preview 뒤 Notion
+접근 또는 GitHub 쓰기 권한이 철회되면 Markdown 생성·readiness·commit 전에 실패해야 한다.
+통합 suite는 실제 publisher를 사용해 strict v2 frontmatter, category slug, 로컬 image
+artifact와 template v2 marker가 한 commit artifact 집합에 연결되는지도 검증한다.
+
+실제 provider smoke는 일반 test suite와 분리한 명시적 read-only release gate다. 로컬의
+`.env.smoke.local`에 별도 테스트용 Notion page와 GitHub credential/identity를 넣고 최신
+Notion page·block pagination, 이미지 다운로드/로컬 변환, GitHub OAuth scope·고정 Pages
+repository 소유권·readiness를 조회한다. smoke는 preview와 artifact를 메모리에서만 만들며
+commit, ref update, Pages mutation은 호출하지 않는다. credential, provider URL과 원문은
+출력하지 않고 성공한 단계 이름과 artifact 개수만 보고한다.
+
 게시의 image block은 provider capability URL을 Markdown이나 GitHub artifact에 직접
 기록하지 않는다. `apps/web`은 게시 요청 안에서만 각 HTTPS URL을 내려받아 허용된
 `image/jpeg`, `image/png`, `image/gif`, `image/webp`인지 확인하고
@@ -474,4 +488,17 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 게시 image는 제한된 HTTPS downloader가 public IP에 고정해 받아 로컬 Astro asset으로
   commit한다. provider capability URL은 preview·Markdown·commit message에 남지 않으며
   MIME, byte, redirect, timeout, SSRF 제한을 contract test한다.
+- mutable provider 통합 E2E는 preview 뒤 원문·Notion 권한·GitHub 권한 변경을 publish가
+  다시 읽는지 검증하고, 최신 category/template v2/로컬 image artifact만 commit 경계로
+  전달됨을 확인한다. 별도 read-only 실제 provider smoke는 release 전에 명시적으로 실행한다.
+- mock rollout E2E와 전체 저장소 검증은 통과했다. 실제 provider smoke runner와
+  gitignored credential 예시도 구현했다. 2026-08-11 로그인 browser session으로 실제
+  GitHub identity/repository, Notion workspace·원문 읽기, 글 상세·홈·반응형 및 이미지
+  placeholder preview를 read-only 확인했다. GitHub Pages 배포 소스를 GitHub Actions로
+  변경한 뒤 앱의 repository readiness도 `ready`로 확인했다. 2026-08-12 테스트 credential을
+  파일에 기록하지 않고 임시 shell 환경 변수로 주입해 실제 provider smoke를 통과했다.
+  Notion page·전체 block·실제 이미지의 로컬 artifact 변환과 GitHub identity·repository·Pages
+  readiness, credential/provider URL 비잔존을 확인했으며 commit, ref update, Pages mutation은
+  발생하지 않았다. 실행 뒤 GitHub classic PAT와 Notion 테스트 integration을 삭제하고 임시
+  Notion page를 휴지통으로 이동해 외부 release gate를 완료했다.
 - 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.

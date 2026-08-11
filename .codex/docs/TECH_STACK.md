@@ -58,9 +58,13 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 
 - Vitest: domain, 암호화 codec, adapter 단위 테스트
 - MSW 또는 fetch mock: GitHub/Notion contract test
+- Vitest integration: mutable fake provider로 preview→원문/권한 변경→publish와 실제
+  publisher v2/category/image artifact 연결 검증
 - Playwright: OAuth를 대체한 브라우저 E2E와 IndexedDB 격리 검증
 
-실제 provider credential이 필요한 smoke test는 로컬 필수 검증과 분리한다.
+실제 provider credential이 필요한 `pnpm test:smoke`는 로컬 필수 검증과 분리한다.
+Vitest의 `smoke` mode가 gitignored `.env.smoke.local`을 읽고 실제 Notion/GitHub의
+read-only retrieve/readiness만 확인하며 commit API는 호출하지 않는다.
 
 ## 배포 단위
 

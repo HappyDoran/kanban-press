@@ -105,6 +105,18 @@ publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한�
 프리뷰는 GitHub adapter를 생성하지 않고 repository를 조회·변경하지 않는다. 브라우저는
 프리뷰 결과를 React 메모리에만 두며 IndexedDB나 게시 상태를 변경하지 않는다.
 
+### rollout 검증 경계
+
+통합 E2E는 preview 응답을 publish 입력으로 전달하지 않고 같은 ID body로 두 endpoint를
+따로 호출한다. fake provider state를 두 호출 사이에 바꿔 publish가 최신 Notion 원문과
+Notion/GitHub 권한을 다시 읽는지 검증하며, 실제 publisher가 만든 v2 Markdown·category와
+로컬 image·template artifact를 in-memory GitHub adapter에서 검사한다.
+
+실제 provider smoke는 별도 Vitest mode와 gitignored `.env.smoke.local`을 사용한다.
+Notion content retrieve, 제한된 image materialization, GitHub 고정 Pages repository와
+readiness까지만 호출하는 read-only gate이며 commit/ref/Pages mutation을 수행하지 않는다.
+smoke secret과 capability URL은 assertion message나 출력에 포함하지 않는다.
+
 ## 5. 쿠키 envelope
 
 envelope에는 최소한 `version`, `keyId`, `issuedAt`, `expiresAt`, payload를 둔다.

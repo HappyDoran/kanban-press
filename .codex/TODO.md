@@ -143,10 +143,19 @@
 - [x] provider image local asset 변환과 capability URL 차단
   - 수용 기준: signed provider URL이 preview, Markdown, 로그, commit message에 남지 않는다.
   - 수용 기준: MIME, byte, redirect, timeout, SSRF 제한을 contract test한다.
-- [ ] preview/category/template v2 통합 E2E와 rollout
+- [x] preview/category/template v2 통합 E2E와 rollout
   - 수용 기준: preview 이후 원문·권한 변경 시 publish가 최신 상태를 재검증한다.
   - 수용 기준: 실제 provider smoke와 전체 repository 검증이 통과한다.
   - 수용 기준: 세부 문서와 실제 구현 상태가 일치한다.
+  - 외부 확인: mock provider 통합 E2E와 전체 repository 검증을 통과했다. 2026-08-11
+    로그인 browser session으로 실제 GitHub identity/repository와 Notion workspace·원문,
+    다수 이미지 placeholder가 있는 preview를 read-only 확인했다. GitHub Pages 배포 소스를
+    GitHub Actions로 변경하고 앱의 `게시 준비 완료` 판정도 확인했다. 2026-08-12 별도 테스트
+    credential을 파일에 기록하지 않고 임시 shell 환경 변수로 주입해 read-only
+    `mise exec -- corepack pnpm --filter @notion-kanban-blog/web test:smoke`를 통과했다.
+    실제 Notion page·전체 block·이미지 다운로드와 로컬 artifact 변환, GitHub identity·repository·
+    Pages readiness 및 credential/provider URL 비잔존 검증이 성공했다. 실행 뒤 GitHub classic PAT와
+    Notion 테스트 integration을 삭제하고 임시 Notion page를 휴지통으로 이동했다.
 
 ## P4 — 신뢰성과 운영
 
