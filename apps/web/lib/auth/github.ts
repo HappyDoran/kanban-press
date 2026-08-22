@@ -208,6 +208,21 @@ export async function startGitHubLogin(
     return errorResponse(400, "invalid_return_to");
   }
 
+  if (requestUrl.origin !== dependencies.config.appOrigin) {
+    const canonicalStart = new URL(
+      "/auth/github/start",
+      dependencies.config.appOrigin,
+    );
+    canonicalStart.searchParams.set("returnTo", returnTo);
+    return new Response(null, {
+      headers: {
+        "cache-control": "no-store",
+        location: canonicalStart.toString(),
+      },
+      status: 307,
+    });
+  }
+
   const now = dependencies.now();
   const nonce = dependencies.randomState();
   const payload = oauthStatePayloadSchema.parse({ nonce, returnTo });

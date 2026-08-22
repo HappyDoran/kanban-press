@@ -106,6 +106,22 @@ describe("GitHub login flow", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
+  it("moves deployment aliases to the canonical origin before issuing state", async () => {
+    const response = await startGitHubLogin(
+      new Request(
+        "https://preview-deployment.vercel.app/auth/github/start?returnTo=%2Fdashboard",
+      ),
+      createDependencies(),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      `${APP_ORIGIN}/auth/github/start?returnTo=%2Fdashboard`,
+    );
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it.each([
     "https://evil.example/steal",
     "//evil.example/steal",

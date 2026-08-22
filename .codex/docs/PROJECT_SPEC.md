@@ -115,6 +115,9 @@ IndexedDB: stored
 
 서버가 GitHub OAuth `state`를 발급하고 callback에서 검증한 뒤 code를 교환한다.
 GitHub 사용자 정보를 조회해 암호화 세션 쿠키를 설정한다.
+Vercel deployment URL처럼 요청 origin이 `APP_ORIGIN`과 다르면 state를 만들기 전에
+동일한 로그인 시작 경로를 `APP_ORIGIN`으로 redirect한다. 따라서 state와 session cookie,
+GitHub callback은 항상 등록된 canonical origin 하나에만 존재한다.
 
 - 시작: `GET /auth/github/start?returnTo=/`
 - callback: `GET /auth/github/callback`

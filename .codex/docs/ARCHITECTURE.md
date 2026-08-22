@@ -133,6 +133,8 @@ OAuth state 쿠키와 장기 세션 쿠키는 이름·수명·용도를 분리�
 
 GitHub 로그인은 `/auth/github/start`에서 10분 수명의 state 쿠키를 만들고,
 `/auth/github/callback`에서 query state와 상수 시간 비교한 뒤 즉시 쿠키를 삭제한다.
+로그인 시작 요청의 origin이 `APP_ORIGIN`과 다르면 state cookie를 만들기 전에 canonical
+`APP_ORIGIN`의 동일 경로로 redirect해 Vercel deployment alias 간 cookie 분리를 막는다.
 GitHub가 PKCE를 지원하지 않으므로 authorization code와 client secret으로 token을
 교환한다. callback code는 GitHub에서도 일회용이며, 애플리케이션은 state 쿠키 삭제로
 브라우저에서의 재사용을 차단한다. 성공 세션은 7일 수명이다.
