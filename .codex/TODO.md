@@ -176,3 +176,15 @@
   - 평가: 현재 trigger 요구 없음. ADR 0001에서 DB-free 유지와 재평가 gate를 확정한다.
   - 검증: 2026-08-22 전체 lint, typecheck, unit 257개, integration 16개,
     production Chromium E2E 6개(desktop/320px), production build를 통과했다.
+
+## P5 — Notion 게시 충실도
+
+- [x] Notion 의미 구조와 최종 HTML 충실도 강화
+  - 수용 기준: 글머리·번호 목록, 할 일, callout, table, 수식, 링크·미디어 카드와 중첩 자식을 일반 문단으로
+    평탄화하지 않고 provider 독립 block union에 보존한다.
+  - 수용 기준: 게시 전 프리뷰와 Markdown/Astro 최종 HTML이 같은 의미 구조를 렌더링한다.
+  - 수용 기준: 사용자 text·link·table cell의 HTML 주입을 차단하고 기존 이미지·깊이·크기
+    제한을 중첩 block에도 동일하게 적용한다.
+  - 수용 기준: 대표 Notion fixture, 결정적 Markdown, Astro semantic HTML build를 검증한다.
+  - 검증: 2026-08-22 lint, typecheck, unit 261개, integration 17개,
+    production Chromium E2E 6개와 production build를 통과했다.

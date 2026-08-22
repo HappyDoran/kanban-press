@@ -105,11 +105,15 @@ export async function materializePublishImages(
         });
         continue;
       }
-      if (block.kind === "toggle") {
+      if (
+        block.kind === "toggle" ||
+        block.kind === "listItem" ||
+        block.kind === "toDo" ||
+        block.kind === "callout"
+      ) {
         converted.push({
+          ...block,
           children: await convertBlocks(block.children, depth + 1),
-          kind: "toggle",
-          summary: block.summary,
         });
         continue;
       }
@@ -374,7 +378,10 @@ function countImages(
       count +
       (block.kind === "image"
         ? 1
-        : block.kind === "toggle"
+        : block.kind === "toggle" ||
+            block.kind === "listItem" ||
+            block.kind === "toDo" ||
+            block.kind === "callout"
           ? countImages(block.children, depth + 1)
           : 0),
     0,

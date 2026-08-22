@@ -150,6 +150,39 @@ describe("publish image assets", () => {
     },
   );
 
+  it("materializes images nested in structural Notion blocks", async () => {
+    const source = documentWithImages([]);
+    source.blocks = [
+      {
+        children: [
+          {
+            children: [
+              {
+                caption: [{ text: "중첩 이미지" }],
+                kind: "image",
+                sourceUrl: SIGNED_URL,
+              },
+            ],
+            kind: "listItem",
+            richText: [{ text: "목록" }],
+            style: "bulleted",
+          },
+        ],
+        icon: "📌",
+        kind: "callout",
+        richText: [{ text: "안내" }],
+      },
+    ];
+
+    const result = await materializePublishImages(source, dependencies());
+
+    expect(result.artifacts).toHaveLength(1);
+    expect(JSON.stringify(result.document.blocks)).toContain(
+      "../../assets/blog/safe-post-a1b2c3d4/image-001.png",
+    );
+    expect(JSON.stringify(result)).not.toContain("notion.example");
+  });
+
   it("rejects bytes whose file signature does not match the declared MIME", async () => {
     const task = materializePublishImages(
       documentWithImages([SIGNED_URL]),

@@ -345,7 +345,15 @@ PublishDocument
   tags: string[]
   blocks:
     paragraph | heading | quote | code | image | toggle | divider
+    listItem | toDo | callout | table | equation | linkCard | media
     image: { caption, assetPath }
+    listItem: { style: bulleted | numbered, richText, children }
+    toDo: { checked, richText, children }
+    callout: { richText, children }
+    table: { hasColumnHeader, hasRowHeader, rows: richText[][] }
+    equation: { expression }
+    linkCard: { caption, url }
+    media: { mediaType: audio | file | pdf | video, caption, url? }
   richText:
     text, href?, bold?, italic?, strikethrough?, code?
 ```
@@ -375,6 +383,16 @@ Markdown 제어 문자를 escape하고, 링크는 `https:`, `http:`, `mailto:`�
 code fence 길이는 본문보다 길게 생성하고 language 식별자를
 제한한다. toggle의 `<details>` wrapper만 publisher가 생성한 신뢰 HTML로 허용하며
 summary와 자식 내용은 동일한 escape 규칙을 적용한다.
+
+Notion 본문의 의미 구조는 일반 문단으로 평탄화하지 않는다. 글머리·번호 목록과
+할 일은 중첩 자식을 유지하고, callout은 본문과 자식을 하나의 강조 영역으로,
+table은 행·열 header 설정과 cell rich text를 보존한다. publisher가 생성하는 table과
+callout HTML만 제한적으로 허용하며 모든 사용자 text, link와 cell content는 HTML 및
+URL allowlist escape를 거친다. 프리뷰 DTO와 최종 Astro HTML은 동일한 block union을
+렌더링해 게시 전 화면과 실제 결과의 구조적 차이를 막는다.
+수식은 누락하지 않고 읽을 수 있는 수식 영역으로 보존한다. bookmark·embed·link preview는
+허용된 HTTP(S) 링크 카드로 렌더링한다. audio·file·PDF·video의 외부 URL도 링크 카드로
+내보내되, 만료되는 Notion file capability URL은 노출하지 않고 URL 없는 첨부 카드로 낮춘다.
 
 slug는 정규화한 Notion 제목과 page ID의 앞 12자리 hex를 조합해 같은 제목과 한글
 제목에서도 안정적이고 충돌 없이 생성한다. template artifact와 문서 artifact를
@@ -485,6 +503,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
   child database 계층을 탐색 UI에 보존한다.
 - 결정적 Astro template manifest와 user/project base path 실제 build 검증이 구현됐다.
 - 정규화된 Notion block의 안전한 Markdown artifact 변환 pipeline이 구현됐다.
+- 글머리·번호 목록, 할 일, callout, table과 중첩 자식이 provider 독립 block으로
+  보존되며 preview와 Astro 최종 HTML에서 같은 의미 구조와 반응형 표를 렌더링한다.
 - 최신 Notion 본문 조회와 요청 기반 게시·배포 상태 복구가 구현됐다.
 - 기본 branch 기반 workflow, 관리 marker, Pages Actions 준비 상태, 기존 파일 보호,
   복구 UI와 Actions 로그 링크가 구현됐다.

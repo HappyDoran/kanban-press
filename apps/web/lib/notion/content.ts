@@ -792,6 +792,54 @@ function publishableBlocks(
       ];
     case "divider":
       return [{ kind: "divider" }];
+    case "equation": {
+      if (typeof value?.expression !== "string") {
+        throw new NotionProviderError("invalid_response");
+      }
+      return [{ expression: value.expression, kind: "equation" }];
+    }
+    case "bulleted_list_item":
+    case "numbered_list_item":
+      return [
+        {
+          children: [...children],
+          kind: "listItem",
+          richText: blockRichText(value),
+          style:
+            block.type === "bulleted_list_item" ? "bulleted" : "numbered",
+        },
+      ];
+    case "to_do":
+      return [
+        {
+          checked: value?.checked === true,
+          children: [...children],
+          kind: "toDo",
+          richText: blockRichText(value),
+        },
+      ];
+    case "callout":
+      return [
+        {
+          children: [...children],
+          icon: calloutIcon(value),
+          kind: "callout",
+          richText: blockRichText(value),
+        },
+      ];
+    case "table":
+      return [
+        {
+          hasColumnHeader: value?.has_column_header === true,
+          hasRowHeader: value?.has_row_header === true,
+          kind: "table",
+          rows: children.flatMap((child) =>
+            child.kind === "tableRow" ? [child.cells] : [],
+          ),
+        },
+      ];
+    case "table_row":
+      return [{ cells: tableCells(value), kind: "tableRow" }];
     case "bookmark":
     case "embed":
     case "link_preview": {
@@ -800,31 +848,86 @@ function publishableBlocks(
         return [...children];
       }
       const caption = blockRichText(value, "caption");
-      return withChildren(
+      return [
         {
-          kind: "paragraph",
-          richText:
-            caption.length > 0
-              ? caption.map((part) => ({ ...part, href: part.href ?? url }))
-              : [defaultRichText(url, url)],
+          caption: caption.length > 0 ? caption : [defaultRichText(url, url)],
+          kind: "linkCard",
+          url,
         },
-        children,
-      );
+        ...children,
+      ];
     }
-    case "bulleted_list_item":
-    case "numbered_list_item":
-    case "to_do":
-    case "callout":
-      return withChildren(
-        { kind: "paragraph", richText: blockRichText(value) },
-        children,
-      );
+    case "audio":
+    case "file":
+    case "pdf":
+    case "video":
+      return [
+        {
+          caption: blockRichText(value, "caption"),
+          kind: "media",
+          mediaType: block.type,
+          url: externalMediaUrl(value),
+        },
+        ...children,
+      ];
     case "child_page":
     case "child_database":
       return [];
     default:
       return [...children];
   }
+}
+
+function externalMediaUrl(value: Record<string, unknown> | null): string | null {
+  if (
+    value === null ||
+    value.type !== "external" ||
+    typeof value.external !== "object" ||
+    value.external === null ||
+    !("url" in value.external) ||
+    typeof value.external.url !== "string"
+  ) {
+    return null;
+  }
+  return value.external.url;
+}
+
+function calloutIcon(value: Record<string, unknown> | null): string | null {
+  const icon = value?.icon;
+  if (
+    typeof icon !== "object" ||
+    icon === null ||
+    !("type" in icon) ||
+    icon.type !== "emoji" ||
+    !("emoji" in icon) ||
+    typeof icon.emoji !== "string"
+  ) {
+    return null;
+  }
+  const emoji = icon.emoji.trim();
+  return emoji.length > 0 && emoji.length <= 16 ? emoji : null;
+}
+
+function tableCells(value: Record<string, unknown> | null): NotionRichText[][] {
+  if (value === null || !Array.isArray(value.cells)) {
+    throw new NotionProviderError("invalid_response");
+  }
+  const cells = z.array(z.array(richTextSchema).max(1_000)).max(100).safeParse(
+    value.cells,
+  );
+  if (!cells.success) {
+    throw new NotionProviderError("invalid_response");
+  }
+  return cells.data.map((cell) =>
+    cell.map((part) => ({
+      bold: part.annotations?.bold ?? false,
+      code: part.annotations?.code ?? false,
+      href: part.href ?? null,
+      italic: part.annotations?.italic ?? false,
+      strikethrough: part.annotations?.strikethrough ?? false,
+      text: part.plain_text,
+    })),
+  );
 }
 
 function withChildren(

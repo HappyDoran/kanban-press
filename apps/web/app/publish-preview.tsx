@@ -262,12 +262,43 @@ function PreviewPost({ preview }: { preview: PublishPreviewResponse }) {
       ) : null}
       <p className="previewPath">예상 경로 /posts/{document.slug}/</p>
       <div className="previewBody">
-        {document.blocks.map((block, index) => (
-          <PreviewBlockRenderer block={block} key={index} />
-        ))}
+        <PreviewBlocksRenderer blocks={document.blocks} />
       </div>
     </article>
   );
+}
+
+function PreviewBlocksRenderer({ blocks }: { blocks: readonly PreviewBlock[] }) {
+  const content: ReactNode[] = [];
+  for (let index = 0; index < blocks.length; ) {
+    const block = blocks[index];
+    if (block === undefined) break;
+    if (block.kind === "listItem") {
+      const style = block.style;
+      const items: Extract<PreviewBlock, { kind: "listItem" }>[] = [];
+      while (true) {
+        const candidate = blocks[index];
+        if (candidate?.kind !== "listItem" || candidate.style !== style) break;
+        items.push(candidate);
+        index += 1;
+      }
+      const List = style === "numbered" ? "ol" : "ul";
+      content.push(
+        <List key={`list-${index}`}>
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>
+              <PreviewRichTextRenderer parts={item.richText} />
+              <PreviewBlocksRenderer blocks={item.children} />
+            </li>
+          ))}
+        </List>,
+      );
+      continue;
+    }
+    content.push(<PreviewBlockRenderer block={block} key={index} />);
+    index += 1;
+  }
+  return content;
 }
 
 function PreviewHome({ preview }: { preview: PublishPreviewResponse }) {
@@ -289,6 +320,16 @@ function PreviewHome({ preview }: { preview: PublishPreviewResponse }) {
 
 function PreviewBlockRenderer({ block }: { block: PreviewBlock }) {
   switch (block.kind) {
+    case "callout":
+      return (
+        <aside className="previewCallout">
+          <span aria-hidden="true" className="previewCalloutIcon">{block.icon ?? "💡"}</span>
+          <div>
+            <p><PreviewRichTextRenderer parts={block.richText} /></p>
+            <PreviewBlocksRenderer blocks={block.children} />
+          </div>
+        </aside>
+      );
     case "paragraph":
       return <p><PreviewRichTextRenderer parts={block.richText} /></p>;
     case "heading": {
@@ -299,6 +340,8 @@ function PreviewBlockRenderer({ block }: { block: PreviewBlock }) {
       return <blockquote><PreviewRichTextRenderer parts={block.richText} /></blockquote>;
     case "code":
       return <pre><code data-language={block.language}>{block.code}</code></pre>;
+    case "equation":
+      return <div aria-label={block.expression} className="previewEquation" role="math"><code>{block.expression}</code></div>;
     case "image":
       return (
         <figure className="previewImagePlaceholder">
@@ -306,11 +349,54 @@ function PreviewBlockRenderer({ block }: { block: PreviewBlock }) {
           {block.caption.length > 0 ? <figcaption><PreviewRichTextRenderer parts={block.caption} /></figcaption> : null}
         </figure>
       );
+    case "listItem": {
+      const List = block.style === "numbered" ? "ol" : "ul";
+      return <List><li><PreviewRichTextRenderer parts={block.richText} /><PreviewBlocksRenderer blocks={block.children} /></li></List>;
+    }
+    case "linkCard":
+      return <PreviewResourceCard caption={block.caption} href={block.href} label="링크" />;
+    case "media":
+      return (
+        <PreviewResourceCard
+          caption={block.caption}
+          href={block.href}
+          label={{ audio: "오디오", file: "첨부 파일", pdf: "PDF", video: "동영상" }[block.mediaType]}
+        />
+      );
+    case "table": {
+      const headerRows = block.hasColumnHeader ? block.rows.slice(0, 1) : [];
+      const bodyRows = block.hasColumnHeader ? block.rows.slice(1) : block.rows;
+      const renderRow = (row: PreviewRichText[][], rowIndex: number) => (
+        <tr key={rowIndex}>
+          {row.map((cell, columnIndex) => {
+            const header = (block.hasColumnHeader && rowIndex === 0) || (block.hasRowHeader && columnIndex === 0);
+            return header
+              ? <th key={columnIndex} scope={rowIndex === 0 ? "col" : "row"}><PreviewRichTextRenderer parts={cell} /></th>
+              : <td key={columnIndex}><PreviewRichTextRenderer parts={cell} /></td>;
+          })}
+        </tr>
+      );
+      return (
+        <div className="previewTableWrap">
+          <table>
+            {headerRows.length > 0 ? <thead>{headerRows.map((row, index) => renderRow(row, index))}</thead> : null}
+            <tbody>{bodyRows.map((row, index) => renderRow(row, index + (block.hasColumnHeader ? 1 : 0)))}</tbody>
+          </table>
+        </div>
+      );
+    }
+    case "toDo":
+      return (
+        <div className="previewToDo">
+          <input aria-label={block.checked ? "완료" : "미완료"} checked={block.checked} readOnly type="checkbox" />
+          <div><PreviewRichTextRenderer parts={block.richText} /><PreviewBlocksRenderer blocks={block.children} /></div>
+        </div>
+      );
     case "toggle":
       return (
         <details>
           <summary><PreviewRichTextRenderer parts={block.summary} /></summary>
-          {block.children.map((child, index) => <PreviewBlockRenderer block={child} key={index} />)}
+          <PreviewBlocksRenderer blocks={block.children} />
         </details>
       );
     case "divider":
@@ -318,14 +404,40 @@ function PreviewBlockRenderer({ block }: { block: PreviewBlock }) {
   }
 }
 
-function PreviewRichTextRenderer({ parts }: { parts: readonly PreviewRichText[] }) {
+function PreviewResourceCard({
+  caption,
+  href,
+  label,
+}: {
+  caption: readonly PreviewRichText[];
+  href: string | null;
+  label: string;
+}) {
+  const content = (
+    <>
+      <span className="previewResourceLabel">{label}</span>
+      <span>{caption.length > 0 ? <PreviewRichTextRenderer allowLinks={false} parts={caption} /> : label}</span>
+    </>
+  );
+  return href === null
+    ? <div className="previewResourceCard">{content}</div>
+    : <a className="previewResourceCard" href={href}>{content}</a>;
+}
+
+function PreviewRichTextRenderer({
+  allowLinks = true,
+  parts,
+}: {
+  allowLinks?: boolean;
+  parts: readonly PreviewRichText[];
+}) {
   return parts.map((part, index) => {
     let content: ReactNode = part.text;
     if (part.code) content = <code>{content}</code>;
     if (part.bold) content = <strong>{content}</strong>;
     if (part.italic) content = <em>{content}</em>;
     if (part.strikethrough) content = <s>{content}</s>;
-    if (part.href !== null) content = <a href={part.href}>{content}</a>;
+    if (allowLinks && part.href !== null) content = <a href={part.href}>{content}</a>;
     return <span key={index}>{content}</span>;
   });
 }

@@ -36,12 +36,44 @@ const previewRichTextSchema = z
 export type PreviewRichText = z.infer<typeof previewRichTextSchema>;
 
 export type PreviewBlock =
+  | {
+      children: PreviewBlock[];
+      icon: string | null;
+      kind: "callout";
+      richText: PreviewRichText[];
+    }
   | { code: string; kind: "code"; language: string }
   | { kind: "divider" }
+  | { expression: string; kind: "equation" }
   | { kind: "heading"; level: 2 | 3 | 4; richText: PreviewRichText[] }
   | { caption: PreviewRichText[]; kind: "image" }
+  | {
+      children: PreviewBlock[];
+      kind: "listItem";
+      richText: PreviewRichText[];
+      style: "bulleted" | "numbered";
+    }
+  | { caption: PreviewRichText[]; href: string | null; kind: "linkCard" }
+  | {
+      caption: PreviewRichText[];
+      href: string | null;
+      kind: "media";
+      mediaType: "audio" | "file" | "pdf" | "video";
+    }
   | { kind: "paragraph"; richText: PreviewRichText[] }
   | { kind: "quote"; richText: PreviewRichText[] }
+  | {
+      hasColumnHeader: boolean;
+      hasRowHeader: boolean;
+      kind: "table";
+      rows: PreviewRichText[][][];
+    }
+  | {
+      checked: boolean;
+      children: PreviewBlock[];
+      kind: "toDo";
+      richText: PreviewRichText[];
+    }
   | {
       children: PreviewBlock[];
       kind: "toggle";
@@ -52,12 +84,26 @@ const previewBlockSchema: z.ZodType<PreviewBlock> = z.lazy(() =>
   z.discriminatedUnion("kind", [
     z
       .object({
+        children: z.array(previewBlockSchema).max(5_000),
+        icon: z.string().trim().min(1).max(16).nullable(),
+        kind: z.literal("callout"),
+        richText: z.array(previewRichTextSchema).max(1_000),
+      })
+      .strict(),
+    z
+      .object({
         code: z.string().max(1_000_000),
         kind: z.literal("code"),
         language: z.string().max(64),
       })
       .strict(),
     z.object({ kind: z.literal("divider") }).strict(),
+    z
+      .object({
+        expression: z.string().max(100_000),
+        kind: z.literal("equation"),
+      })
+      .strict(),
     z
       .object({
         kind: z.literal("heading"),
@@ -68,7 +114,30 @@ const previewBlockSchema: z.ZodType<PreviewBlock> = z.lazy(() =>
     z
       .object({
         caption: z.array(previewRichTextSchema).max(1_000),
+        href: previewHrefSchema,
+        kind: z.literal("linkCard"),
+      })
+      .strict(),
+    z
+      .object({
+        caption: z.array(previewRichTextSchema).max(1_000),
+        href: previewHrefSchema,
+        kind: z.literal("media"),
+        mediaType: z.enum(["audio", "file", "pdf", "video"]),
+      })
+      .strict(),
+    z
+      .object({
+        caption: z.array(previewRichTextSchema).max(1_000),
         kind: z.literal("image"),
+      })
+      .strict(),
+    z
+      .object({
+        children: z.array(previewBlockSchema).max(5_000),
+        kind: z.literal("listItem"),
+        richText: z.array(previewRichTextSchema).max(1_000),
+        style: z.enum(["bulleted", "numbered"]),
       })
       .strict(),
     z
@@ -80,6 +149,24 @@ const previewBlockSchema: z.ZodType<PreviewBlock> = z.lazy(() =>
     z
       .object({
         kind: z.literal("quote"),
+        richText: z.array(previewRichTextSchema).max(1_000),
+      })
+      .strict(),
+    z
+      .object({
+        hasColumnHeader: z.boolean(),
+        hasRowHeader: z.boolean(),
+        kind: z.literal("table"),
+        rows: z
+          .array(z.array(z.array(previewRichTextSchema).max(1_000)).max(100))
+          .max(1_000),
+      })
+      .strict(),
+    z
+      .object({
+        checked: z.boolean(),
+        children: z.array(previewBlockSchema).max(5_000),
+        kind: z.literal("toDo"),
         richText: z.array(previewRichTextSchema).max(1_000),
       })
       .strict(),
@@ -187,10 +274,22 @@ function projectBlocks(
   let hasImage = false;
   const projected = blocks.map((block): PreviewBlock => {
     switch (block.kind) {
+      case "callout": {
+        const children = projectBlocks(block.children, depth + 1);
+        hasImage ||= children.hasImage;
+        return {
+          children: children.blocks,
+          icon: block.icon,
+          kind: "callout",
+          richText: projectRichText(block.richText),
+        };
+      }
       case "code":
         return { code: block.code, kind: "code", language: block.language };
       case "divider":
         return { kind: "divider" };
+      case "equation":
+        return { expression: block.expression, kind: "equation" };
       case "heading":
         return {
           kind: "heading",
@@ -203,12 +302,54 @@ function projectBlocks(
           caption: projectRichText(block.caption),
           kind: "image",
         };
+      case "listItem": {
+        const children = projectBlocks(block.children, depth + 1);
+        hasImage ||= children.hasImage;
+        return {
+          children: children.blocks,
+          kind: "listItem",
+          richText: projectRichText(block.richText),
+          style: block.style,
+        };
+      }
+      case "linkCard":
+        return {
+          caption: projectRichText(block.caption),
+          href: safePreviewHref(block.url),
+          kind: "linkCard",
+        };
+      case "media":
+        return {
+          caption: projectRichText(block.caption),
+          href: safePreviewHref(block.url),
+          kind: "media",
+          mediaType: block.mediaType,
+        };
       case "paragraph":
       case "quote":
         return {
           kind: block.kind,
           richText: projectRichText(block.richText),
         };
+      case "table":
+        return {
+          hasColumnHeader: block.hasColumnHeader,
+          hasRowHeader: block.hasRowHeader,
+          kind: "table",
+          rows: block.rows.map((row) =>
+            row.map((cell) => projectRichText(cell)),
+          ),
+        };
+      case "toDo": {
+        const children = projectBlocks(block.children, depth + 1);
+        hasImage ||= children.hasImage;
+        return {
+          checked: block.checked,
+          children: children.blocks,
+          kind: "toDo",
+          richText: projectRichText(block.richText),
+        };
+      }
       case "toggle": {
         const children = projectBlocks(block.children, depth + 1);
         hasImage ||= children.hasImage;

@@ -38,12 +38,45 @@ export interface NotionRichText {
 }
 
 export type NotionContentBlock =
+  | {
+      children: NotionContentBlock[];
+      icon: string | null;
+      kind: "callout";
+      richText: NotionRichText[];
+    }
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
+  | { expression: string; kind: "equation" }
   | { kind: "heading"; level: 1 | 2 | 3; richText: NotionRichText[] }
   | { kind: "image"; caption: NotionRichText[]; url: string }
+  | {
+      children: NotionContentBlock[];
+      kind: "listItem";
+      richText: NotionRichText[];
+      style: "bulleted" | "numbered";
+    }
+  | { caption: NotionRichText[]; kind: "linkCard"; url: string }
+  | {
+      caption: NotionRichText[];
+      kind: "media";
+      mediaType: "audio" | "file" | "pdf" | "video";
+      url: string | null;
+    }
   | { kind: "paragraph"; richText: NotionRichText[] }
   | { kind: "quote"; richText: NotionRichText[] }
+  | {
+      hasColumnHeader: boolean;
+      hasRowHeader: boolean;
+      kind: "table";
+      rows: NotionRichText[][][];
+    }
+  | { cells: NotionRichText[][]; kind: "tableRow" }
+  | {
+      checked: boolean;
+      children: NotionContentBlock[];
+      kind: "toDo";
+      richText: NotionRichText[];
+    }
   | {
       kind: "toggle";
       children: NotionContentBlock[];

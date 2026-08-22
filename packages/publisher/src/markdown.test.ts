@@ -278,6 +278,78 @@ describe("createMarkdownArtifact", () => {
     },
   );
 
+  it("preserves nested lists, tasks, callouts, and semantic tables", () => {
+    const artifact = createMarkdownArtifact({
+      ...baseDocument,
+      blocks: [
+        {
+          children: [
+            {
+              children: [],
+              kind: "listItem",
+              richText: [{ text: "중첩 항목" }],
+              style: "numbered",
+            },
+          ],
+          kind: "listItem",
+          richText: [{ bold: true, text: "첫 항목" }],
+          style: "bulleted",
+        },
+        {
+          checked: true,
+          children: [],
+          kind: "toDo",
+          richText: [{ text: "완료한 일" }],
+        },
+        {
+          children: [{ kind: "paragraph", richText: [{ text: "추가 설명" }] }],
+          icon: "📌",
+          kind: "callout",
+          richText: [{ italic: true, text: "중요 안내" }],
+        },
+        {
+          hasColumnHeader: true,
+          hasRowHeader: true,
+          kind: "table",
+          rows: [
+            [[{ text: "항목" }], [{ text: "값" }]],
+            [
+              [{ bold: true, text: "안전" }],
+              [{ href: "javascript:alert(1)", text: "<script>" }],
+            ],
+          ],
+        },
+        { expression: "E = mc^2 <script>", kind: "equation" },
+        {
+          caption: [{ text: "공식 문서" }],
+          kind: "linkCard",
+          url: "https://example.com/docs",
+        },
+        {
+          caption: [{ text: "내부 첨부" }],
+          kind: "media",
+          mediaType: "file",
+          url: null,
+        },
+      ],
+    });
+    const markdown = decoder.decode(artifact.bytes);
+
+    expect(markdown).toContain("- **첫 항목**\n   1. 중첩 항목");
+    expect(markdown).toContain("- [x] 완료한 일");
+    expect(markdown).toContain("> 📌 *중요 안내*\n> \n> 추가 설명");
+    expect(markdown).toContain('<div class="notion-table-wrap">');
+    expect(markdown).toContain('<th scope="col">항목</th>');
+    expect(markdown).toContain('<th scope="row"><strong>안전</strong></th>');
+    expect(markdown).toContain("&lt;script&gt;");
+    expect(markdown).toContain('class="notion-equation"');
+    expect(markdown).toContain('class="notion-resource-card"');
+    expect(markdown).toContain('href="https://example.com/docs"');
+    expect(markdown).toContain("내부 첨부");
+    expect(markdown).not.toContain("javascript:");
+    expect(markdown).not.toContain("<script>");
+  });
+
   it("rejects documents deeper than the traversal limit", () => {
     let nested: PublishBlock = {
       kind: "paragraph",

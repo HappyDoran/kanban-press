@@ -77,6 +77,9 @@ Notion provider 응답은 adapter에서 예약 블로그 속성만 제한된 pro
 정규화하고 앱 orchestration의 공유 `buildPublishDocument`가 metadata와 block을 조립한다.
 publisher는 provider 독립 `PublishDocument`와 제한된 block union만 받는다. publisher가
 생성하는 repository 상대 경로와 Markdown text, URL, code fence는 commit 전에 다시 검증한다.
+목록·할 일·callout·table은 adapter에서 구조를 잃지 않는 provider 독립 block으로
+정규화하고 preview와 publisher가 같은 중첩 모델을 소비한다. 사용자 입력 HTML은 허용하지
+않으며 publisher가 생성한 table/callout wrapper 안의 rich text도 별도로 escape한다.
 브라우저는 title, description, category, tag, slug 또는 Markdown을 게시 입력으로 전달하지
 않으며 preview도 같은 공유 조립 경계를 사용한다.
 GitHub adapter는 기본 branch head/tree 조회, blob/tree/commit 생성, non-force ref

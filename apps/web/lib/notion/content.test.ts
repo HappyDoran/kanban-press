@@ -172,6 +172,189 @@ describe("NotionRestContentAdapter", () => {
     );
   });
 
+  it("preserves lists, tasks, callouts, and tables instead of flattening them", async () => {
+    const listId = "55555555-5555-4555-8555-555555555555";
+    const calloutId = "66666666-6666-4666-8666-666666666666";
+    const tableId = "77777777-7777-4777-8777-777777777777";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json(
+          page(
+            ROOT_ID,
+            "구조화된 글",
+            { type: "workspace", workspace: "true" },
+            { created_time: "2026-07-18T09:00:00.000Z" },
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              bulleted_list_item: { rich_text: [{ plain_text: "목록" }] },
+              has_children: true,
+              id: listId,
+              object: "block",
+              type: "bulleted_list_item",
+            },
+            {
+              has_children: false,
+              id: "88888888-8888-4888-8888-888888888888",
+              object: "block",
+              to_do: { checked: true, rich_text: [{ plain_text: "완료" }] },
+              type: "to_do",
+            },
+            {
+              callout: {
+                icon: { emoji: "📌", type: "emoji" },
+                rich_text: [{ plain_text: "안내" }],
+              },
+              has_children: true,
+              id: calloutId,
+              object: "block",
+              type: "callout",
+            },
+            {
+              has_children: true,
+              id: tableId,
+              object: "block",
+              table: { has_column_header: true, has_row_header: true },
+              type: "table",
+            },
+            {
+              equation: { expression: "E = mc^2" },
+              has_children: false,
+              id: "dddddddd-1111-4111-8111-dddddddddddd",
+              object: "block",
+              type: "equation",
+            },
+            {
+              bookmark: {
+                caption: [{ plain_text: "공식 문서" }],
+                url: "https://example.com/docs",
+              },
+              has_children: false,
+              id: "eeeeeeee-1111-4111-8111-eeeeeeeeeeee",
+              object: "block",
+              type: "bookmark",
+            },
+            {
+              has_children: false,
+              id: "ffffffff-1111-4111-8111-ffffffffffff",
+              object: "block",
+              type: "video",
+              video: {
+                caption: [{ plain_text: "외부 영상" }],
+                external: { url: "https://example.com/video" },
+                type: "external",
+              },
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "99999999-9999-4999-8999-999999999999",
+              numbered_list_item: { rich_text: [{ plain_text: "중첩" }] },
+              object: "block",
+              type: "numbered_list_item",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+              object: "block",
+              paragraph: { rich_text: [{ plain_text: "추가 설명" }] },
+              type: "paragraph",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          has_more: false,
+          next_cursor: null,
+          results: [
+            {
+              has_children: false,
+              id: "bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb",
+              object: "block",
+              table_row: {
+                cells: [[{ plain_text: "항목" }], [{ plain_text: "값" }]],
+              },
+              type: "table_row",
+            },
+            {
+              has_children: false,
+              id: "cccccccc-1111-4111-8111-cccccccccccc",
+              object: "block",
+              table_row: {
+                cells: [[{ plain_text: "첫째" }], [{ plain_text: "둘째" }]],
+              },
+              type: "table_row",
+            },
+          ],
+        }),
+      );
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: fetchMock,
+    });
+
+    const content = await adapter.getPageContent(ROOT_ID);
+
+    expect(content.blocks).toMatchObject([
+      {
+        children: [{ kind: "listItem", style: "numbered" }],
+        kind: "listItem",
+        style: "bulleted",
+      },
+      { checked: true, kind: "toDo" },
+      {
+        children: [{ kind: "paragraph" }],
+        icon: "📌",
+        kind: "callout",
+      },
+      {
+        hasColumnHeader: true,
+        hasRowHeader: true,
+        kind: "table",
+        rows: [
+          [[{ text: "항목" }], [{ text: "값" }]],
+          [[{ text: "첫째" }], [{ text: "둘째" }]],
+        ],
+      },
+      { expression: "E = mc^2", kind: "equation" },
+      {
+        caption: [{ text: "공식 문서" }],
+        kind: "linkCard",
+        url: "https://example.com/docs",
+      },
+      {
+        caption: [{ text: "외부 영상" }],
+        kind: "media",
+        mediaType: "video",
+        url: "https://example.com/video",
+      },
+    ]);
+  });
+
   it("normalizes only exact reserved publishing properties", async () => {
     const sourcePage = page(
       ROOT_ID,

@@ -35,6 +35,7 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 ## 게시
 
 - Notion 예약 page property와 block → 공유 `PublishDocument` v2 → Markdown/MDX 변환
+- 목록·할 일·callout·table과 중첩 자식을 보존하는 구조적 Markdown/제한 HTML 변환
 - Astro content schema가 v1 frontmatter를 `미분류`로 정규화하고 v2 metadata를 strict 검증
 - template v2 compatibility reader와 v2 Markdown writer를 순서대로 적용한 mixed collection 지원
 - Astro 7.1.1 정적 블로그 template: 반응형 홈·전체 글·category index/detail·글 상세·404
@@ -60,6 +61,7 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 - MSW 또는 fetch mock: GitHub/Notion contract test
 - Vitest integration: mutable fake provider로 preview→원문/권한 변경→publish와 실제
   publisher v2/category/image artifact 연결 검증
+- Astro fixture build: 구조적 Notion block의 Markdown과 최종 semantic HTML 회귀 검증
 - Playwright: OAuth를 대체한 브라우저 E2E와 IndexedDB 격리 검증
 - Playwright + axe-core: production build에서 desktop·320px mobile 핵심 흐름,
   WCAG serious/critical 위반, overflow와 DCL 3초·전송량 3MB 회귀 예산 검증

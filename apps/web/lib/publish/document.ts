@@ -37,12 +37,44 @@ export interface BlogMetadata {
 }
 
 export type PublishSourceBlock =
+  | {
+      children: PublishSourceBlock[];
+      icon: string | null;
+      kind: "callout";
+      richText: PublishRichText[];
+    }
   | { code: string; kind: "code"; language: string }
   | { kind: "divider" }
+  | { expression: string; kind: "equation" }
   | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
   | { caption: PublishRichText[]; kind: "image"; sourceUrl: string }
+  | {
+      children: PublishSourceBlock[];
+      kind: "listItem";
+      richText: PublishRichText[];
+      style: "bulleted" | "numbered";
+    }
+  | { caption: PublishRichText[]; kind: "linkCard"; url: string }
+  | {
+      caption: PublishRichText[];
+      kind: "media";
+      mediaType: "audio" | "file" | "pdf" | "video";
+      url: string | null;
+    }
   | { kind: "paragraph"; richText: PublishRichText[] }
   | { kind: "quote"; richText: PublishRichText[] }
+  | {
+      hasColumnHeader: boolean;
+      hasRowHeader: boolean;
+      kind: "table";
+      rows: PublishRichText[][][];
+    }
+  | {
+      checked: boolean;
+      children: PublishSourceBlock[];
+      kind: "toDo";
+      richText: PublishRichText[];
+    }
   | {
       children: PublishSourceBlock[];
       kind: "toggle";
@@ -281,6 +313,27 @@ function toPublishBlock(block: NotionContentBlock): PublishSourceBlock[] {
           summary: block.summary,
         },
       ];
+    case "listItem":
+      return [
+        {
+          ...block,
+          children: block.children.flatMap(toPublishBlock),
+        },
+      ];
+    case "toDo":
+      return [
+        {
+          ...block,
+          children: block.children.flatMap(toPublishBlock),
+        },
+      ];
+    case "callout":
+      return [
+        {
+          ...block,
+          children: block.children.flatMap(toPublishBlock),
+        },
+      ];
     case "image":
       return [
         {
@@ -289,6 +342,8 @@ function toPublishBlock(block: NotionContentBlock): PublishSourceBlock[] {
           sourceUrl: block.url,
         },
       ];
+    case "tableRow":
+      return [];
     default:
       return [block];
   }

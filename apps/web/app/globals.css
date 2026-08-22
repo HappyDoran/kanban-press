@@ -1162,6 +1162,26 @@ h3 {
 .previewBody {
   margin-top: 2.5rem;
   font-size: 1.05rem;
+  line-height: 1.7;
+}
+
+.previewBody > :first-child {
+  margin-top: 0;
+}
+
+.previewBody p,
+.previewBody ul,
+.previewBody ol {
+  margin-block: 0.65rem;
+}
+
+.previewBody ul,
+.previewBody ol {
+  padding-inline-start: 1.6rem;
+}
+
+.previewBody li + li {
+  margin-top: 0.25rem;
 }
 
 .previewBody a {
@@ -1193,6 +1213,99 @@ h3 {
 .previewBody summary {
   cursor: pointer;
   font-weight: 700;
+}
+
+.previewCallout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 1rem;
+  margin-block: 1rem;
+  background: #efe9de;
+  border-radius: var(--radius-s);
+}
+
+.previewCallout p {
+  margin: 0;
+}
+
+.previewCalloutIcon {
+  line-height: 1.7;
+}
+
+.previewToDo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: start;
+  margin-block: 0.4rem;
+}
+
+.previewToDo input {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.35rem;
+  accent-color: #315c47;
+}
+
+.previewTableWrap {
+  max-width: 100%;
+  margin-block: 1.25rem;
+  overflow-x: auto;
+}
+
+.previewTableWrap table {
+  width: 100%;
+  min-width: 28rem;
+  border-spacing: 0;
+  border-collapse: collapse;
+}
+
+.previewTableWrap th,
+.previewTableWrap td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border: 1px solid #d9d2c6;
+}
+
+.previewTableWrap th {
+  background: #efe9de;
+  font-weight: 700;
+}
+
+.previewEquation {
+  max-width: 100%;
+  padding: 0.85rem 1rem;
+  margin-block: 1rem;
+  overflow-x: auto;
+  background: #f7f4ee;
+  border: 1px solid #d9d2c6;
+  border-radius: var(--radius-s);
+  text-align: center;
+}
+
+.previewResourceCard {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.8rem 1rem;
+  margin-block: 0.75rem;
+  color: #211f1b;
+  background: #fffcf7;
+  border: 1px solid #d9d2c6;
+  border-radius: var(--radius-s);
+  text-decoration: none !important;
+}
+
+.previewResourceCard:hover {
+  border-color: #9b9285;
+}
+
+.previewResourceLabel {
+  color: #625c53;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .previewImagePlaceholder {

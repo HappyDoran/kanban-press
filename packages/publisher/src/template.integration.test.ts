@@ -13,7 +13,10 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createAstroTemplateManifest } from "./index.js";
+import {
+  createAstroTemplateManifest,
+  createMarkdownArtifact,
+} from "./index.js";
 
 const roots: string[] = [];
 const execFile = promisify(execFileCallback);
@@ -223,6 +226,91 @@ describe("Astro template build", () => {
       ).toBe(true);
     },
   );
+
+  it("builds structured Notion blocks into semantic HTML", async () => {
+    const { root } = await createFixture({
+      defaultBranch: "main",
+      owner: "HappyDoran",
+      repository: "HappyDoran.github.io",
+    });
+    const artifact = createMarkdownArtifact({
+      blocks: [
+        {
+          children: [
+            {
+              children: [],
+              kind: "listItem",
+              richText: [{ text: "Nested" }],
+              style: "numbered",
+            },
+          ],
+          kind: "listItem",
+          richText: [{ text: "Bullet" }],
+          style: "bulleted",
+        },
+        {
+          checked: true,
+          children: [],
+          kind: "toDo",
+          richText: [{ text: "Done" }],
+        },
+        {
+          children: [],
+          icon: "📌",
+          kind: "callout",
+          richText: [{ text: "Notice" }],
+        },
+        {
+          hasColumnHeader: true,
+          hasRowHeader: true,
+          kind: "table",
+          rows: [
+            [[{ text: "Name" }], [{ text: "Value" }]],
+            [[{ text: "First" }], [{ bold: true, text: "Second" }]],
+          ],
+        },
+        { expression: "E = mc^2", kind: "equation" },
+        {
+          caption: [{ text: "Reference" }],
+          kind: "linkCard",
+          url: "https://example.com/reference",
+        },
+        {
+          caption: [{ text: "Attachment" }],
+          kind: "media",
+          mediaType: "file",
+          url: null,
+        },
+      ],
+      category: { name: "Engineering", slug: "engineering-a1b2c3d4" },
+      description: "Structured content",
+      publishedAt: "2026-07-19T01:00:00.000Z",
+      schemaVersion: 2,
+      slug: "structured-content",
+      tags: [],
+      title: "Structured Content",
+      updatedAt: "2026-07-19T02:00:00.000Z",
+    });
+    await writeFixture(root, artifact.path, artifact.bytes);
+
+    await build(root);
+
+    const html = await readFile(
+      join(root, "dist/posts/structured-content/index.html"),
+      "utf8",
+    );
+    expect(html).toContain("<ul>");
+    expect(html).toContain("<ol>");
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain("<blockquote>");
+    expect(html).toContain('<div class="notion-table-wrap">');
+    expect(html).toContain('<th scope="col">Name</th>');
+    expect(html).toContain('<th scope="row">First</th>');
+    expect(html).toContain("<strong>Second</strong>");
+    expect(html).toContain('class="notion-equation"');
+    expect(html).toContain('href="https://example.com/reference"');
+    expect(html).toContain("Attachment");
+  });
 
   it("limits the home page to twelve posts while keeping every post discoverable", async () => {
     const { root } = await createFixture({

@@ -464,8 +464,23 @@ const section = pathname === base
       .post-toc h2 { margin-block-start: 0; font-size: 1.25rem; }
       .post-toc ol { margin-block-end: 0; }
       .post-body { font-size: 1.125rem; line-height: 1.75; }
+      .post-body > :first-child { margin-block-start: 0; }
+      .post-body p, .post-body ul, .post-body ol { margin-block: 0.7rem; }
+      .post-body ul, .post-body ol { padding-inline-start: 1.75rem; }
+      .post-body li + li { margin-block-start: 0.3rem; }
       .post-body a { text-decoration: underline; }
       .post-body h2 { margin-block-start: 3rem; }
+      .post-body h3, .post-body h4 { margin-block-start: 2rem; }
+      .post-body img { display: block; margin: 1.5rem auto; border-radius: 0.375rem; }
+      .post-body input[type="checkbox"] { width: 1rem; height: 1rem; margin-inline: 0 0.55rem; accent-color: var(--color-accent); }
+      .post-body .notion-table-wrap { max-width: 100%; margin-block: 1.5rem; overflow-x: auto; }
+      .post-body table { width: 100%; min-width: 28rem; border-spacing: 0; border-collapse: collapse; font-size: 1rem; }
+      .post-body th, .post-body td { padding: 0.65rem 0.8rem; text-align: start; vertical-align: top; border: 1px solid var(--color-border); }
+      .post-body th { background: var(--color-bg-subtle); font-weight: 700; }
+      .post-body .notion-equation { max-width: 100%; margin-block: 1.25rem; padding: 0.9rem 1rem; overflow-x: auto; border: 1px solid var(--color-border); border-radius: 0.375rem; background: var(--color-bg-surface); text-align: center; }
+      .post-body .notion-resource-card { display: grid; gap: 0.2rem; margin-block: 0.85rem; padding: 0.85rem 1rem; border: 1px solid var(--color-border); border-radius: 0.375rem; background: var(--color-bg-surface); color: var(--color-text-primary); text-decoration: none; }
+      .post-body a.notion-resource-card:hover { border-color: var(--color-border-strong); }
+      .post-body .notion-resource-label { color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
       .post-body details { margin-block: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 0.375rem; }
       .post-body summary { min-height: 2.75rem; cursor: pointer; font-weight: 700; }
       .post-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-block-start: 4rem; padding-block-start: 1.5rem; border-top: 1px solid var(--color-border); }
