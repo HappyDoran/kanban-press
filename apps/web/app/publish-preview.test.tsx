@@ -70,6 +70,7 @@ describe("previewErrorMessage", () => {
     expect(previewErrorMessage("notion_access_denied")).toContain("권한");
     expect(previewErrorMessage("invalid_blog_metadata")).toContain("예약 속성");
     expect(previewErrorMessage("notion_rate_limited")).toContain("잠시");
+    expect(previewErrorMessage("notion_timeout")).toContain("시간이 초과");
     expect(previewErrorMessage("preview_unavailable")).toContain("다시 시도");
   });
 });

@@ -26,6 +26,7 @@ import {
   boardDropAction,
   preferredPointerDropId,
 } from "./board-drop";
+import { RetryAction } from "./retry-action";
 
 import type {
   Active,
@@ -69,7 +70,10 @@ interface KanbanBoardProps {
   onPreview: (record: KanbanRecord) => void;
   onRemove: (record: KanbanRecord) => Promise<void>;
   publishFailures: Readonly<
-    Record<string, { actionsUrl: string | null; message: string }>
+    Record<
+      string,
+      { actionsUrl: string | null; message: string; retryAt: number | null }
+    >
   >;
   records: readonly KanbanRecord[];
 }
@@ -229,6 +233,7 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onRemove={remove}
+                onRetryPublish={onPublish}
                 onPreview={onPreview}
                 publishFailures={publishFailures}
                 records={grouped[column]}
@@ -258,6 +263,7 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onRemove,
+  onRetryPublish,
   onPreview,
   publishFailures,
   records,
@@ -266,9 +272,13 @@ function KanbanColumn({
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
   publishFailures: Readonly<
-    Record<string, { actionsUrl: string | null; message: string }>
+    Record<
+      string,
+      { actionsUrl: string | null; message: string; retryAt: number | null }
+    >
   >;
   records: readonly KanbanRecord[];
 }) {
@@ -305,6 +315,7 @@ function KanbanColumn({
               disabled={movingId === recordId(record)}
               key={recordId(record)}
               onRemove={onRemove}
+              onRetryPublish={onRetryPublish}
               onPreview={onPreview}
               publishFailure={publishFailures[recordId(record)]}
               record={record}
@@ -329,6 +340,7 @@ function SortableBoardCard({
   connectionName,
   disabled,
   onRemove,
+  onRetryPublish,
   onPreview,
   publishFailure,
   record,
@@ -336,9 +348,10 @@ function SortableBoardCard({
   connectionName: string;
   disabled: boolean;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
   publishFailure?:
-    | { actionsUrl: string | null; message: string }
+    | { actionsUrl: string | null; message: string; retryAt: number | null }
     | undefined;
   record: KanbanRecord;
 }) {
@@ -373,6 +386,7 @@ function SortableBoardCard({
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
         onRemove={onRemove}
+        onRetryPublish={onRetryPublish}
         onPreview={onPreview}
         publishFailure={publishFailure}
         record={record}
@@ -388,6 +402,7 @@ export function BoardCard({
   dragListeners,
   dragRef,
   onRemove,
+  onRetryPublish,
   onPreview,
   overlay = false,
   publishFailure,
@@ -399,10 +414,11 @@ export function BoardCard({
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
   onRemove?: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish?: (record: KanbanRecord) => Promise<void>;
   onPreview?: (record: KanbanRecord) => void;
   overlay?: boolean;
   publishFailure?:
-    | { actionsUrl: string | null; message: string }
+    | { actionsUrl: string | null; message: string; retryAt: number | null }
     | undefined;
   record: KanbanRecord;
 }) {
@@ -410,9 +426,6 @@ export function BoardCard({
     !overlay && !disabled && record.column !== "publishing";
   return (
     <article
-      {...(draggable ? dragAttributes : undefined)}
-      {...(draggable ? dragListeners : undefined)}
-      aria-label={draggable ? `${record.title} 카드 이동` : undefined}
       className={
         overlay
           ? "boardCard overlay"
@@ -420,12 +433,23 @@ export function BoardCard({
             ? "boardCard draggable"
             : "boardCard"
       }
-      ref={draggable ? dragRef : undefined}
     >
       <div className="boardCardTopline">
         <span>{connectionName}</span>
         {!overlay ? (
           <div className="boardCardControls">
+            {draggable ? (
+              <button
+                {...dragAttributes}
+                {...dragListeners}
+                aria-label={`${record.title} 카드 이동`}
+                className="dragHandleButton"
+                ref={dragRef}
+                type="button"
+              >
+                <span aria-hidden="true">↕</span>
+              </button>
+            ) : null}
             {record.column === "stored" && onPreview !== undefined ? (
               <button
                 className="previewCardButton"
@@ -502,9 +526,16 @@ export function BoardCard({
         </a>
       ) : null}
       {!overlay && publishFailure ? (
-        <p className="publishError" role="alert">
-          {publishFailure.message}
-        </p>
+        <div className="publishError" role="alert">
+          <p>{publishFailure.message}</p>
+          {onRetryPublish === undefined ? null : (
+            <RetryAction
+              label="다시 게시"
+              onRetry={() => void onRetryPublish(record)}
+              retryAt={publishFailure.retryAt}
+            />
+          )}
+        </div>
       ) : null}
     </article>
   );

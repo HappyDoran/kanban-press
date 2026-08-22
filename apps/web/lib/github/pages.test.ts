@@ -519,6 +519,22 @@ describe("GitHubPagesClient", () => {
   });
 });
 
+describe("GitHub provider timeout", () => {
+  it("maps a stalled repository request to a stable timeout error", async () => {
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: vi.fn(() => new Promise<Response>(() => undefined)),
+      log: () => undefined,
+      timeoutMs: 5,
+    });
+
+    await expect(client.getPagesRepository(USER_ID, "octocat")).rejects.toMatchObject({
+      code: "timeout",
+    } satisfies Partial<GitHubPagesError>);
+  });
+});
+
 describe("GitHub Pages repository route orchestration", () => {
   it("uses the encrypted session credential without returning it", async () => {
     const sessionCodec = createSessionCookieCodec({

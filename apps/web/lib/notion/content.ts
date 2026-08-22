@@ -9,6 +9,12 @@ import type {
 } from "@notion-kanban-blog/notion";
 import { z } from "zod";
 
+import {
+  providerRequest,
+  ProviderTransportError,
+} from "../operations/provider-request";
+import type { LogSink } from "../operations/structured-log";
+
 const NOTION_SEARCH_URL = "https://api.notion.com/v1/search";
 const NOTION_BLOCKS_URL = "https://api.notion.com/v1/blocks";
 const NOTION_PAGES_URL = "https://api.notion.com/v1/pages";
@@ -181,6 +187,8 @@ interface NotionRestContentAdapterOptions {
   accessToken: string;
   apiVersion: string;
   fetch?: typeof fetch;
+  log?: LogSink;
+  timeoutMs?: number;
 }
 
 interface DiscoveredPage extends NotionPageSummary {
@@ -191,6 +199,7 @@ type NotionProviderErrorCode =
   | "access_denied"
   | "invalid_response"
   | "rate_limited"
+  | "timeout"
   | "unavailable";
 
 export class NotionProviderError extends Error {
@@ -208,11 +217,15 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
   readonly #accessToken: string;
   readonly #apiVersion: string;
   readonly #fetch: typeof fetch;
+  readonly #log: LogSink | undefined;
+  readonly #timeoutMs: number | undefined;
 
   constructor(options: NotionRestContentAdapterOptions) {
     this.#accessToken = options.accessToken;
     this.#apiVersion = options.apiVersion;
     this.#fetch = options.fetch ?? fetch;
+    this.#log = options.log;
+    this.#timeoutMs = options.timeoutMs;
   }
 
   async listPageTree(): Promise<readonly NotionPageSummary[]> {
@@ -382,12 +395,13 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
   }
 
   async getPageContent(pageId: string): Promise<NotionPageContent> {
-    const response = await this.#fetch(
+    const response = await this.#request(
       `${NOTION_PAGES_URL}/${encodeURIComponent(pageId)}`,
       {
         headers: this.#headers(),
         method: "GET",
       },
+      "content.page",
     );
     if (!response.ok) {
       throw providerError(response);
@@ -518,14 +532,14 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
       if (cursor !== null) {
         body.start_cursor = cursor;
       }
-      const response = await this.#fetch(NOTION_SEARCH_URL, {
+      const response = await this.#request(NOTION_SEARCH_URL, {
         body: JSON.stringify(body),
         headers: {
           ...this.#headers(),
           "content-type": "application/json",
         },
         method: "POST",
-      });
+      }, "content.search");
       if (!response.ok) {
         throw providerError(response);
       }
@@ -563,10 +577,10 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
       if (cursor !== null) {
         url.searchParams.set("start_cursor", cursor);
       }
-      const response = await this.#fetch(url, {
+      const response = await this.#request(url, {
         headers: this.#headers(),
         method: "GET",
-      });
+      }, "content.blocks");
       if (!response.ok) {
         throw providerError(response);
       }
@@ -592,6 +606,29 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
       authorization: `Bearer ${this.#accessToken}`,
       "notion-version": this.#apiVersion,
     };
+  }
+
+  async #request(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    operation: string,
+  ): Promise<Response> {
+    try {
+      return await providerRequest({
+        fetch: this.#fetch,
+        init,
+        input,
+        log: this.#log,
+        operation,
+        provider: "notion",
+        timeoutMs: this.#timeoutMs,
+      });
+    } catch (error) {
+      if (error instanceof ProviderTransportError) {
+        throw new NotionProviderError(error.code);
+      }
+      throw error;
+    }
   }
 }
 

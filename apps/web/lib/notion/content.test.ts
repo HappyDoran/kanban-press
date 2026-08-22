@@ -1089,3 +1089,19 @@ describe("NotionRestContentAdapter", () => {
     } satisfies Partial<NotionProviderError>);
   });
 });
+
+describe("Notion provider timeout", () => {
+  it("maps a stalled content request to a stable timeout error", async () => {
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi.fn(() => new Promise<Response>(() => undefined)),
+      log: () => undefined,
+      timeoutMs: 5,
+    });
+
+    await expect(adapter.listPageTree()).rejects.toMatchObject({
+      code: "timeout",
+    } satisfies Partial<NotionProviderError>);
+  });
+});

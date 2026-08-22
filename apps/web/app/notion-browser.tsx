@@ -25,6 +25,7 @@ import {
 import { shouldShowBoardRecord } from "./board-drop";
 import { GitHubPagesTarget } from "./github-pages-target";
 import { KanbanBoard, type KanbanRecord } from "./kanban-board";
+import { RetryAction, retryAtFromResponse } from "./retry-action";
 import {
   PublishPreviewDialog,
   type PublishPreviewTarget,
@@ -71,6 +72,7 @@ type PublishViewState =
 interface PublishFailure {
   actionsUrl: string | null;
   message: string;
+  retryAt: number | null;
 }
 const STRUCTURE_INSPECTION_CONCURRENCY = 3;
 
@@ -90,6 +92,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
   );
   const [pageState, setPageState] = useState<LoadState>("loading");
   const [pageError, setPageError] = useState("");
+  const [pageRetryAt, setPageRetryAt] = useState<number | null>(null);
   const [boardRecords, setBoardRecords] = useState<readonly BoardRecord[]>([]);
   const [publishFailures, setPublishFailures] = useState<
     Readonly<Record<string, PublishFailure>>
@@ -243,6 +246,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       const connectionId = selectedConnectionId;
       setPageState("loading");
       setPageError("");
+      setPageRetryAt(null);
       setPageConnectionId(null);
       try {
         const response = await fetch(
@@ -250,6 +254,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           { cache: "no-store", signal: controller.signal },
         );
         if (!response.ok) {
+          setPageRetryAt(retryAtFromResponse(response));
           const errorPayload = (await safeJson(response)) as {
             error?: unknown;
           } | null;
@@ -577,6 +582,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       },
     }));
     let latestActionsUrl: string | null = null;
+    let latestRetryAt: number | null = null;
     let failureCode = "publish_unavailable";
     try {
       const current = await repository.get(
@@ -606,6 +612,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
       });
       const publishPayload = await safeJson(publishResponse);
       if (!publishResponse.ok) {
+        latestRetryAt = retryAtFromResponse(publishResponse);
         throw new Error(parseProviderErrorCode(publishPayload));
       }
       const result = parsePublishResult(publishPayload);
@@ -622,6 +629,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
         );
         const statusPayload = await safeJson(response);
         if (!response.ok) {
+          latestRetryAt = retryAtFromResponse(response);
           throw new Error(parseProviderErrorCode(statusPayload));
         }
         const status = parsePublishStatus(statusPayload, githubLogin);
@@ -701,6 +709,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
           [key]: {
             actionsUrl: latestActionsUrl,
             message: publishErrorMessage(failureCode),
+            retryAt: latestRetryAt,
           },
         }));
       }
@@ -872,6 +881,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 actionLabel="다시 불러오기"
                 compact
                 message={pageError}
+                retryAt={pageRetryAt}
               />
             ) : null}
             {pageState === "ready" && pages.length === 0 ? (
@@ -1480,12 +1490,14 @@ function StatusPanel({
   actionLabel,
   compact = false,
   message,
+  retryAt = null,
 }: {
   action?: () => void;
   actionHref?: string;
   actionLabel?: string;
   compact?: boolean;
   message: string;
+  retryAt?: number | null;
 }) {
   return (
     <div className={compact ? "statusPanel compact" : "statusPanel"}>
@@ -1494,9 +1506,7 @@ function StatusPanel({
         <a href={actionHref}>{actionLabel}</a>
       ) : null}
       {action !== undefined && actionLabel !== undefined ? (
-        <button onClick={action} type="button">
-          {actionLabel}
-        </button>
+        <RetryAction label={actionLabel} onRetry={action} retryAt={retryAt} />
       ) : null}
     </div>
   );
@@ -1599,6 +1609,9 @@ function pageErrorMessage(error: unknown): string {
   }
   if (error.message === "notion_rate_limited") {
     return "Notion 요청 한도에 도달했습니다. 잠시 뒤 다시 시도해 주세요.";
+  }
+  if (error.message === "notion_timeout") {
+    return "Notion 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.";
   }
   return "Notion 문서를 불러오지 못했습니다.";
 }
@@ -1730,6 +1743,8 @@ export function publishErrorMessage(code: string): string {
       return "게시 중 기본 branch가 변경되었습니다. GitHub의 최신 변경을 확인한 뒤 다시 시도해 주세요.";
     case "rate_limited":
       return "요청 한도에 도달했습니다. 잠시 기다린 뒤 다시 시도해 주세요.";
+    case "timeout":
+      return "Provider 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.";
     case "repository_not_found":
       return "공개 GitHub Pages 저장소를 만든 뒤 대상 상태를 다시 확인해 주세요.";
     case "repository_must_be_public":

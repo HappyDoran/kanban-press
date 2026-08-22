@@ -251,8 +251,16 @@ function publishErrorResponse(error: unknown): Response {
         ? 403
         : error.code === "rate_limited"
           ? 429
-          : 502;
-    return errorResponse(status, `notion_${error.code}`);
+          : error.code === "timeout"
+            ? 504
+            : 502;
+    return errorResponse(
+      status,
+      `notion_${error.code}`,
+      error.retryAfterSeconds === null
+        ? {}
+        : { "retry-after": String(error.retryAfterSeconds) },
+    );
   }
   if (error instanceof InvalidPublishImageError) {
     return errorResponse(422, error.code);
@@ -261,6 +269,8 @@ function publishErrorResponse(error: unknown): Response {
     const status =
       error.code === "rate_limited"
         ? 429
+        : error.code === "timeout"
+          ? 504
         : error.code === "conflict"
           ? 409
         : error.code === "unavailable" ||
@@ -270,7 +280,13 @@ function publishErrorResponse(error: unknown): Response {
             : error.code === "repository_not_found"
               ? 404
               : 403;
-    return errorResponse(status, `github_${error.code}`);
+    return errorResponse(
+      status,
+      `github_${error.code}`,
+      error.retryAfterSeconds === null
+        ? {}
+        : { "retry-after": String(error.retryAfterSeconds) },
+    );
   }
   return errorResponse(502, "publish_unavailable");
 }

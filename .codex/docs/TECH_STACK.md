@@ -61,10 +61,16 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 - Vitest integration: mutable fake provider로 preview→원문/권한 변경→publish와 실제
   publisher v2/category/image artifact 연결 검증
 - Playwright: OAuth를 대체한 브라우저 E2E와 IndexedDB 격리 검증
+- Playwright + axe-core: production build에서 desktop·320px mobile 핵심 흐름,
+  WCAG serious/critical 위반, overflow와 DCL 3초·전송량 3MB 회귀 예산 검증
 
 실제 provider credential이 필요한 `pnpm test:smoke`는 로컬 필수 검증과 분리한다.
 Vitest의 `smoke` mode가 gitignored `.env.smoke.local`을 읽고 실제 Notion/GitHub의
 read-only retrieve/readiness만 확인하며 commit API는 호출하지 않는다.
+
+Provider OAuth·REST fetch는 10초 timeout을 공유한다. 운영 로그는 provider, allowlist
+operation, 안정적인 code, status, bounded duration/Retry-After만 JSON 한 줄로 기록한다.
+credential, cookie, URL, 사용자·문서·repository 식별자와 임의 오류 문자열은 기록하지 않는다.
 
 ## 배포 단위
 

@@ -155,6 +155,9 @@ function previewErrorResponse(error: unknown): Response {
         error.retryAfterSeconds,
       );
     }
+    if (error.code === "timeout") {
+      return previewError(504, "notion_timeout");
+    }
     return previewError(502, "notion_unavailable");
   }
   return previewError(502, "preview_unavailable");

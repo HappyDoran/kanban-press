@@ -135,12 +135,16 @@ function notionPageErrorResponse(error: unknown): Response {
       ? 403
       : error.code === "rate_limited"
         ? 429
-        : 502;
+        : error.code === "timeout"
+          ? 504
+          : 502;
   const code =
     error.code === "access_denied"
       ? "notion_access_denied"
       : error.code === "rate_limited"
         ? "notion_rate_limited"
+        : error.code === "timeout"
+          ? "notion_timeout"
         : error.code === "invalid_response"
           ? "invalid_notion_response"
           : "notion_pages_unavailable";

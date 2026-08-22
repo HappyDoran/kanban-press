@@ -81,6 +81,7 @@ describe("publishErrorMessage", () => {
     );
     expect(publishErrorMessage("github_conflict")).toContain("다시 시도");
     expect(publishErrorMessage("notion_rate_limited")).toContain("잠시");
+    expect(publishErrorMessage("github_timeout")).toContain("시간이 초과");
     expect(publishErrorMessage("invalid_publish_image")).toContain("이미지");
   });
 });

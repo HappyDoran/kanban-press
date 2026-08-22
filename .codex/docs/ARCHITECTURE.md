@@ -155,6 +155,10 @@ IndexedDB에 포함하지 않는다.
 ## 6. 장애 특성
 
 - Notion/GitHub API 실패는 요청 실패로 반환하며 브라우저에서 명시적으로 재시도한다.
+- 모든 provider 요청은 10초 timeout과 caller abort를 합성한다. 429의 bounded
+  `Retry-After`만 브라우저에 전달하고 timeout은 provider별 504 오류로 구분한다.
+- provider 장애 로그는 provider, operation, 안정적인 오류 code, HTTP status,
+  bounded retry/소요 시간만 기록하는 allowlist JSON logger를 통한다.
 - commit 이후 응답이 유실된 상태에서 재시도하면 중복 commit이 생길 수 있다.
 - 같은 artifact로 만든 Git tree가 현재 tree와 같아도 새 commit을 만든다.
 - ref update 사이에 다른 변경이 생기면 force push하지 않고 게시 충돌로 반환한다.

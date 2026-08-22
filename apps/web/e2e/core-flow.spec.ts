@@ -1,0 +1,288 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test, type Page } from "@playwright/test";
+
+const CONNECTION_ID = "3c90c3cc-0d44-4b50-8888-8dd25736052a";
+const PAGE_ID = "9188c6a5-7381-452f-b3dc-d4865aa89bdf";
+const LAST_EDITED_AT = "2026-08-20T10:00:00.000Z";
+
+test("signed-out OAuth entry is explicit and accessible", async ({ page }) => {
+  await page.route("**/api/me", (route) =>
+    route.fulfill({ json: { authenticated: false }, status: 401 }),
+  );
+  await page.goto("/");
+
+  await expect(page.getByRole("link", { name: "GitHub로 시작" }).first()).toHaveAttribute(
+    "href",
+    "/auth/github/start?returnTo=%2F",
+  );
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "글쓰기는 Notion에서",
+  );
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+test("session, IndexedDB, preview, publish, and user isolation", async ({
+  page,
+}) => {
+  let userId = "52277540";
+  let publishCalls = 0;
+  await installAppRoutes(page, () => userId, () => {
+    publishCalls += 1;
+  });
+  await page.goto("/");
+
+  await expect(page.getByText("E2E 게시 문서", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("게시 준비 완료")).toBeVisible();
+  await expect(
+    page.getByRole("button", { exact: true, name: "미리보기" }),
+  ).toBeVisible();
+
+  const databases = await page.evaluate(async () =>
+    (await indexedDB.databases()).map((database) => database.name),
+  );
+  expect(databases).toContain("notion-kanban-blog.board.52277540");
+
+  await page.getByRole("button", { exact: true, name: "미리보기" }).click();
+  await expect(page.getByRole("dialog")).toContainText("E2E 프리뷰 본문");
+  await page.getByRole("button", { name: "닫기" }).click();
+
+  const card = page.getByRole("button", { name: "E2E 게시 문서 카드 이동" });
+  const publishingColumn = page.getByRole("region", { name: /게시 중/ });
+  const source = await card.boundingBox();
+  const target = await publishingColumn.boundingBox();
+  expect(source).not.toBeNull();
+  expect(target).not.toBeNull();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(source!.x + source!.width / 2 + 10, source!.y + source!.height / 2, {
+    steps: 3,
+  });
+  await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, {
+    steps: 12,
+  });
+  await page.mouse.up();
+  await expect.poll(() => publishCalls).toBe(1);
+  await expect(page.getByText("게시된 글 보기")).toBeVisible();
+
+  const storedVisibility = await page.evaluate(
+    async ({ connectionId, pageId }) => {
+      const request = indexedDB.open("notion-kanban-blog.board.52277540");
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const transaction = database.transaction("boardRecords", "readonly");
+      const store = transaction.objectStore("boardRecords");
+      const get = store.get(["52277540", connectionId, pageId]);
+      const record = await new Promise<Record<string, unknown> | undefined>(
+        (resolve, reject) => {
+          get.onsuccess = () => resolve(get.result as Record<string, unknown> | undefined);
+          get.onerror = () => reject(get.error);
+        },
+      );
+      database.close();
+      return record?.isVisible;
+    },
+    { connectionId: CONNECTION_ID, pageId: PAGE_ID },
+  );
+  expect(storedVisibility).toBe(false);
+
+  userId = "90000001";
+  await page.reload();
+  await expect(page.getByText("보관 중 1개")).toBeVisible();
+  const isolatedDatabases = await page.evaluate(async () =>
+    (await indexedDB.databases()).map((database) => database.name),
+  );
+  expect(isolatedDatabases).toEqual(
+    expect.arrayContaining([
+      "notion-kanban-blog.board.52277540",
+      "notion-kanban-blog.board.90000001",
+    ]),
+  );
+  const newOwnerVisibility = await page.evaluate(
+    async ({ connectionId, pageId }) => {
+      const request = indexedDB.open("notion-kanban-blog.board.90000001");
+      const database = await new Promise<IDBDatabase>((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const get = database
+        .transaction("boardRecords", "readonly")
+        .objectStore("boardRecords")
+        .get(["90000001", connectionId, pageId]);
+      const record = await new Promise<Record<string, unknown> | undefined>(
+        (resolve, reject) => {
+          get.onsuccess = () => resolve(get.result as Record<string, unknown> | undefined);
+          get.onerror = () => reject(get.error);
+        },
+      );
+      database.close();
+      return record?.isVisible;
+    },
+    { connectionId: CONNECTION_ID, pageId: PAGE_ID },
+  );
+  expect(newOwnerVisibility).toBe(true);
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+test("mobile board fits 320px and remains keyboard operable", async ({ page }) => {
+  await installAppRoutes(page, () => "52277540", () => undefined);
+  await page.goto("/");
+  await expect(page.getByText("E2E 게시 문서", { exact: true }).first()).toBeVisible();
+
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+  ).toBe(true);
+  const performanceBudget = await page.evaluate(() => {
+    const navigation = performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming | undefined;
+    return {
+      domContentLoadedMs: navigation?.domContentLoadedEventEnd ?? Infinity,
+      transferBytes: performance
+        .getEntriesByType("resource")
+        .reduce((total, entry) => total + (entry as PerformanceResourceTiming).transferSize, 0),
+    };
+  });
+  expect(performanceBudget.domContentLoadedMs).toBeLessThan(3_000);
+  expect(performanceBudget.transferBytes).toBeLessThan(3_000_000);
+  const card = page.getByRole("button", { name: "E2E 게시 문서 카드 이동" });
+  await card.focus();
+  await expect(card).toBeFocused();
+  await card.press("Space");
+  await expect(page.getByRole("status").last()).toContainText("위에 있습니다");
+  await card.press("Escape");
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+async function installAppRoutes(
+  page: Page,
+  currentUserId: () => string,
+  onPublish: () => void,
+): Promise<void> {
+  await page.route("**/api/me", (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        user: { id: currentUserId(), login: "HappyDoran" },
+      },
+    }),
+  );
+  await page.route("**/api/notion/connections", (route) =>
+    route.fulfill({
+      json: {
+        connections: [
+          {
+            connectedAt: 2_000_000_000,
+            connectionId: CONNECTION_ID,
+            workspaceIcon: null,
+            workspaceName: "E2E Workspace",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/notion/connections/*/pages", (route) =>
+    route.fulfill({
+      json: {
+        pages: [
+          {
+            hasChildren: false,
+            iconUrl: null,
+            lastEditedAt: LAST_EDITED_AT,
+            parentContainerId: null,
+            parentPageId: null,
+            providerPageId: PAGE_ID,
+            title: "E2E 게시 문서",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/notion/connections/*/pages/*/outline", (route) =>
+    route.fulfill({ json: { outline: [] } }),
+  );
+  await page.route("**/api/github/pages-repository", (route) =>
+    route.fulfill({
+      json: {
+        readiness: {
+          conflictingPaths: [],
+          managedPaths: ["package.json"],
+          pagesSettingsUrl:
+            "https://github.com/HappyDoran/HappyDoran.github.io/settings/pages",
+          state: "ready",
+        },
+        repository: {
+          defaultBranch: "main",
+          fullName: "HappyDoran/HappyDoran.github.io",
+        },
+      },
+    }),
+  );
+  await page.route("**/api/publish/preview", (route) =>
+    route.fulfill({
+      json: {
+        document: {
+          blocks: [
+            {
+              kind: "paragraph",
+              richText: [
+                {
+                  bold: false,
+                  code: false,
+                  href: null,
+                  italic: false,
+                  strikethrough: false,
+                  text: "E2E 프리뷰 본문",
+                },
+              ],
+            },
+          ],
+          category: { name: "테스트", slug: "test-e2e00001" },
+          description: "E2E 설명",
+          publishedAt: LAST_EDITED_AT,
+          slug: "e2e-post-9188c6a57381",
+          tags: ["E2E"],
+          title: "E2E 게시 문서",
+          updatedAt: LAST_EDITED_AT,
+        },
+        previewSchemaVersion: 1,
+        sourceLastEditedAt: LAST_EDITED_AT,
+        templateVersion: 2,
+        warnings: [],
+      },
+    }),
+  );
+  await page.route("**/api/publish", (route) => {
+    onPublish();
+    return route.fulfill({
+      json: {
+        commitSha: "a".repeat(40),
+        contentHash: "b".repeat(64),
+        created: true,
+        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/",
+      },
+    });
+  });
+  await page.route("**/api/publish/status?**", (route) =>
+    route.fulfill({
+      json: {
+        actionsUrl:
+          "https://github.com/HappyDoran/HappyDoran.github.io/actions/runs/123",
+        commitSha: "a".repeat(40),
+        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/",
+        state: "succeeded",
+      },
+    }),
+  );
+}
+
+async function expectNoSeriousAccessibilityViolations(page: Page): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact ?? ""),
+    ),
+  ).toEqual([]);
+}

@@ -14,6 +14,7 @@
     "dev": "corepack pnpm --recursive --parallel --if-present run dev",
     "lint": "node tooling/scripts/check-package-boundaries.mjs && corepack pnpm --recursive --if-present run lint",
     "test": "corepack pnpm --recursive --if-present run test",
+    "test:e2e": "corepack pnpm --filter @notion-kanban-blog/web test:e2e",
     "test:integration": "corepack pnpm --recursive --if-present run test:integration",
     "typecheck": "corepack pnpm --recursive --if-present run typecheck"
   },

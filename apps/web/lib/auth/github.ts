@@ -9,6 +9,12 @@ import {
 import { entityId } from "@notion-kanban-blog/domain";
 import { z } from "zod";
 
+import {
+  providerRequest,
+  ProviderTransportError,
+} from "../operations/provider-request";
+import type { LogSink } from "../operations/structured-log";
+
 const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL = "https://api.github.com/user";
@@ -86,6 +92,8 @@ interface GitHubApiClientOptions {
   clientId: string;
   clientSecret: string;
   fetch?: typeof fetch;
+  log?: LogSink;
+  timeoutMs?: number;
 }
 
 export class GitHubApiClient implements GitHubOAuthClient {
@@ -93,16 +101,20 @@ export class GitHubApiClient implements GitHubOAuthClient {
   readonly #clientId: string;
   readonly #clientSecret: string;
   readonly #fetch: typeof fetch;
+  readonly #log: LogSink | undefined;
+  readonly #timeoutMs: number | undefined;
 
   constructor(options: GitHubApiClientOptions) {
     this.#apiVersion = options.apiVersion;
     this.#clientId = options.clientId;
     this.#clientSecret = options.clientSecret;
     this.#fetch = options.fetch ?? fetch;
+    this.#log = options.log;
+    this.#timeoutMs = options.timeoutMs;
   }
 
   async authenticate(code: string, redirectUri: string) {
-    const tokenResponse = await this.#fetch(GITHUB_TOKEN_URL, {
+    const tokenResponse = await this.#request(GITHUB_TOKEN_URL, {
       body: new URLSearchParams({
         client_id: this.#clientId,
         client_secret: this.#clientSecret,
@@ -115,7 +127,7 @@ export class GitHubApiClient implements GitHubOAuthClient {
         "user-agent": "notion-kanban-blog",
       },
       method: "POST",
-    });
+    }, "oauth.token");
     if (!tokenResponse.ok) {
       throw new GitHubAuthenticationError();
     }
@@ -128,14 +140,14 @@ export class GitHubApiClient implements GitHubOAuthClient {
     }
 
     const accessToken = tokenResult.data.access_token;
-    const userResponse = await this.#fetch(GITHUB_USER_URL, {
+    const userResponse = await this.#request(GITHUB_USER_URL, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${accessToken}`,
         "user-agent": "notion-kanban-blog",
         "x-github-api-version": this.#apiVersion,
       },
-    });
+    }, "identity.get");
     if (!userResponse.ok) {
       throw new GitHubAuthenticationError();
     }
@@ -153,12 +165,35 @@ export class GitHubApiClient implements GitHubOAuthClient {
       },
     };
   }
+
+  async #request(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    operation: string,
+  ): Promise<Response> {
+    try {
+      return await providerRequest({
+        fetch: this.#fetch,
+        init,
+        input,
+        log: this.#log,
+        operation,
+        provider: "github",
+        timeoutMs: this.#timeoutMs,
+      });
+    } catch (error) {
+      if (error instanceof ProviderTransportError) {
+        throw new GitHubAuthenticationError(error.code);
+      }
+      throw error;
+    }
+  }
 }
 
 export class GitHubAuthenticationError extends Error {
   override readonly name = "GitHubAuthenticationError";
 
-  constructor() {
+  constructor(readonly code: "timeout" | "unavailable" = "unavailable") {
     super("GitHub authentication failed");
   }
 }
@@ -265,8 +300,16 @@ export async function finishGitHubLogin(
       }),
     );
     return new Response(null, { headers, status: 302 });
-  } catch {
-    return callbackError("github_authentication_failed", clearStateCookie, 502);
+  } catch (error) {
+    return callbackError(
+      error instanceof GitHubAuthenticationError && error.code === "timeout"
+        ? "github_timeout"
+        : "github_authentication_failed",
+      clearStateCookie,
+      error instanceof GitHubAuthenticationError && error.code === "timeout"
+        ? 504
+        : 502,
+    );
   }
 }
 
@@ -488,11 +531,15 @@ function callbackError(
   return new Response(JSON.stringify({ error: code }), { headers, status });
 }
 
-export function errorResponse(status: number, code: string): Response {
+export function errorResponse(
+  status: number,
+  code: string,
+  extraHeaders: HeadersInit = {},
+): Response {
   return Response.json(
     { error: code },
     {
-      headers: { "cache-control": "no-store" },
+      headers: { "cache-control": "no-store", ...extraHeaders },
       status,
     },
   );

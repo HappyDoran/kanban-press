@@ -10,6 +10,12 @@ import {
 import { z } from "zod";
 
 import {
+  providerRequest,
+  ProviderTransportError,
+} from "../operations/provider-request";
+import type { LogSink } from "../operations/structured-log";
+
+import {
   cookieKeysFromEnvironment,
   currentUnixTimestamp,
   errorResponse,
@@ -125,12 +131,16 @@ interface NotionApiClientOptions {
   clientId: string;
   clientSecret: string;
   fetch?: typeof fetch;
+  log?: LogSink;
+  timeoutMs?: number;
 }
 
 export class NotionApiClient implements NotionOAuthClient {
   readonly #apiVersion: string;
   readonly #authorization: string;
   readonly #fetch: typeof fetch;
+  readonly #log: LogSink | undefined;
+  readonly #timeoutMs: number | undefined;
 
   constructor(options: NotionApiClientOptions) {
     this.#apiVersion = options.apiVersion;
@@ -138,10 +148,12 @@ export class NotionApiClient implements NotionOAuthClient {
       `${options.clientId}:${options.clientSecret}`,
     ).toString("base64")}`;
     this.#fetch = options.fetch ?? fetch;
+    this.#log = options.log;
+    this.#timeoutMs = options.timeoutMs;
   }
 
   async authorize(code: string, redirectUri: string) {
-    const response = await this.#fetch(NOTION_TOKEN_URL, {
+    const response = await this.#request(NOTION_TOKEN_URL, {
       body: JSON.stringify({
         code,
         grant_type: "authorization_code",
@@ -149,7 +161,7 @@ export class NotionApiClient implements NotionOAuthClient {
       }),
       headers: this.#headers(),
       method: "POST",
-    });
+    }, "oauth.token");
     if (!response.ok) {
       throw new NotionAuthenticationError();
     }
@@ -168,11 +180,11 @@ export class NotionApiClient implements NotionOAuthClient {
   }
 
   async revoke(accessToken: string): Promise<void> {
-    const response = await this.#fetch(NOTION_REVOKE_URL, {
+    const response = await this.#request(NOTION_REVOKE_URL, {
       body: JSON.stringify({ token: accessToken }),
       headers: this.#headers(),
       method: "POST",
-    });
+    }, "oauth.revoke");
     if (!response.ok) {
       throw new NotionAuthenticationError();
     }
@@ -186,11 +198,34 @@ export class NotionApiClient implements NotionOAuthClient {
       "notion-version": this.#apiVersion,
     };
   }
+
+  async #request(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    operation: string,
+  ): Promise<Response> {
+    try {
+      return await providerRequest({
+        fetch: this.#fetch,
+        init,
+        input,
+        log: this.#log,
+        operation,
+        provider: "notion",
+        timeoutMs: this.#timeoutMs,
+      });
+    } catch (error) {
+      if (error instanceof ProviderTransportError) {
+        throw new NotionAuthenticationError(error.code);
+      }
+      throw error;
+    }
+  }
 }
 
 export class NotionAuthenticationError extends Error {
   override readonly name = "NotionAuthenticationError";
-  constructor() {
+  constructor(readonly code: "timeout" | "unavailable" = "unavailable") {
     super("Notion authentication failed");
   }
 }
@@ -333,8 +368,16 @@ export async function finishNotionConnection(
       }),
     );
     return new Response(null, { headers, status: 302 });
-  } catch {
-    return callbackError("notion_authentication_failed", clearState, 502);
+  } catch (error) {
+    return callbackError(
+      error instanceof NotionAuthenticationError && error.code === "timeout"
+        ? "notion_timeout"
+        : "notion_authentication_failed",
+      clearState,
+      error instanceof NotionAuthenticationError && error.code === "timeout"
+        ? 504
+        : 502,
+    );
   }
 }
 

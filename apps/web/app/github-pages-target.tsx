@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { RetryAction, retryAtFromResponse } from "./retry-action";
+
 export interface RepositorySummary {
   defaultBranch: string;
   fullName: string;
@@ -25,6 +27,7 @@ const CONFLICT_PATH_LIMIT = 5;
 export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
   const [state, setState] = useState<TargetState>("loading");
   const [target, setTarget] = useState<RepositoryTarget | null>(null);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
           return;
         }
         if (!response.ok) {
+          setRetryAt(retryAtFromResponse(response));
           throw new Error(providerError(payload));
         }
         setTarget(parseRepositoryTarget(payload));
@@ -66,6 +70,7 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
   const repositoryName = `${githubLogin}.github.io`;
   const retry = () => {
     setTarget(null);
+    setRetryAt(null);
     setState("loading");
     setReloadKey((value) => value + 1);
   };
@@ -109,9 +114,11 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
         {state === "error" ? (
           <div className="pagesRecovery" role="alert">
             <span>Repository 상태를 확인하지 못했습니다.</span>
-            <button onClick={retry} type="button">
-              다시 확인
-            </button>
+            <RetryAction
+              label="다시 확인"
+              onRetry={retry}
+              retryAt={retryAt}
+            />
           </div>
         ) : null}
       </div>

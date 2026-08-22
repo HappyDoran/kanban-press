@@ -205,16 +205,6 @@ h1 {
   display: flex;
   gap: 0.45rem;
   align-items: center;
-  opacity: 0;
-  animation: railIn 0.45s ease forwards;
-}
-
-.railStop:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.railStop:nth-child(5) {
-  animation-delay: 0.6s;
 }
 
 .railLine {
@@ -225,12 +215,6 @@ h1 {
 .railDot {
   color: var(--indigo);
   font-size: 0.85rem;
-}
-
-@keyframes railIn {
-  to {
-    opacity: 1;
-  }
 }
 
 /* ── 섹션 공통 ──────────────────────────────────────────────── */
@@ -835,6 +819,24 @@ h3 {
   gap: 0.15rem;
 }
 
+.dragHandleButton {
+  display: grid;
+  width: 1.65rem;
+  height: 1.65rem;
+  padding: 0;
+  color: var(--graphite);
+  background: transparent;
+  font: inherit;
+  border: 0;
+  border-radius: var(--radius-s);
+  cursor: grab;
+  place-items: center;
+}
+
+.dragHandleButton:active {
+  cursor: grabbing;
+}
+
 .removeCardButton {
   display: grid;
   width: 1.65rem;
@@ -912,7 +914,7 @@ h3 {
   display: grid;
   min-height: 7rem;
   margin: 0;
-  color: color-mix(in srgb, var(--graphite) 60%, transparent);
+  color: var(--graphite);
   font-size: 0.7rem;
   text-align: center;
   border: 1px dashed var(--rule-soft);
@@ -1433,7 +1435,4 @@ h3 {
     scroll-behavior: auto !important;
   }
 
-  .railStop {
-    opacity: 1;
-  }
 }

@@ -16,6 +16,12 @@ import {
   readCookie,
   SESSION_COOKIE,
 } from "../auth/github";
+import {
+  parseRetryAfter,
+  providerRequest,
+  ProviderTransportError,
+} from "../operations/provider-request";
+import type { LogSink } from "../operations/structured-log";
 
 const GITHUB_API_ORIGIN = "https://api.github.com";
 const loginSchema = z
@@ -138,12 +144,16 @@ interface GitHubPagesClientOptions {
   accessToken: string;
   apiVersion: string;
   fetch?: typeof fetch;
+  log?: LogSink;
+  timeoutMs?: number;
 }
 
 export class GitHubPagesClient implements GitHubRepositoryAdapter {
   readonly #accessToken: string;
   readonly #apiVersion: string;
   readonly #fetch: typeof fetch;
+  readonly #log: LogSink | undefined;
+  readonly #timeoutMs: number | undefined;
 
   constructor(options: GitHubPagesClientOptions) {
     this.#accessToken = z.string().min(1).max(4096).parse(options.accessToken);
@@ -151,6 +161,8 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       options.apiVersion,
     );
     this.#fetch = options.fetch ?? fetch;
+    this.#log = options.log;
+    this.#timeoutMs = options.timeoutMs;
   }
 
   async getPagesRepository(
@@ -160,7 +172,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     const parsedOwnerId = numericIdSchema.parse(ownerUserId);
     const parsedLogin = loginSchema.parse(ownerLogin);
     const repositoryName = `${parsedLogin}.github.io`;
-    const response = await this.#fetch(
+    const response = await this.#request(
       `${GITHUB_API_ORIGIN}/repos/${encodeURIComponent(parsedLogin)}/${encodeURIComponent(repositoryName)}`,
       {
         headers: {
@@ -170,6 +182,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
           "x-github-api-version": this.#apiVersion,
         },
       },
+      "repository.get",
     );
     if (!response.ok) {
       throw providerError(response);
@@ -328,9 +341,11 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
         `${GITHUB_API_ORIGIN}/repos/${target}/git/trees/${headCommit.tree.sha}`,
       );
       treeUrl.searchParams.set("recursive", "1");
-      const response = await this.#fetch(treeUrl, {
-        headers: this.#headers(),
-      });
+      const response = await this.#request(
+        treeUrl,
+        { headers: this.#headers() },
+        "repository.tree",
+      );
       if (!response.ok) {
         throw providerError(response, "git_resource_not_found");
       }
@@ -451,7 +466,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     init: RequestInit = {},
     conflictOnFailure = false,
   ): Promise<T> {
-    const response = await this.#fetch(
+    const response = await this.#request(
       path.startsWith("https:") ? path : `${GITHUB_API_ORIGIN}${path}`,
       {
         ...init,
@@ -464,6 +479,9 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
           ...init.headers,
         },
       },
+      init.method === undefined || init.method === "GET"
+        ? "git.read"
+        : "git.write",
     );
     if (!response.ok) {
       if (
@@ -486,14 +504,18 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     schema: z.ZodType<T>,
     absentStatuses: ReadonlySet<number> = new Set([404]),
   ): Promise<T | null> {
-    const response = await this.#fetch(input, {
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${this.#accessToken}`,
-        "user-agent": "notion-kanban-blog",
-        "x-github-api-version": this.#apiVersion,
+    const response = await this.#request(
+      input,
+      {
+        headers: {
+          accept: "application/vnd.github+json",
+          authorization: `Bearer ${this.#accessToken}`,
+          "user-agent": "notion-kanban-blog",
+          "x-github-api-version": this.#apiVersion,
+        },
       },
-    });
+      "git.read",
+    );
     if (absentStatuses.has(response.status)) {
       return null;
     }
@@ -515,6 +537,29 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       "x-github-api-version": this.#apiVersion,
     };
   }
+
+  async #request(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    operation: string,
+  ): Promise<Response> {
+    try {
+      return await providerRequest({
+        fetch: this.#fetch,
+        init,
+        input,
+        log: this.#log,
+        operation,
+        provider: "github",
+        timeoutMs: this.#timeoutMs,
+      });
+    } catch (error) {
+      if (error instanceof ProviderTransportError) {
+        throw new GitHubPagesError(error.code);
+      }
+      throw error;
+    }
+  }
 }
 
 export class GitHubPagesError extends Error {
@@ -532,7 +577,9 @@ export class GitHubPagesError extends Error {
       | "repository_not_found"
       | "repository_owner_mismatch"
       | "repository_write_denied"
+      | "timeout"
       | "unavailable",
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(code);
   }
@@ -582,11 +629,19 @@ export async function getGitHubPagesRepository(
         ? 404
         : error.code === "rate_limited"
           ? 429
+          : error.code === "timeout"
+            ? 504
           : error.code === "unavailable" ||
               error.code === "invalid_response"
             ? 502
             : 403;
-    return errorResponse(status, error.code);
+    return errorResponse(
+      status,
+      error.code === "timeout" ? "github_timeout" : error.code,
+      error.retryAfterSeconds === null
+        ? {}
+        : { "retry-after": String(error.retryAfterSeconds) },
+    );
   }
 }
 
@@ -725,7 +780,10 @@ function providerError(
     (response.status === 403 &&
       response.headers.get("x-ratelimit-remaining") === "0")
   ) {
-    return new GitHubPagesError("rate_limited");
+    return new GitHubPagesError(
+      "rate_limited",
+      parseRetryAfter(response.headers),
+    );
   }
   if (response.status === 404) {
     return new GitHubPagesError(notFoundCode);

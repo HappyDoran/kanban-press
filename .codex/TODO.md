@@ -159,8 +159,20 @@
 
 ## P4 — 신뢰성과 운영
 
-- [ ] provider rate limit, timeout, 사용자 재시도 UX
-- [ ] secret redaction을 포함한 구조화 로그
-- [ ] OAuth/IndexedDB/publish 핵심 E2E
-- [ ] 접근성, 성능, 모바일 칸반 검증
-- [ ] 쿠키 예산 또는 다기기 동기화 요구가 발생하면 DB 도입 ADR 작성
+- [x] provider rate limit, timeout, 사용자 재시도 UX
+  - 수용 기준: Notion/GitHub OAuth·REST 요청을 10초 안에 중단하고 provider별 504 code로 반환한다.
+  - 수용 기준: 429의 bounded Retry-After를 UI가 표시하고 대기 중 재시도를 막는다.
+  - 수용 기준: 서버 자동 재시도 없이 사용자가 읽기·preview·publish를 명시적으로 재시도한다.
+- [x] secret redaction을 포함한 구조화 로그
+  - 수용 기준: allowlist JSON event만 기록하고 token, cookie, URL, 식별자와 임의 오류 문자열을 거절한다.
+  - 수용 기준: timeout, network, HTTP 실패의 provider·operation·code·bounded timing만 기록한다.
+- [x] OAuth/IndexedDB/publish 핵심 E2E
+  - 수용 기준: signed-out OAuth 진입과 signed-in session UI를 production browser에서 검증한다.
+  - 수용 기준: GitHub user ID별 IndexedDB 격리와 preview→drag publish→게시 후 숨김을 검증한다.
+- [x] 접근성, 성능, 모바일 칸반 검증
+  - 수용 기준: desktop과 320px Chromium에서 Axe serious/critical 위반과 가로 overflow가 없다.
+  - 수용 기준: keyboard drag 활성화, DCL 3초, 전송량 3MB 예산을 자동 검증한다.
+- [x] 쿠키 예산 또는 다기기 동기화 요구가 발생하면 DB 도입 ADR 작성
+  - 평가: 현재 trigger 요구 없음. ADR 0001에서 DB-free 유지와 재평가 gate를 확정한다.
+  - 검증: 2026-08-22 전체 lint, typecheck, unit 257개, integration 16개,
+    production Chromium E2E 6개(desktop/320px), production build를 통과했다.

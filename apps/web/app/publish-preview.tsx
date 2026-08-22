@@ -8,6 +8,7 @@ import {
   type PreviewRichText,
   type PublishPreviewResponse,
 } from "../lib/publish/preview";
+import { RetryAction, retryAtFromResponse } from "./retry-action";
 
 import type { ReactNode } from "react";
 
@@ -18,7 +19,7 @@ export interface PublishPreviewTarget {
 }
 
 type PreviewState =
-  | { kind: "error"; code: string }
+  | { kind: "error"; code: string; retryAt: number | null }
   | { kind: "loading"; slow: boolean }
   | { kind: "ready"; preview: PublishPreviewResponse };
 type PreviewView = "home" | "post";
@@ -83,18 +84,30 @@ export function PublishPreviewDialog({
         });
         const payload = await safeJson(response);
         if (!response.ok) {
-          setState({ kind: "error", code: parseErrorCode(payload) });
+          setState({
+            kind: "error",
+            code: parseErrorCode(payload),
+            retryAt: retryAtFromResponse(response),
+          });
           return;
         }
         const preview = parsePublishPreviewResponse(payload);
         setState(
           preview === null
-            ? { kind: "error", code: "invalid_preview_response" }
+            ? {
+                kind: "error",
+                code: "invalid_preview_response",
+                retryAt: null,
+              }
             : { kind: "ready", preview },
         );
       } catch (error) {
         if (!isAbortError(error)) {
-          setState({ kind: "error", code: "preview_unavailable" });
+          setState({
+            kind: "error",
+            code: "preview_unavailable",
+            retryAt: null,
+          });
         }
       } finally {
         window.clearTimeout(slowTimer);
@@ -147,9 +160,11 @@ export function PublishPreviewDialog({
         <div className="previewError" role="alert">
           <strong>프리뷰를 만들지 못했습니다</strong>
           <p>{previewErrorMessage(state.code)}</p>
-          <button onClick={() => setAttempt((value) => value + 1)} type="button">
-            다시 불러오기
-          </button>
+          <RetryAction
+            label="다시 불러오기"
+            onRetry={() => setAttempt((value) => value + 1)}
+            retryAt={state.retryAt}
+          />
         </div>
       ) : null}
       {state.kind === "ready" ? (
@@ -326,6 +341,8 @@ export function previewErrorMessage(code: string): string {
       return "Notion 페이지 접근 권한이 없습니다. 아직 게시하지 않았습니다.";
     case "notion_rate_limited":
       return "Notion 요청이 많아 잠시 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+    case "notion_timeout":
+      return "Notion 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.";
     case "invalid_blog_metadata":
       return "블로그 속성 형식이 올바르지 않습니다. Notion의 예약 속성을 확인해 주세요.";
     case "notion_unavailable":

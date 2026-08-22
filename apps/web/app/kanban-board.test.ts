@@ -123,6 +123,7 @@ describe("BoardCard", () => {
         publishFailure: {
           actionsUrl: card.publishActionsUrl,
           message: "Actions 로그를 확인해 주세요.",
+          retryAt: null,
         },
         record: card,
       }),

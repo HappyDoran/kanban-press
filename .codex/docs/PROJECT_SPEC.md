@@ -450,6 +450,18 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 이 제약이 제품 요구사항과 충돌하는 시점이 DB 도입 재검토 기준이다.
 
+## 6.1 Provider 장애 복구 계약
+
+- Notion과 GitHub의 OAuth 및 REST 요청은 각각 10초 안에 응답하지 않으면 중단한다.
+- timeout은 provider별 안정적인 `notion_timeout` 또는 `github_timeout` 오류로 반환하며
+  credential, 요청 URL, provider 응답 본문은 오류나 로그에 포함하지 않는다.
+- `429`의 `Retry-After`는 0~3,600초 정수만 신뢰해 응답 header로 전달한다. 브라우저는
+  남은 대기 시간을 안내하고 만료 전 재시도 동작을 비활성화한다.
+- 서버는 읽기와 mutation을 자동 재시도하지 않는다. 사용자가 명시적으로 다시 시도하며,
+  특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다.
+- 구조화 운영 로그는 allowlist field만 JSON 한 줄로 기록한다. token, cookie, OAuth code,
+  provider URL, 사용자·page·repository 식별자, 임의 오류 message/stack은 기록하지 않는다.
+
 ## 7. 현재 구현 차이
 
 - Next.js web scaffold, provider 경계, stateless 암호화 쿠키 codec이 존재한다.
