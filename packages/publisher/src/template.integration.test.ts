@@ -172,14 +172,18 @@ describe("Astro template build", () => {
       expect(indexHtml).toContain(`${expectedBase}categories/`);
       expect(indexHtml).toContain("본문으로 건너뛰기");
       expect(indexHtml).toContain('aria-current="page"');
+      expect(indexHtml).toContain("HappyDoran.log");
+      expect(indexHtml).toContain('aria-label="블로그 통계"');
+      expect(indexHtml).toContain('href="https://github.com/HappyDoran"');
       expect(indexHtml).not.toContain("<script");
       expect(legacyHtml).toContain("<h1>Legacy Post</h1>");
+      expect(legacyHtml).toContain('class="article-layout without-toc"');
       expect(legacyHtml).toContain(
         `${expectedBase}categories/uncategorized/`,
       );
       expect(postsHtml).toContain("전체 글");
       expect(postsHtml).toContain(`${expectedBase}posts/legacy-post/`);
-      expect(categoriesHtml).toContain("카테고리");
+      expect(categoriesHtml).toContain("주제");
       expect(categoriesHtml).toContain(
         `${expectedBase}categories/uncategorized/`,
       );
@@ -235,6 +239,11 @@ describe("Astro template build", () => {
     });
     const artifact = createMarkdownArtifact({
       blocks: [
+        { kind: "heading", level: 2, richText: [{ text: "Heading One" }] },
+        { kind: "heading", level: 3, richText: [{ text: "Heading Two" }] },
+        { kind: "heading", level: 4, richText: [{ text: "Heading Three" }] },
+        { kind: "heading", level: 2, richText: [{ text: "Heading Four" }] },
+        { kind: "heading", level: 2, richText: [{ text: "Heading Five" }] },
         {
           children: [
             {
@@ -299,6 +308,11 @@ describe("Astro template build", () => {
       join(root, "dist/posts/structured-content/index.html"),
       "utf8",
     );
+    expect(html).toContain('<h2 id="heading-one">Heading One</h2>');
+    expect(html).toContain('<h3 id="heading-two">Heading Two</h3>');
+    expect(html).toContain('<h4 id="heading-three">Heading Three</h4>');
+    expect(html).toContain('class="article-layout with-toc"');
+    expect(html).toContain('class="post-toc"');
     expect(html).toContain("<ul>");
     expect(html).toContain("<ol>");
     expect(html).toContain('type="checkbox"');
@@ -361,6 +375,11 @@ Post ${number} body.
       categoriesHtml.indexOf("Notes"),
     );
     expect(css).toContain("min-width:20rem");
+    expect(css).toContain("font-size:clamp(1.55rem,3vw,1.9rem)");
+    expect(css).toContain("font-size:clamp(1.3rem,2.5vw,1.55rem)");
+    expect(css).toContain("font-size:clamp(1.18rem,2vw,1.3rem)");
+    expect(css).toContain("@media (width>=64rem)");
+    expect(css).toContain("position:sticky");
     expect(css).toContain("prefers-reduced-motion:reduce");
     expect(indexHtml).not.toContain("<script");
   });

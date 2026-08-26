@@ -68,6 +68,18 @@ describe("createAstroTemplateManifest", () => {
     expect(readArtifact(first.artifacts, "src/lib/blog.ts")).toContain(
       'export const base = "/"',
     );
+    const layout = readArtifact(first.artifacts, "src/layouts/BaseLayout.astro");
+    expect(layout).toContain('const siteOwner = "HappyDoran"');
+    expect(layout).toContain('siteOwner + ".log"');
+    expect(layout).toContain("siteOwner.match(/[A-Z]/g)");
+    expect(layout).toContain('href={githubUrl} rel="me"');
+    expect(layout).toContain(">주제</a>");
+    const home = readArtifact(first.artifacts, "src/pages/index.astro");
+    expect(home).toContain('class="hero-stats"');
+    expect(home).toContain("배운 것을 기록하고");
+    const post = readArtifact(first.artifacts, "src/pages/posts/[...slug].astro");
+    expect(post).toContain('"article-layout"');
+    expect(post).toContain('class="post-toc"');
   });
 
   it("creates a project-site template with a repository base path", () => {

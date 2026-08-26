@@ -293,6 +293,11 @@ template은 Astro content collection, 공통 header/main/footer와 skip link, �
 전체 글, category index/detail, 기존 permalink의 글 상세, 404 정적 route와 GitHub Pages
 workflow를 포함하며 절대 경로와 `..` 경로를 허용하지 않는다. 내부 링크는 모두
 user/project site의 base path를 반영하며 핵심 탐색은 client JavaScript 없이 동작한다.
+블로그 shell은 GitHub owner를 개인 브랜드로 사용하고 홈·전체 글·주제·GitHub의 네 가지
+탐색만 제공한다. 홈은 블로그 소개, 전체 글·주제 수, 최신 글을 우선순위대로 보여준다.
+글 상세는 45rem 읽기 폭을 유지하며 목차가 있는 글은 mobile에서 본문 앞에, 넓은 화면에서
+본문 옆 sticky 탐색으로 배치한다. 외부 font나 client JavaScript 없이 320px, keyboard,
+reduced-motion과 고대비 환경에서도 핵심 탐색과 읽기가 가능해야 한다.
 로컬 image artifact는 Astro passthrough image service로 원본 byte를 유지한 채 build
 asset으로 복사해 Sharp나 추가 native dependency를 요구하지 않는다.
 생성 repository에는
@@ -393,6 +398,12 @@ URL allowlist escape를 거친다. 프리뷰 DTO와 최종 Astro HTML은 동일�
 수식은 누락하지 않고 읽을 수 있는 수식 영역으로 보존한다. bookmark·embed·link preview는
 허용된 HTTP(S) 링크 카드로 렌더링한다. audio·file·PDF·video의 외부 URL도 링크 카드로
 내보내되, 만료되는 Notion file capability URL은 노출하지 않고 URL 없는 첨부 카드로 낮춘다.
+
+글 전체 제목은 `h1` 하나로 유지하고 Notion heading 1·2·3은 최종 문서에서 각각
+`h2`·`h3`·`h4` 의미 구조로 내린다. 의미 태그가 프리뷰 dialog 안에서 `h4`·`h5`·`h6`로
+더 내려가더라도 시각 크기는 별도 Notion heading level class로 결정한다. 프리뷰와 최종
+Astro HTML 모두 세 단계가 본문보다 크고 `heading 1 > heading 2 > heading 3 > 본문` 순서를
+유지해야 하며, 브라우저 user-agent heading 기본값에 의존하지 않는다.
 
 slug는 정규화한 Notion 제목과 page ID의 앞 12자리 hex를 조합해 같은 제목과 한글
 제목에서도 안정적이고 충돌 없이 생성한다. template artifact와 문서 artifact를
@@ -505,6 +516,9 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 정규화된 Notion block의 안전한 Markdown artifact 변환 pipeline이 구현됐다.
 - 글머리·번호 목록, 할 일, callout, table과 중첩 자식이 provider 독립 block으로
   보존되며 preview와 Astro 최종 HTML에서 같은 의미 구조와 반응형 표를 렌더링한다.
+- Notion heading 1·2·3은 최종 글에서 `h2`·`h3`·`h4` 의미 구조를 유지하고, preview의
+  dialog heading 구조와 독립된 시각 class를 사용한다. desktop과 320px 모두 세 단계가
+  본문보다 크며 `heading 1 > heading 2 > heading 3` 순서를 유지한다.
 - 최신 Notion 본문 조회와 요청 기반 게시·배포 상태 복구가 구현됐다.
 - 기본 branch 기반 workflow, 관리 marker, Pages Actions 준비 상태, 기존 파일 보호,
   복구 UI와 Actions 로그 링크가 구현됐다.
@@ -516,6 +530,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 정적 블로그는 홈 최신 글 12개, 전체 글, category index/detail, breadcrumb·목차·분류·태그가
   있는 글 상세와 404를 생성한다. 공통 반응형 shell, 명시적인 focus, reduced-motion,
   user/project base path와 JavaScript 없는 탐색을 Astro fixture build로 검증한다.
+- GitHub owner 기반 개인 브랜드, 홈·전체 글·주제·GitHub 탐색, 홈 글/주제 통계와
+  반응형 article/목차 layout을 정적 Astro shell에 적용한다.
 - `POST /api/publish/preview`는 현재 사용자 소유 Notion 원문을 다시 읽고 공유 문서 조립
   경계를 거쳐 URL 없는 image placeholder를 포함한 strict DTO만 반환한다. 보관 카드와
   판별 완료 문서 행의 dialog는 글/홈 보기, 3개 viewport, loading/error/retry를 제공하며

@@ -188,3 +188,17 @@
   - 수용 기준: 대표 Notion fixture, 결정적 Markdown, Astro semantic HTML build를 검증한다.
   - 검증: 2026-08-22 lint, typecheck, unit 261개, integration 17개,
     production Chromium E2E 6개와 production build를 통과했다.
+- [x] Notion 제목 시각 계층 일치
+  - 수용 기준: 글 `h1`과 Notion heading의 의미 레벨을 유지하면서 프리뷰와 최종 HTML의
+    Notion heading 1·2·3에 동일한 시각 계층을 적용한다.
+  - 수용 기준: 세 heading 단계가 모두 본문보다 크고 단계별 크기가 역전되지 않는다.
+  - 수용 기준: desktop과 320px에서 계산된 font-size와 기존 접근성·overflow 회귀를 검증한다.
+  - 검증: 2026-08-26 lint, typecheck, unit 261개, integration 17개,
+    production Chromium E2E 6개(desktop/320px)와 production build를 통과했다.
+- [x] GitHub owner 기반 개인 블로그 UI 개편
+  - 수용 기준: 홈·전체 글·주제·GitHub 메뉴와 owner 기반 브랜드를 모든 route에서 제공한다.
+  - 수용 기준: 홈은 소개, 글·주제 수, 최신 글을 명확한 우선순위로 보여준다.
+  - 수용 기준: 상세 글 목차는 mobile에서 본문 앞, desktop에서 sticky 보조 탐색으로 동작한다.
+  - 수용 기준: 빈 블로그와 실제 글 fixture 모두 320px, keyboard, 접근성, base path build를 통과한다.
+  - 검증: 2026-08-26 빈 `HappyDoran.github.io` production build와 user/project fixture,
+    lint, typecheck, unit 261개, integration 17개, production Chromium E2E 6개 및 전체 build를 통과했다.

@@ -334,7 +334,12 @@ function PreviewBlockRenderer({ block }: { block: PreviewBlock }) {
       return <p><PreviewRichTextRenderer parts={block.richText} /></p>;
     case "heading": {
       const Heading = block.level === 2 ? "h4" : block.level === 3 ? "h5" : "h6";
-      return <Heading><PreviewRichTextRenderer parts={block.richText} /></Heading>;
+      const visualLevel = block.level - 1;
+      return (
+        <Heading className={`previewNotionHeading previewNotionHeading${visualLevel}`}>
+          <PreviewRichTextRenderer parts={block.richText} />
+        </Heading>
+      );
     }
     case "quote":
       return <blockquote><PreviewRichTextRenderer parts={block.richText} /></blockquote>;

@@ -44,6 +44,26 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
 
   await page.getByRole("button", { exact: true, name: "미리보기" }).click();
   await expect(page.getByRole("dialog")).toContainText("E2E 프리뷰 본문");
+  const headingSizes = await page.evaluate(() => {
+    const size = (text: string) => {
+      const element = [...document.querySelectorAll(".previewBody *")].find(
+        (candidate) => candidate.textContent === text,
+      );
+      if (!(element instanceof HTMLElement)) throw new Error(`Missing ${text}`);
+      return Number.parseFloat(getComputedStyle(element).fontSize);
+    };
+    const body = document.querySelector(".previewBody p");
+    if (!(body instanceof HTMLElement)) throw new Error("Missing preview body");
+    return [
+      size("E2E 제목 1"),
+      size("E2E 제목 2"),
+      size("E2E 제목 3"),
+      Number.parseFloat(getComputedStyle(body).fontSize),
+    ];
+  });
+  expect(headingSizes[0]).toBeGreaterThan(headingSizes[1]!);
+  expect(headingSizes[1]).toBeGreaterThan(headingSizes[2]!);
+  expect(headingSizes[2]).toBeGreaterThan(headingSizes[3]!);
   await page.getByRole("button", { name: "닫기" }).click();
 
   const card = page.getByRole("button", { name: "E2E 게시 문서 카드 이동" });
@@ -224,6 +244,21 @@ async function installAppRoutes(
       json: {
         document: {
           blocks: [
+            {
+              kind: "heading",
+              level: 2,
+              richText: [{ bold: false, code: false, href: null, italic: false, strikethrough: false, text: "E2E 제목 1" }],
+            },
+            {
+              kind: "heading",
+              level: 3,
+              richText: [{ bold: false, code: false, href: null, italic: false, strikethrough: false, text: "E2E 제목 2" }],
+            },
+            {
+              kind: "heading",
+              level: 4,
+              richText: [{ bold: false, code: false, href: null, italic: false, strikethrough: false, text: "E2E 제목 3" }],
+            },
             {
               kind: "paragraph",
               richText: [
