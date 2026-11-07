@@ -1,3 +1,9 @@
+---
+title: 프리뷰 및 카테고리 기반 블로그 게시 로드맵
+kind: history
+last_verified: 2026-08-09
+---
+
 # 프리뷰 및 카테고리 기반 블로그 게시 로드맵
 
 ## 1. 목적과 범위
@@ -17,8 +23,8 @@ Astro 프로토타입(`src/`, `scripts/`)은 참고 자료일 뿐 신규 앱에�
 
 ## 2. 조사 결과와 현재 경계
 
-기준 문서는 `.codex/AGENTS.md`, `.codex/docs/PROJECT_SPEC.md`,
-`.codex/docs/TECH_STACK.md`, `.codex/docs/ARCHITECTURE.md`, `.codex/TODO.md`다.
+기준 문서는 `AGENTS.md`, `docs/spec/PROJECT_SPEC.md`,
+`TECH_RULES.md`, `docs/architecture/ARCHITECTURE.md`, `docs/spec/gap-analysis.md`다.
 실제 코드는 문서에 정의된 경계를 다음과 같이 따르고 있다.
 
 | 경계 | 현재 책임 | 이번 변경의 책임 |
@@ -467,7 +473,7 @@ mise exec -- corepack pnpm build
 
 **작업**
 
-- 기준 문서와 `.codex/TODO.md`에 metadata source, preview endpoint, template v2, v1
+- 기준 문서와 `docs/spec/gap-analysis.md`에 metadata source, preview endpoint, template v2, v1
   compatibility contract를 반영한다.
 - v1 Markdown, 예약 Notion properties, 한글 category, malformed provider response fixture를
   만든다.
@@ -654,7 +660,7 @@ heading/focus 순서를 깨지 않는다.
   확인한다.
 - rollback 절차, v1 글의 `미분류` fallback, 재게시 migration, preview 비-WYSIWYG 제한,
   공개 metadata 안내가 사용자 문서에 있다.
-- `.codex/TODO.md` 상태가 실제 검증 결과와 일치한다.
+- `docs/spec/gap-analysis.md` 상태가 실제 검증 결과와 일치한다.
 
 **주요 위험:** GitHub Actions/Pages eventual consistency와 provider rate limit 때문에 smoke
 test가 flaky함.

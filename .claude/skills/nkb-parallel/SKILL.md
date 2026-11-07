@@ -1,0 +1,1 @@
+../../../.codex/skills/nkb-parallel/SKILL.md

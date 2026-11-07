@@ -1,3 +1,9 @@
+---
+title: 아키텍처
+kind: design
+last_verified: 2026-11-07
+---
+
 # 아키텍처
 
 ## 1. 구성
@@ -34,24 +40,7 @@ apps/web (stateless Next.js)
 
 ## 3. package 경계
 
-```text
-apps/web
-  ├─ packages/auth
-  ├─ packages/notion
-  ├─ packages/github
-  ├─ packages/publisher
-  └─ packages/validation
-          └─ packages/domain (validation 제외)
-```
-
-- `domain`: ID, 칸반 상태, provider 독립 규칙
-- `auth`: stateless session 및 암호화 envelope 계약
-- `notion`: workspace/page 조회 계약
-- `github`: OAuth repository 검증/commit 계약
-- `publisher`: GitHub Pages용 Astro template manifest와 Notion 문서의 결정적 artifact 생성
-- `validation`: 외부 입력 schema
-
-package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/web`이 담당한다.
+package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책임과 의존 그래프 절이 소유한다.
 
 ## 4. 요청 경계
 

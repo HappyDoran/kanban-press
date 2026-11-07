@@ -1,6 +1,6 @@
 ---
 name: notion-kanban-blog
-description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, per-GitHub-user IndexedDB boards, direct OAuth publishing to username.github.io, Astro/GitHub Pages output, project architecture, TODO priorities, or acceptance tests.
+description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, per-GitHub-user IndexedDB boards, direct OAuth publishing to username.github.io, Astro/GitHub Pages output, project architecture, backlog priorities, or acceptance tests.
 ---
 
 # Notion Kanban Blog
@@ -9,11 +9,11 @@ description: Build and verify this repository's DB-free, multi-user Notion kanba
 
 Read these files before changing implementation:
 
-1. `.codex/AGENTS.md`
-2. `.codex/docs/PROJECT_SPEC.md`
-3. `.codex/docs/TECH_STACK.md`
-4. `.codex/docs/ARCHITECTURE.md`
-5. `.codex/TODO.md`
+1. `AGENTS.md`
+2. `docs/spec/PROJECT_SPEC.md`
+3. `TECH_RULES.md`
+4. `docs/architecture/ARCHITECTURE.md`
+5. `docs/spec/gap-analysis.md`
 
 Work on the earliest unfinished item unless the user names another scope. Update a changed
 architecture or contract in the documents before code.
@@ -43,7 +43,7 @@ For each slice:
 3. Implement server orchestration in `apps/web`.
 4. Add unit or contract tests for authorization, malformed data, expiry, and retry behavior.
 5. Run the narrow tests, then the repository checks.
-6. Mark TODO state only after the acceptance criteria pass.
+6. Mark the gap-analysis backlog state only after the acceptance criteria pass.
 
 ## Verify
 
@@ -56,4 +56,4 @@ mise exec -- corepack pnpm build
 ```
 
 Report what changed, which checks passed, any external app setup still required, and the next
-unfinished TODO item.
+unfinished backlog item in `docs/spec/gap-analysis.md`.

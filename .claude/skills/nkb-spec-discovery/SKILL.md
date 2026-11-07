@@ -1,0 +1,1 @@
+../../../.codex/skills/nkb-spec-discovery/SKILL.md

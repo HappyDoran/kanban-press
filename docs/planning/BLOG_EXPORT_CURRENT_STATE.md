@@ -1,10 +1,16 @@
+---
+title: GitHub Pages 블로그 내보내기 현황 감사
+kind: snapshot
+last_verified: 2026-08-09
+---
+
 # GitHub Pages 블로그 내보내기 현황 감사
 
 - 감사일: 2026-08-09
 - 기준 revision: `0d76b2f` (`HappyDoran/blog-export-audit`, 감사 문서 작성 전)
 - 범위: `packages/publisher`, `apps/web/lib/publish`, GitHub/Notion adapter의 게시 경계,
   `/api/publish` 및 `/api/publish/status`, GitHub Pages 대상 UI와 칸반 게시 UI, 관련 테스트
-- 방법: `.codex/AGENTS.md`, 프로젝트 명세/기술 스택/아키텍처/TODO를 먼저 읽고 코드와
+- 방법: `AGENTS.md`, 프로젝트 명세/기술 스택/아키텍처/TODO를 먼저 읽고 코드와
   테스트를 심볼 단위로 대조했다. 실제 GitHub/Notion credential을 사용하는 provider smoke
   test나 실제 Pages 배포는 수행하지 않았다.
 
@@ -219,7 +225,7 @@ repository 선택을 허용하지 않아 실제 사용자 흐름에서는 쓰이
 | `apps/web/lib/publish/orchestration.test.ts` | 서버 생성 artifact만 commit, 양 provider 재검증, 반복 게시 unique commit, Origin 거절, status 권한 재검증, slug/hash | auth/입력/provider 오류 매핑 전 범위, timeout/retry, 제목 변경 cleanup 미검증 |
 | `apps/web/app/kanban-board.test.ts` | drop 상태 규칙, publishing column collision 우선, transient 완료 표시 규칙 | React component interaction/render, fetch/polling, 오류 링크, 새로고침, keyboard 실제 동작 미검증 |
 
-Playwright/E2E 파일과 script는 현재 없고 `.codex/TODO.md`의 “OAuth/IndexedDB/publish 핵심 E2E”는
+Playwright/E2E 파일과 script는 현재 없고 `docs/spec/gap-analysis.md`의 “OAuth/IndexedDB/publish 핵심 E2E”는
 미완료다. 특히 테스트는 `getDeploymentStatus`의 fetch mock과 Astro 로컬 build까지는 통과하지만,
 OAuth 로그인부터 실제 repository commit, GitHub Actions, Pages URL 응답까지 한 번에 증명하지 않는다.
 

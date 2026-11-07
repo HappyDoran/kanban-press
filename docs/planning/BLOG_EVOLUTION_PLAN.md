@@ -1,3 +1,9 @@
+---
+title: GitHub Pages 블로그 고도화 실행 기획
+kind: history
+last_verified: 2026-08-09
+---
+
 # GitHub Pages 블로그 고도화 실행 기획
 
 ## 한 줄 결론

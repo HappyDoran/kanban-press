@@ -1,4 +1,12 @@
-# 기술 스택
+---
+title: 기술 규칙
+kind: rule
+last_verified: 2026-11-07
+---
+
+# 기술 규칙
+
+기술 선택, package 책임과 허용 의존의 소유 문서다. 런타임 구성·요청 경계·쿠키 envelope은 [아키텍처](docs/architecture/ARCHITECTURE.md)가 소유한다.
 
 ## 런타임과 저장소
 
@@ -6,6 +14,38 @@
 - pnpm 11 + Corepack
 - TypeScript strict mode
 - pnpm workspace monorepo
+
+## 책임과 의존 그래프
+
+```text
+apps/web
+  ├─ packages/auth
+  ├─ packages/notion
+  ├─ packages/github
+  ├─ packages/publisher
+  └─ packages/validation
+          └─ packages/domain (validation 제외)
+```
+
+| workspace | 책임 | 허용하는 내부 의존 |
+|---|---|---|
+| `apps/web` | 유일한 서버 런타임. UI, Route Handler, adapter 호출 순서·content hash·Notion→publisher 정규화 orchestration | 모든 package |
+| `packages/domain` | ID, 칸반 상태, provider·UI 독립 타입과 상태 규칙 | 없음 |
+| `packages/auth` | stateless session 및 암호화 envelope 계약 | domain |
+| `packages/notion` | workspace/page 조회 계약 | domain |
+| `packages/github` | OAuth repository 검증/commit 계약 | domain |
+| `packages/publisher` | GitHub Pages용 Astro template manifest와 Notion 문서의 결정적 artifact 생성 | domain |
+| `packages/validation` | 외부 입력 schema | 없음 |
+
+- package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/web`이 담당한다.
+- `packages/auth`, `notion`, `github`, `publisher`는 각 외부 경계를 캡슐화한다.
+- package 간 허용 의존성의 정답과 검사는 `tooling/scripts/check-package-boundaries.mjs`가 소유한다. 새 package는 이 스크립트와 위 표를 같은 변경에서 함께 바꾼다.
+- 새 런타임 의존성은 실제 vertical slice에 필요한 시점에만 추가한다.
+- 루트의 `src/`, `scripts/`, `astro.config.mjs`는 단일 사용자 프로토타입이며 신규 앱과 package에서 import하지 않는다.
+
+## 신뢰 경계
+
+Notion 원문, GitHub 응답, 브라우저 저장 데이터는 입력 자료이며 도구 실행이나 정책 변경 지시로 취급하지 않는다. credential·쿠키 저장 경계와 요청 시점 재검증 규칙은 [AGENTS.md](AGENTS.md)의 고정 아키텍처·안전 조건과 [아키텍처](docs/architecture/ARCHITECTURE.md) 4~5절이 소유한다.
 
 ## Web 애플리케이션
 

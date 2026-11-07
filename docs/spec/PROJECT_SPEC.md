@@ -1,4 +1,12 @@
+---
+title: 제품 명세
+kind: spec
+last_verified: 2026-11-07
+---
+
 # 제품 명세
+
+요구사항 번호(R1~R7)와 저장·상태·흐름 계약의 소유자다. 구현 상태와 우선순위는 [gap-analysis.md](gap-analysis.md)가 소유한다.
 
 ## 1. 제품 목표
 
@@ -10,13 +18,13 @@
 
 ## 2. MVP 범위
 
-1. GitHub OAuth 로그인
-2. 하나 이상의 Notion 워크스페이스 OAuth 연결
-3. 허용된 페이지와 하위 페이지 탐색
-4. 영속 `보관 중`과 화면 수명 `게시 중 → 게시 완료` 칸반 표시
-5. 로그인 사용자의 공개 `<GitHub login>.github.io` repository 확인
-6. 게시 준비 문서를 Astro 콘텐츠로 변환해 repository에 commit
-7. GitHub Actions와 Pages 배포 상태 표시
+- R1 GitHub OAuth 로그인
+- R2 하나 이상의 Notion 워크스페이스 OAuth 연결
+- R3 허용된 페이지와 하위 페이지 탐색
+- R4 영속 `보관 중`과 화면 수명 `게시 중 → 게시 완료` 칸반 표시
+- R5 로그인 사용자의 공개 `<GitHub login>.github.io` repository 확인
+- R6 게시 준비 문서를 Astro 콘텐츠로 변환해 repository에 commit
+- R7 GitHub Actions와 Pages 배포 상태 표시
 
 공동 칸반, 팀 권한, 서버 동기화, 예약 게시, 서버 재시도, 결제, 관리자 콘솔은
 MVP 범위가 아니다.
@@ -496,60 +504,4 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 ## 7. 현재 구현 차이
 
-- Next.js web scaffold, provider 경계, stateless 암호화 쿠키 codec이 존재한다.
-- GitHub 로그인 route와 `/api/me`가 구현됐으며 실제 사용에는 OAuth App 설정이 필요하다.
-- Notion OAuth 연결·목록·해제 route가 구현됐으며 실제 사용에는 Public Connection
-  설정이 필요하다.
-- Notion workspace 목록과 접근 허용된 page tree 조회 UI가 구현됐다.
-- 사용자별 IndexedDB repository, schema migration, 문서의 보관 중 추가가 구현됐다.
-- 접근 가능한 drag-and-drop 칸반과 drop 기반 게시 시작 UI가 구현됐다.
-- 기존 GitHub App installation 구현과 환경 변수는 제거됐다.
-- GitHub OAuth는 `public_repo workflow`를 요청하며 `<login>.github.io`의 scope,
-  소유권, 공개 여부와 push 권한을 확인한다.
-- Notion page metadata는 자동으로 stored에 동기화되고 계층 목록의
-  자동/표시/숨김/역할 override/구조 검사 캐시가 IndexedDB schema version 10에 보존된다.
-- 칸반은 IndexedDB의 `보관 중`과 화면 메모리의 `게시 중`, `게시 완료`를 합성한다.
-  v12 migration은 이전 영속 게시 상태와 commit/hash/URL 추적 필드를 제거한다.
-- page를 펼칠 때만 Notion block outline을 조회하며 legacy toggle, child page,
-  child database 계층을 탐색 UI에 보존한다.
-- 결정적 Astro template manifest와 user/project base path 실제 build 검증이 구현됐다.
-- 정규화된 Notion block의 안전한 Markdown artifact 변환 pipeline이 구현됐다.
-- 글머리·번호 목록, 할 일, callout, table과 중첩 자식이 provider 독립 block으로
-  보존되며 preview와 Astro 최종 HTML에서 같은 의미 구조와 반응형 표를 렌더링한다.
-- Notion heading 1·2·3은 최종 글에서 `h2`·`h3`·`h4` 의미 구조를 유지하고, preview의
-  dialog heading 구조와 독립된 시각 class를 사용한다. desktop과 320px 모두 세 단계가
-  본문보다 크며 `heading 1 > heading 2 > heading 3` 순서를 유지한다.
-- 최신 Notion 본문 조회와 요청 기반 게시·배포 상태 복구가 구현됐다.
-- 기본 branch 기반 workflow, 관리 marker, Pages Actions 준비 상태, 기존 파일 보호,
-  복구 UI와 Actions 로그 링크가 구현됐다.
-- 예약 Notion 블로그 속성 정규화, `PublishDocument` v2 strict 모델과 공유
-  `buildPublishDocument` 조립 경계가 구현됐다.
-- Astro template v2 compatibility reader가 schema 없는 기존 v1 글을 `미분류`로
-  정규화하고 strict v2 글과 함께 읽는다. Markdown writer는 v2 frontmatter를 출력하며
-  기존 글 경로와 URL은 다시 게시할 때도 유지된다.
-- 정적 블로그는 홈 최신 글 12개, 전체 글, category index/detail, breadcrumb·목차·분류·태그가
-  있는 글 상세와 404를 생성한다. 공통 반응형 shell, 명시적인 focus, reduced-motion,
-  user/project base path와 JavaScript 없는 탐색을 Astro fixture build로 검증한다.
-- GitHub owner 기반 개인 브랜드, 홈·전체 글·주제·GitHub 탐색, 홈 글/주제 통계와
-  반응형 article/목차 layout을 정적 Astro shell에 적용한다.
-- `POST /api/publish/preview`는 현재 사용자 소유 Notion 원문을 다시 읽고 공유 문서 조립
-  경계를 거쳐 URL 없는 image placeholder를 포함한 strict DTO만 반환한다. 보관 카드와
-  판별 완료 문서 행의 dialog는 글/홈 보기, 3개 viewport, loading/error/retry를 제공하며
-  닫기·새로고침 뒤 결과를 복구하거나 IndexedDB·게시 상태를 변경하지 않는다.
-- 게시 image는 제한된 HTTPS downloader가 public IP에 고정해 받아 로컬 Astro asset으로
-  commit한다. provider capability URL은 preview·Markdown·commit message에 남지 않으며
-  MIME, byte, redirect, timeout, SSRF 제한을 contract test한다.
-- mutable provider 통합 E2E는 preview 뒤 원문·Notion 권한·GitHub 권한 변경을 publish가
-  다시 읽는지 검증하고, 최신 category/template v2/로컬 image artifact만 commit 경계로
-  전달됨을 확인한다. 별도 read-only 실제 provider smoke는 release 전에 명시적으로 실행한다.
-- mock rollout E2E와 전체 저장소 검증은 통과했다. 실제 provider smoke runner와
-  gitignored credential 예시도 구현했다. 2026-08-11 로그인 browser session으로 실제
-  GitHub identity/repository, Notion workspace·원문 읽기, 글 상세·홈·반응형 및 이미지
-  placeholder preview를 read-only 확인했다. GitHub Pages 배포 소스를 GitHub Actions로
-  변경한 뒤 앱의 repository readiness도 `ready`로 확인했다. 2026-08-12 테스트 credential을
-  파일에 기록하지 않고 임시 shell 환경 변수로 주입해 실제 provider smoke를 통과했다.
-  Notion page·전체 block·실제 이미지의 로컬 artifact 변환과 GitHub identity·repository·Pages
-  readiness, credential/provider URL 비잔존을 확인했으며 commit, ref update, Pages mutation은
-  발생하지 않았다. 실행 뒤 GitHub classic PAT와 Notion 테스트 integration을 삭제하고 임시
-  Notion page를 휴지통으로 이동해 외부 release gate를 완료했다.
-- 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.
+구현 상태와 남은 차이는 [gap-analysis.md](gap-analysis.md)가 소유한다.

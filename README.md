@@ -8,7 +8,7 @@
 저장합니다. 게시 중·완료 표시는 현재 화면의 메모리에만 유지되어 새로고침하면
 사라지며, 실제 게시 결과는 사용자 GitHub repository를 source of truth로 사용합니다.
 
-제품 요구사항은 `.codex/docs/PROJECT_SPEC.md`, 구현 순서는 `.codex/TODO.md`를
+제품 요구사항은 [docs/spec/PROJECT_SPEC.md](docs/spec/PROJECT_SPEC.md), 구현 순서는 [docs/spec/gap-analysis.md](docs/spec/gap-analysis.md)를
 기준으로 합니다.
 
 ## 요구사항
@@ -109,6 +109,9 @@ repository와 다른 이름의 repository는 MVP 게시 대상으로 사용할 �
 같은 문서를 다시 게시해도 매번 새 commit과 GitHub Actions 실행을 생성합니다.
 
 ## 검증
+
+`lint`는 package 경계와 문서·skill·agent 구조 검사를, `test`는 구조 검사의 회귀 테스트를
+먼저 실행합니다. 구조 검사만 실행하려면 `structure:check`, `test:harness`를 사용합니다.
 
 ```bash
 mise exec -- corepack pnpm lint

@@ -1,0 +1,1 @@
+../../../.codex/skills/nkb-structure/SKILL.md

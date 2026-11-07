@@ -12,9 +12,11 @@
     "build": "corepack pnpm --recursive --if-present run build",
     "check:boundaries": "node tooling/scripts/check-package-boundaries.mjs",
     "dev": "corepack pnpm --recursive --parallel --if-present run dev",
-    "lint": "node tooling/scripts/check-package-boundaries.mjs && corepack pnpm --recursive --if-present run lint",
-    "test": "corepack pnpm --recursive --if-present run test",
+    "lint": "node tooling/scripts/check-package-boundaries.mjs && node tooling/scripts/check-structure.mjs && corepack pnpm --recursive --if-present run lint",
+    "structure:check": "node tooling/scripts/check-structure.mjs",
+    "test": "node --test tooling/scripts/*.test.mjs && corepack pnpm --recursive --if-present run test",
     "test:e2e": "corepack pnpm --filter @notion-kanban-blog/web test:e2e",
+    "test:harness": "node --test tooling/scripts/*.test.mjs",
     "test:integration": "corepack pnpm --recursive --if-present run test:integration",
     "typecheck": "corepack pnpm --recursive --if-present run typecheck"
   },

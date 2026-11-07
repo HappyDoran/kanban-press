@@ -1,3 +1,9 @@
+---
+title: "ADR 0001: DB 도입 보류와 재평가 gate"
+kind: history
+last_verified: 2026-08-22
+---
+
 # ADR 0001: DB 도입 보류와 재평가 gate
 
 - 상태: Accepted

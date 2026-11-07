@@ -1,10 +1,16 @@
+---
+title: GitHub Pages 블로그 제품·UX·UI 디자인 기획
+kind: design
+last_verified: 2026-08-09
+---
+
 # GitHub Pages 블로그 제품·UX·UI 디자인 기획
 
 > 상태: 제품/디자인 제안
 >
 > 대상: `packages/publisher`가 생성하는 Astro 기반 GitHub Pages 블로그와 게시 전 프리뷰
 >
-> 기준 문서: `.codex/docs/PROJECT_SPEC.md`, `.codex/docs/TECH_STACK.md`, `.codex/docs/ARCHITECTURE.md`
+> 기준 문서: `docs/spec/PROJECT_SPEC.md`, `TECH_RULES.md`, `docs/architecture/ARCHITECTURE.md`
 >
 > 작성일: 2026-08-09
 
