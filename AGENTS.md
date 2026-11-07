@@ -80,7 +80,7 @@ last_verified: 2026-11-07
 
 ## 명령어와 로컬 함정
 
-- 모든 명령은 `mise exec -- corepack pnpm <script>`로 실행한다. 명령 목록은 README.md 검증 절이 소유한다.
+- 모든 명령은 `mise exec -- pnpm <script>`로 실행한다. 명령 목록은 README.md 검증 절이 소유한다.
 - 생성물(`dist`, `.next`, `*.tsbuildinfo`)은 소스 변경으로 취급하지 않는다.
 - 실제 provider smoke(`test:smoke`)는 gitignored `apps/web/.env.smoke.local`의 동의한 테스트 credential로만 사용자가 명시적으로 실행한다.
 

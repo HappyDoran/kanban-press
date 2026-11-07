@@ -27,4 +27,4 @@ description: 문서·skill·역할 정의를 만들거나 바꿀 때, 기존 소
 2. `docs/` 아래와 루트 규범 문서(AGENTS.md, TECH_RULES.md)에는 `title`, `kind`(`rule|design|spec|guide|runbook|snapshot|history`), `last_verified` frontmatter를 둔다.
 3. 현재 코드와 검증 가능한 사실만 쓰고, 다른 문서의 사실은 복사하지 않고 링크한다.
 4. skill은 `name`·`description` frontmatter로 `.codex/skills/<name>/SKILL.md`에 두고 `.claude/skills/<name>/SKILL.md` symlink를 만든다. 역할 정의는 `.codex/agents/`와 `.claude/agents/` symlink로 같은 방식을 따른다.
-5. 한국어·상대 링크를 확인하고 `mise exec -- corepack pnpm structure:check`를 실행한다.
+5. 한국어·상대 링크를 확인하고 `mise exec -- pnpm structure:check`를 실행한다.

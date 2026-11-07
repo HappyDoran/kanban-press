@@ -15,7 +15,7 @@
 
 - [mise](https://mise.jdx.dev/)
 - Node.js 22 LTS
-- Corepack과 pnpm 11
+- pnpm 11 (`mise.toml`이 설치하며 루트 `package.json`의 `packageManager`와 같은 버전으로 유지)
 
 ```bash
 mise install
@@ -27,8 +27,8 @@ mise exec -- node --version
 Docker나 PostgreSQL은 필요하지 않습니다.
 
 ```bash
-mise exec -- corepack pnpm install --frozen-lockfile
-mise exec -- corepack pnpm dev
+mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm dev
 ```
 
 기본 화면은 `http://localhost:3000`, health endpoint는
@@ -37,7 +37,7 @@ mise exec -- corepack pnpm dev
 Web 앱만 실행하려면:
 
 ```bash
-mise exec -- corepack pnpm --filter @notion-kanban-blog/web dev
+mise exec -- pnpm --filter @notion-kanban-blog/web dev
 ```
 
 ## GitHub 로그인 설정
@@ -114,11 +114,11 @@ repository와 다른 이름의 repository는 MVP 게시 대상으로 사용할 �
 먼저 실행합니다. 구조 검사만 실행하려면 `structure:check`, `test:harness`를 사용합니다.
 
 ```bash
-mise exec -- corepack pnpm lint
-mise exec -- corepack pnpm typecheck
-mise exec -- corepack pnpm test
-mise exec -- corepack pnpm test:integration
-mise exec -- corepack pnpm build
+mise exec -- pnpm lint
+mise exec -- pnpm typecheck
+mise exec -- pnpm test
+mise exec -- pnpm test:integration
+mise exec -- pnpm build
 ```
 
 ### 실제 provider smoke
@@ -145,7 +145,7 @@ NOTION_API_VERSION
 `<login>.github.io` repository를 소유하고 `public_repo workflow` scope를 가져야 합니다.
 
 ```bash
-mise exec -- corepack pnpm --filter @notion-kanban-blog/web test:smoke
+mise exec -- pnpm --filter @notion-kanban-blog/web test:smoke
 ```
 
 smoke는 Notion 원문 조회, 로컬 이미지 변환, GitHub repository readiness까지만 확인하며

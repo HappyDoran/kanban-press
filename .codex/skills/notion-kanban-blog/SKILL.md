@@ -48,11 +48,11 @@ For each slice:
 ## Verify
 
 ```bash
-mise exec -- corepack pnpm lint
-mise exec -- corepack pnpm typecheck
-mise exec -- corepack pnpm test
-mise exec -- corepack pnpm test:integration
-mise exec -- corepack pnpm build
+mise exec -- pnpm lint
+mise exec -- pnpm typecheck
+mise exec -- pnpm test
+mise exec -- pnpm test:integration
+mise exec -- pnpm build
 ```
 
 Report what changed, which checks passed, any external app setup still required, and the next
