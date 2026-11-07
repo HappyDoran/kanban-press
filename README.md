@@ -161,10 +161,8 @@ packages/
 ├── domain/          # provider 독립 타입과 상태 규칙
 ├── github/          # GitHub OAuth repository/commit 계약
 ├── notion/          # Notion workspace/page 계약
-├── publisher/       # 결정적 게시 artifact 계약
+├── publisher/       # 결정적 게시 artifact 계약과 GitHub Pages용 Astro 블로그 생성
 └── validation/      # 외부 입력 schema
-templates/
-└── astro-blog/      # GitHub Pages 정적 블로그
 ```
 
 루트의 기존 `src/`, `scripts/`, `astro.config.mjs`는 교체 전까지 보존하는

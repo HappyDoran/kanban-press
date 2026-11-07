@@ -93,6 +93,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     console.error(errors.join("\n"));
     process.exitCode = 1;
   } else {
-    console.info("Structure, symlinks, frontmatter, and document links are valid.");
+    console.info("구조·symlink·frontmatter·문서 링크 검사 통과");
   }
 }

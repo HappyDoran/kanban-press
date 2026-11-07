@@ -28,7 +28,7 @@ last_verified: 2026-11-07
 - GitHub OAuth는 `public_repo workflow`를 요청하며 `<login>.github.io`의 scope,
   소유권, 공개 여부와 push 권한을 확인한다.
 - Notion page metadata는 자동으로 stored에 동기화되고 계층 목록의
-  자동/표시/숨김/역할 override/구조 검사 캐시가 IndexedDB schema version 10에 보존된다.
+  자동/표시/숨김/역할 override/구조 검사 캐시가 IndexedDB에 보존된다(schema version 10에서 도입, 현재 12).
 - 칸반은 IndexedDB의 `보관 중`과 화면 메모리의 `게시 중`, `게시 완료`를 합성한다.
   v12 migration은 이전 영속 게시 상태와 commit/hash/URL 추적 필드를 제거한다.
 - page를 펼칠 때만 Notion block outline을 조회하며 legacy toggle, child page,
