@@ -240,6 +240,7 @@ async function fixture(initialPage: NotionPageContent): Promise<RolloutFixture> 
   });
   const getRepositoryReadiness = vi.fn().mockResolvedValue({
     conflictingPaths: [],
+    contentPaths: [],
     managedPaths: [],
     pagesSettingsUrl:
       "https://github.com/octocat/octocat.github.io/settings/pages",

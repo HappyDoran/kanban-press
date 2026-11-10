@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   boardDropAction,
   preferredPointerDropId,
-  shouldShowBoardRecord,
 } from "./board-drop";
 import { BoardCard, type KanbanRecord } from "./kanban-board";
 
@@ -36,9 +35,9 @@ describe("boardDropAction", () => {
     expect(boardDropAction("published", "publishing")).toBe("publish");
   });
 
-  it("reorders stored cards and dismisses completed cards in stored", () => {
+  it("reorders stored cards but keeps completed cards out of stored while they are on the blog", () => {
     expect(boardDropAction("stored", "stored")).toBe("move");
-    expect(boardDropAction("published", "stored")).toBe("move");
+    expect(boardDropAction("published", "stored")).toBeNull();
   });
 
   it("does not manually move active publishing cards or drop into completed", () => {
@@ -79,14 +78,6 @@ describe("preferredPointerDropId", () => {
   });
 });
 
-describe("shouldShowBoardRecord", () => {
-  it("keeps a hidden completion visible only while transient state exists", () => {
-    expect(shouldShowBoardRecord(false, true)).toBe(true);
-    expect(shouldShowBoardRecord(false, false)).toBe(false);
-    expect(shouldShowBoardRecord(true, false)).toBe(true);
-  });
-});
-
 describe("BoardCard", () => {
   it("offers preview only for stored cards", () => {
     const stored = renderToStaticMarkup(
@@ -114,6 +105,20 @@ describe("BoardCard", () => {
     expect(stored).toContain(">미리보기</button>");
     expect(publishing).not.toContain(">미리보기</button>");
     expect(published).not.toContain(">미리보기</button>");
+  });
+
+  it("offers unpublish only for completed cards", () => {
+    const render = (column: KanbanRecord["column"]) =>
+      renderToStaticMarkup(
+        createElement(BoardCard, {
+          connectionName: "테스트 워크스페이스",
+          onUnpublish: async () => undefined,
+          record: { ...card, column },
+        }),
+      );
+    expect(render("published")).toContain(">블로그에서 내리기</button>");
+    expect(render("stored")).not.toContain("블로그에서 내리기");
+    expect(render("publishing")).not.toContain("블로그에서 내리기");
   });
 
   it("shows an accessible Actions link with an actionable failure alert", () => {

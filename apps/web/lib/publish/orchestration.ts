@@ -18,6 +18,7 @@ import { errorResponse, readSession } from "../auth/session";
 import { GitHubPagesClient, GitHubPagesError, gitHubErrorResponse } from "../github/pages";
 import { NotionProviderError, NotionRestContentAdapter } from "../notion/content";
 
+import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
 import { buildPublishDocument, InvalidBlogMetadataError } from "./document";
 import {
   createPublishImageDependencies,
@@ -82,33 +83,81 @@ export async function publishNotionPage(request: Request, dependencies: PublishD
       buildPublishDocument(page),
       dependencies.imageDependencies,
     );
-    const artifacts = [...template.artifacts, ...images, createMarkdownArtifact(document)].sort((left, right) =>
-      left.path.localeCompare(right.path),
-    );
+    const pageUrl = `${template.siteUrl}/posts/${document.slug}/`;
+    const written = [...template.artifacts, ...images, createMarkdownArtifact(document)];
     const readiness = await github.getRepositoryReadiness(
       repository,
-      artifacts.map((artifact) => artifact.path),
+      written.map((artifact) => artifact.path),
     );
     if (readiness.state !== "ready") {
-      return errorResponse(
-        409,
-        readiness.state === "pages_setup_required" ? "github_pages_setup_required" : "github_repository_not_managed",
-        NO_STORE_HEADERS,
-      );
+      return notReadyResponse(readiness.state);
     }
+    // 같은 글의 옛 파일 정리(R8): 제목이 바뀌어 남은 옛 slug의 글·이미지와 이번에 줄어든 이미지를 지우고,
+    // 옛 주소에는 새 주소로 보내는 안내 page를 남긴다(D4).
+    const existing = pageFiles(readiness.contentPaths, pageIdSuffix(providerPageId));
+    const redirects = existing.slugs
+      .filter((slug) => slug !== document.slug)
+      .map((slug) => redirectPage(slug, document.slug, pageUrl));
+    const artifacts = [...written, ...redirects].sort((left, right) => left.path.localeCompare(right.path));
+    const writtenPaths = new Set(artifacts.map((artifact) => artifact.path));
+    const deletePaths = existing.paths.filter((path) => !writtenPaths.has(path));
     const contentHash = artifactHash(artifacts);
     // 같은 내용을 다시 게시해도 commit이 생기도록 UUID를 붙인다. 제목 외 provider 값은 넣지 않는다.
     const message = `Publish ${page.title.slice(0, 150)} (${contentHash.slice(0, 12)}; ${randomUUID()})`;
-    const committed = await github.commitArtifacts(repository, artifacts, message);
+    const committed = await github.commitArtifacts(repository, artifacts, message, deletePaths);
     return Response.json(
-      {
-        commitSha: committed.commitSha,
-        contentHash,
-        created: committed.created,
-        pageUrl: `${template.siteUrl}/posts/${document.slug}/`,
-      },
+      { commitSha: committed.commitSha, contentHash, created: committed.created, pageUrl },
       { headers: NO_STORE_HEADERS },
     );
+  } catch (error) {
+    return pageErrorResponse(error, "publish_unavailable");
+  }
+}
+
+/**
+ * `/api/publish/unpublish`: 블로그에서 내리기(R8). 연결 소유권과 GitHub 권한을 다시 확인하고
+ * 이 page ID 접미사의 글·이미지·옛 주소 안내 page만 지우는 commit 하나를 만든다. Notion 원문은 읽지도 바꾸지도 않는다.
+ */
+export async function unpublishNotionPage(request: Request, dependencies: PublishDependencies): Promise<Response> {
+  const owned = await authorizePageRequest(request, dependencies, "invalid_unpublish_request");
+  if (owned instanceof Response) {
+    return owned;
+  }
+  const { providerPageId, session } = owned;
+  try {
+    const github = dependencies.createGitHubAdapter(session.accessToken);
+    const repository = await github.getPagesRepository(session.userId, session.githubLogin);
+    const readiness = await github.getRepositoryReadiness(repository, templatePaths(repository, session.githubLogin));
+    if (readiness.state === "repository_not_managed") {
+      return notReadyResponse(readiness.state);
+    }
+    const { paths, slugs } = pageFiles(readiness.contentPaths, pageIdSuffix(providerPageId));
+    if (paths.length === 0) {
+      return errorResponse(404, "blog_post_not_found", NO_STORE_HEADERS);
+    }
+    const committed = await github.commitArtifacts(repository, [], `Unpublish ${slugs.join(", ").slice(0, 200)}`, paths);
+    return Response.json({ commitSha: committed.commitSha }, { headers: NO_STORE_HEADERS });
+  } catch (error) {
+    return pageErrorResponse(error, "unpublish_unavailable");
+  }
+}
+
+/** `/api/publish/posts`: 저장소에 게시된 글(R8 게시 완료 열 복원). page ID 접미사와 글 주소만 돌려준다. */
+export async function listPublishedPosts(request: Request, dependencies: PublishDependencies): Promise<Response> {
+  const session = await readSession(request, dependencies.sessionCodec);
+  if (session === null) {
+    return errorResponse(401, "authentication_required", NO_STORE_HEADERS);
+  }
+  try {
+    const github = dependencies.createGitHubAdapter(session.accessToken);
+    const repository = await github.getPagesRepository(session.userId, session.githubLogin);
+    const readiness = await github.getRepositoryReadiness(repository, templatePaths(repository, session.githubLogin));
+    const siteUrl = `https://${session.githubLogin}.github.io`;
+    const posts = publishedPosts(readiness.contentPaths).map(({ slug, suffix }) => ({
+      pageIdSuffix: suffix,
+      pageUrl: `${siteUrl}/posts/${slug}/`,
+    }));
+    return Response.json({ posts }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return pageErrorResponse(error, "publish_unavailable");
   }
@@ -164,6 +213,23 @@ export async function authorizePageRequest(
     providerPageId: input.data.providerPageId,
     session,
   };
+}
+
+function notReadyResponse(state: "pages_setup_required" | "repository_not_managed"): Response {
+  return errorResponse(
+    409,
+    state === "pages_setup_required" ? "github_pages_setup_required" : "github_repository_not_managed",
+    NO_STORE_HEADERS,
+  );
+}
+
+/** 준비 상태 확인에 넘기는 template 파일 경로. */
+function templatePaths(repository: { defaultBranch: string; fullName: string }, owner: string): string[] {
+  return createAstroTemplateManifest({
+    defaultBranch: repository.defaultBranch,
+    owner,
+    repository: repository.fullName.split("/")[1] ?? "",
+  }).artifacts.map((artifact) => artifact.path);
 }
 
 /** 게시·프리뷰에서 나는 오류 → HTTP 응답. 알 수 없는 오류는 `fallbackCode` 502. */

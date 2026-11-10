@@ -86,6 +86,7 @@ const LEGACY_V1_PATHS = new Set([
   "tsconfig.json",
 ]);
 const LEGACY_BLOG_POST_PATH = /^src\/content\/blog\/[^/]+\.md$/;
+const CONTENT_PATH = /^(?:src\/content\/blog|src\/assets\/blog|public\/posts)\//;
 const FAILED_PAGES_STATUSES = new Set(["cancelled", "error", "errored", "failed"]);
 const OK_RUN_CONCLUSIONS = new Set(["neutral", "skipped", "success"]);
 
@@ -171,17 +172,24 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     };
   }
 
-  /** 기본 branch에 artifact 전체를 commit 하나로 올린다. 빈 저장소면 branch를 만든다. force push는 하지 않는다. */
+  /**
+   * 기본 branch에 artifact를 쓰고 `deletePaths`를 지우는 commit 하나를 만든다.
+   * 빈 저장소면 branch를 만든다. force push는 하지 않는다.
+   */
   async commitArtifacts(
     repository: GitHubRepository,
     artifacts: readonly GitHubArtifact[],
     message: string,
+    deletePaths: readonly string[] = [],
   ): Promise<GitHubCommitResult> {
     const repo = repositoryPath(repository);
     const commitMessage = z.string().trim().min(1).max(250).parse(message);
-    assertArtifacts(artifacts);
+    assertArtifacts(artifacts, deletePaths);
     const head = await this.#headCommit(repository);
-    const tree = await Promise.all(
+    if (head === null && deletePaths.length > 0) {
+      throw new GitHubPagesError("git_resource_not_found");
+    }
+    const written = await Promise.all(
       artifacts.map(async (artifact) => {
         const blob = await this.#json(`${repo}/git/blobs`, gitObjectSchema, {
           content: Buffer.from(artifact.bytes).toString("base64"),
@@ -190,6 +198,8 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
         return { mode: "100644", path: artifact.path, sha: blob.sha, type: "blob" };
       }),
     );
+    // Git trees API는 base tree 위에서 sha가 null인 항목을 삭제로 본다.
+    const tree = [...written, ...deletePaths.map((path) => ({ mode: "100644", path, sha: null, type: "blob" }))];
     const newTree = await this.#json(`${repo}/git/trees`, gitObjectSchema, {
       ...(head === null ? {} : { base_tree: head.tree.sha }),
       tree,
@@ -227,6 +237,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     const paths = parseManagedPaths(managedPaths);
     const [owner, name] = repository.fullName.split("/");
     const base = { managedPaths: paths, pagesSettingsUrl: `https://github.com/${owner}/${name}/settings/pages` };
+    let contentPaths: string[] = [];
     const [head, pages] = await Promise.all([
       this.#headCommit(repository),
       this.#optional(`${repo}/pages`, pagesSettingsSchema),
@@ -240,21 +251,23 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       const tree = gitTreeSchema.safeParse(await response.json().catch(() => null));
       const entries = tree.success ? tree.data.tree : [];
       if (!tree.success || tree.data.truncated || new Set(entries.map((entry) => entry.path)).size !== entries.length) {
-        return { ...base, conflictingPaths: [], state: "repository_not_managed" };
+        return { ...base, conflictingPaths: [], contentPaths: [], state: "repository_not_managed" };
       }
       const blobs = entries.filter((entry) => entry.type === "blob").map((entry) => entry.path);
+      contentPaths = blobs.filter((path) => CONTENT_PATH.test(path)).sort((left, right) => left.localeCompare(right));
       const conflictingPaths = blobs.includes(MANAGED_MARKER_PATH)
         ? []
         : blobs
             .filter((path) => !LEGACY_V1_PATHS.has(path) && !LEGACY_BLOG_POST_PATH.test(path))
             .sort((left, right) => left.localeCompare(right));
       if (conflictingPaths.length > 0) {
-        return { ...base, conflictingPaths, state: "repository_not_managed" };
+        return { ...base, conflictingPaths, contentPaths: [], state: "repository_not_managed" };
       }
     }
     return {
       ...base,
       conflictingPaths: [],
+      contentPaths,
       state: pages?.build_type === "workflow" ? "ready" : "pages_setup_required",
     };
   }
@@ -435,13 +448,14 @@ function repositoryPath(repository: GitHubRepository): string {
   return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
 }
 
-/** 저장소에 쓰기 전 마지막 경계: 개수·총 크기·경로가 저장소 안인지·중복을 확인한다. */
-function assertArtifacts(artifacts: readonly GitHubArtifact[]): void {
-  const paths = artifacts.map((artifact) => artifact.path);
+/** 저장소에 쓰기 전 마지막 경계: 개수·총 크기·경로가 저장소 안인지·쓰기와 삭제의 중복을 확인한다. */
+function assertArtifacts(artifacts: readonly GitHubArtifact[], deletePaths: readonly string[]): void {
+  const paths = [...artifacts.map((artifact) => artifact.path), ...deletePaths];
   const totalBytes = artifacts.reduce((sum, artifact) => sum + artifact.bytes.byteLength, 0);
   if (
-    artifacts.length === 0 ||
-    artifacts.length > MAX_ARTIFACTS ||
+    paths.length === 0 ||
+    paths.length > MAX_ARTIFACTS ||
+    deletePaths.some((path) => !gitPathSchema.safeParse(path).success) ||
     totalBytes > MAX_ARTIFACT_BYTES ||
     new Set(paths).size !== paths.length ||
     artifacts.some((artifact) => !(artifact.bytes instanceof Uint8Array) || !gitPathSchema.safeParse(artifact.path).success)

@@ -122,6 +122,7 @@ async function fixture() {
   });
   const getRepositoryReadiness = vi.fn().mockResolvedValue({
     conflictingPaths: [],
+    contentPaths: [],
     managedPaths: ["package.json"],
     pagesSettingsUrl:
       "https://github.com/octocat/octocat.github.io/settings/pages",

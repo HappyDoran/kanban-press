@@ -12,6 +12,8 @@ import type {
 } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
+import { pageIdSuffix } from "./blog-files";
+
 const UNCATEGORIZED_NAME = "미분류";
 const MAX_CATEGORY_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 1_000;
@@ -121,10 +123,7 @@ export function categorySlug(name: string): string {
 }
 
 export function pageSlug(title: string, providerPageId: string): string {
-  const suffix = providerPageId.replaceAll("-", "").slice(0, 12).toLowerCase();
-  if (!/^[a-f0-9]{12}$/.test(suffix)) {
-    throw new Error("Invalid Notion page ID");
-  }
+  const suffix = pageIdSuffix(providerPageId);
   const base =
     title
       .normalize("NFKD")

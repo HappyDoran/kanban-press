@@ -153,7 +153,7 @@ last_verified: 2026-11-10
 
 | 단계 | 내용 | 요구사항 | 역할 | 완료 조건 | 상태 |
 |---|---|---|---|---|---|
-| B1 글 관리 | 옛 글 정리(결함), 블로그에서 내리기, 게시 완료 열 복원 | R8 | backend, frontend | §5.1 R8 완료 조건을 integration·E2E로 증명한다.<br>삭제 commit은 page ID 접미사 파일만 바꾼다. | 대기 |
+| B1 글 관리 | 옛 글 정리(결함), 블로그에서 내리기, 게시 완료 열 복원 | R8 | backend, frontend | §5.1 R8 완료 조건을 integration·E2E로 증명한다.<br>삭제 commit은 page ID 접미사 파일만 바꾼다. | 완료 (2026-11-10 lint, typecheck, build, unit 274개, integration 17개, E2E 6개 통과. GitHub client가 삭제(null sha tree 항목)와 글 관련 파일 목록(`contentPaths`)을 지원하고, `blog-files.ts`가 page ID 접미사로 한 글의 파일을 찾는다. 게시는 옛 파일을 지우고 옛 주소 안내 page를 남기며, `/api/publish/unpublish`·`/api/publish/posts`를 추가했다. 칸반은 게시 후 카드를 숨기지 않고 게시 완료 열을 저장소 기준으로 그린다(E2E 기대값을 새 §4 계약에 맞춰 바꾸고 복원·내리기 흐름을 추가). `HappyDoran.github.io` 임시 복사본 시뮬레이션으로 제목 변경 재게시(옛 파일 rename + 안내 page)·내리기·중복 내리기(commit 없음)와 JavaScript 없는 옛 주소 이동을 확인. 미검증: 실제 GitHub 저장소 대상 실행) |
 | B2 탐색·노출 | 태그·보관함 route, RSS·sitemap·Open Graph | R9 | designer, backend | §5.1 R9 완료 조건을 template integration으로 증명한다. | 대기 |
 | B3 순서·묶음 | `Blog Pinned`·`Blog Series`·`Blog Order` 속성과 홈·시리즈 화면 | R10 | backend, designer | §5.1 R10 완료 조건을 unit·template integration으로 증명한다.<br>프리뷰가 같은 값을 보여준다. | 대기 |
 | B4 주소·사이트 설정 | `Blog Slug` 속성, 사이트 설정 파일 | R11 | backend, frontend | §5.1 R11 완료 조건과 아래 결정 D3·D4가 반영된다. | 대기 |

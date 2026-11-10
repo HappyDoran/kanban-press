@@ -175,6 +175,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 }
                 onPublish={board.publish}
                 onRemove={board.remove}
+                onUnpublish={board.unpublish}
                 publishFailures={board.failures}
                 records={board.kanbanRecords}
               />

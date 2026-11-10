@@ -25,6 +25,8 @@ export interface GitHubDeploymentStatus {
 
 export interface GitHubPagesReadiness {
   conflictingPaths: readonly string[];
+  /** 기본 branch에 있는 게시 글 관련 파일(`src/content/blog/`, `src/assets/blog/`, `public/posts/`). 빈 저장소면 []. */
+  contentPaths: readonly string[];
   managedPaths: readonly string[];
   pagesSettingsUrl: string;
   state: "pages_setup_required" | "ready" | "repository_not_managed";
@@ -41,10 +43,12 @@ export interface GitHubRepositoryAdapter {
     managedPaths: readonly string[],
   ): Promise<GitHubPagesReadiness>;
 
+  /** artifact를 쓰고 `deletePaths`를 지우는 commit 하나를 만든다. */
   commitArtifacts(
     repository: GitHubRepository,
     artifacts: readonly GitHubArtifact[],
     message: string,
+    deletePaths?: readonly string[],
   ): Promise<GitHubCommitResult>;
 
   getDeploymentStatus(

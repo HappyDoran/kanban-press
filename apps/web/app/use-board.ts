@@ -1,16 +1,24 @@
 "use client";
 
-// 칸반 상태. 보관 중 카드는 IndexedDB(BoardRepository)에, 게시 중·게시 완료와 실패 안내는
-// 이 hook의 메모리에만 둔다. 새로고침하면 게시 상태는 사라지고 보관 중 카드만 남는다.
+// 칸반 상태. 카드와 표시 여부는 IndexedDB(BoardRepository)에, 게시 중과 실패 안내는 이 hook의 메모리에 둔다.
+// 게시 완료 열은 블로그 저장소에 그 글이 있는지로 정한다(제품 명세 §5.1 R8). 열 때마다 GitHub에서 다시 읽는다.
 import type { BoardColumn } from "@notion-kanban-blog/domain";
 import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { type BoardRecord, BoardRepository } from "../lib/board/repository";
 import { TaskLimiter } from "../lib/board/task-limiter";
-import { ApiError, fetchOutline, type PageSummary, publishErrorMessage } from "../lib/client/api";
+import {
+  ApiError,
+  fetchBlogPosts,
+  fetchOutline,
+  type PageSummary,
+  publishErrorMessage,
+  requestUnpublish,
+} from "../lib/client/api";
 import { publishAndWatch } from "../lib/client/publish";
 import { filterRenderableOutline } from "../lib/notion/outline";
+import { pageIdSuffix } from "../lib/publish/blog-files";
 
 import type { KanbanRecord } from "./kanban-board";
 import type { PageList } from "./use-workspace";
@@ -42,28 +50,38 @@ export function isVisibleByDefault(page: Pick<PageSummary, "parentContainerId" |
 
 /**
  * 칸반에 그릴 카드. 문서 역할이고 보이도록 선택됐거나, 숨겨졌어도 이번 화면에서 게시 중·완료인 카드다.
- * 게시 상태가 있으면 그 열에, 없으면 보관 중에 놓는다.
+ * 이번 화면의 게시 상태 → 블로그에 있으면 게시 완료 → 아니면 보관 중 순서로 열을 정한다.
  */
 export function toKanbanRecords(
   records: readonly BoardRecord[],
   views: Readonly<Record<string, PublishView>>,
   failures: Readonly<Record<string, PublishFailure>>,
+  blogPosts: ReadonlyMap<string, string> = new Map(),
 ): KanbanRecord[] {
   return records.flatMap((record) => {
     const view = views[pageKey(record)];
     if (record.pageRole !== "document" || (!record.isVisible && view === undefined)) {
       return [];
     }
+    const blogUrl = blogPosts.get(suffixOf(record.providerPageId)) ?? null;
     return [
       {
         ...record,
-        column: view?.column ?? "stored",
+        column: view?.column ?? (blogUrl === null ? "stored" : "published"),
         publishActionsUrl: view?.actionsUrl ?? failures[pageKey(record)]?.actionsUrl ?? null,
-        publishedUrl: view?.publishedUrl ?? null,
+        publishedUrl: view?.publishedUrl ?? blogUrl,
         publishStartedAt: view?.startedAt ?? null,
       },
     ];
   });
+}
+
+function suffixOf(providerPageId: string): string {
+  try {
+    return pageIdSuffix(providerPageId);
+  } catch {
+    return "";
+  }
 }
 
 export function useBoard(ownerId: string | null, githubLogin: string, pageList: PageList) {
@@ -72,6 +90,7 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
   const [views, setViews] = useState<Readonly<Record<string, PublishView>>>({});
   const [failures, setFailures] = useState<Readonly<Record<string, PublishFailure>>>({});
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
+  const [blogPosts, setBlogPosts] = useState<ReadonlyMap<string, string>>(new Map());
   const repositoryRef = useRef<BoardRepository | null>(null);
   const limiter = useRef(new TaskLimiter(INSPECTION_CONCURRENCY));
   const inspections = useRef(new Map<string, Promise<NotionOutlineNode[]>>());
@@ -121,6 +140,19 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
       }
       repository.close();
     };
+  }, [ownerId]);
+
+  // 블로그에 올라가 있는 글. 읽지 못하면(저장소 없음·권한 없음 등) 게시 완료 열을 비워 둔다.
+  useEffect(() => {
+    setBlogPosts(new Map());
+    if (ownerId === null) {
+      return;
+    }
+    const controller = new AbortController();
+    fetchBlogPosts(controller.signal)
+      .then((posts) => setBlogPosts(posts))
+      .catch(() => undefined);
+    return () => controller.abort();
   }, [ownerId]);
 
   // 선택한 연결의 page 목록이 오면 칸반 record를 맞춘다.
@@ -228,20 +260,37 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     [pageList.pages],
   );
 
-  /** 보관 중으로 놓기. 게시 완료 카드를 되돌리면 다시 보이게 하고 완료 표시를 닫는다. */
+  /** 보관 중 안에서 순서 바꾸기. 게시 완료 카드는 블로그에서 내리기로만 보관 중으로 돌아간다. */
   async function move(record: KanbanRecord, column: BoardColumn, index: number): Promise<void> {
-    if (column !== "stored") {
+    if (column !== "stored" || record.column !== "stored") {
       throw new Error("publish_columns_are_session_managed");
     }
-    const repository = requireRepository();
+    setRecords(await requireRepository().move(record.connectionId, record.providerPageId, index));
+  }
+
+  /** 블로그에서 내리기(R8). 저장소에서 글 파일을 지우고 카드를 보관 중으로 돌려놓는다. Notion 원문은 그대로다. */
+  async function unpublish(record: KanbanRecord): Promise<void> {
     const key = pageKey(record);
-    removedKeys.current.delete(key);
-    if (record.column === "published") {
-      await repository.setVisibility(record.connectionId, record.providerPageId, true);
+    clearFailure(key);
+    try {
+      await requestUnpublish(record.connectionId, record.providerPageId);
+      const suffix = suffixOf(record.providerPageId);
+      setBlogPosts((current) => {
+        const next = new Map(current);
+        next.delete(suffix);
+        return next;
+      });
+      clearView(key);
+    } catch (error) {
+      setFailures((current) => ({
+        ...current,
+        [key]: {
+          actionsUrl: null,
+          message: publishErrorMessage(error instanceof ApiError ? error.code : "unpublish_unavailable"),
+          retryAt: error instanceof ApiError ? error.retryAt : null,
+        },
+      }));
     }
-    const moved = await repository.move(record.connectionId, record.providerPageId, index);
-    clearView(key);
-    setRecords(moved);
   }
 
   /** 카드의 ✕: Notion 원문은 그대로 두고 칸반에서만 숨긴다. */
@@ -255,8 +304,8 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
   }
 
   /**
-   * 게시 중 열에 놓기. 성공하면 카드를 IndexedDB에서 숨기고 이번 화면에서만 게시 완료로 보여준다.
-   * 실패하면 보관 중으로 돌려놓고 카드에 원인을 표시한다. 같은 카드의 게시는 동시에 하나만 진행한다.
+   * 게시 중 열에 놓기. 성공하면 게시 완료로 옮긴다(새로고침 뒤에는 블로그 저장소 기준으로 다시 보인다).
+   * 실패하면 원래 열로 돌려놓고 카드에 원인을 표시한다. 같은 카드의 게시는 동시에 하나만 진행한다.
    */
   const publish = useCallback(
     async (record: KanbanRecord): Promise<void> => {
@@ -299,13 +348,9 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
         if (publishedUrl === null) {
           return;
         }
-        const latest = await repository.get(record.connectionId, record.providerPageId);
-        if (latest?.isVisible !== true || removedKeys.current.has(key)) {
-          return;
-        }
-        const hidden = await repository.setVisibility(record.connectionId, record.providerPageId, false);
         if (mounted.current && !removedKeys.current.has(key)) {
-          setRecords(hidden);
+          const suffix = suffixOf(record.providerPageId);
+          setBlogPosts((current) => new Map(current).set(suffix, publishedUrl));
           setViews((states) => ({
             ...states,
             [key]: { actionsUrl, column: "published", publishedUrl, startedAt: null },
@@ -334,7 +379,10 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     [githubLogin],
   );
 
-  const kanbanRecords = useMemo(() => toKanbanRecords(records, views, failures), [records, views, failures]);
+  const kanbanRecords = useMemo(
+    () => toKanbanRecords(records, views, failures, blogPosts),
+    [records, views, failures, blogPosts],
+  );
 
   return {
     boardState,
@@ -347,6 +395,7 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     records,
     remove,
     toggleVisibility,
+    unpublish,
   };
 }
 

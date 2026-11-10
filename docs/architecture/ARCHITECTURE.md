@@ -33,7 +33,8 @@ apps/web (stateless Next.js)
 | GitHub 세션과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | 보관 문서 정렬, 칸반 표시 override, 구조 판별 캐시 | IndexedDB(schema v12, 이전 version은 비움) | 비신뢰 입력 |
-| 게시 중·완료 상태와 현재 완료 링크 | React 메모리 | 새로고침 시 소멸 |
+| 게시 중 상태와 실패 안내 | React 메모리 | 새로고침 시 소멸 |
+| 게시 완료 여부와 글 주소 | 사용자 GitHub repository(글 파일의 page ID 접미사) | 열 때마다 GitHub API에서 조회 |
 | 게시 전 프리뷰 DTO와 dialog 상태 | React 메모리 | 닫기·새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |
 | 배포 상태 | GitHub Actions/Pages | GitHub API에서 조회 |
@@ -51,7 +52,7 @@ package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책�
 | 인증 | `lib/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
 | Notion | `lib/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
 | GitHub | `lib/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
-| 게시 | `lib/publish/` | 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
+| 게시 | `lib/publish/` | 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 게시·내리기·게시 글 목록(`orchestration.ts`), 한 글의 저장소 파일 규칙(`blog-files.ts`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
 | provider 공통 | `lib/operations/` | 10초 timeout·`Retry-After`·allowlist 로그 |
 
 ## 4. 요청 경계
@@ -71,7 +72,8 @@ package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책�
 4. 최신 원문을 서버에서 가져온다.
 5. image capability URL을 제한된 HTTPS downloader로 읽어 로컬 asset artifact로 바꾼다.
 6. Markdown을 포함한 artifact와 진단용 content hash를 생성한다.
-7. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다.
+7. 같은 page ID 접미사의 기존 파일 중 이번에 쓰지 않는 것을 삭제 목록에 넣고, 옛 slug에는 새 주소 안내 page를 쓴다.
+8. 동일 artifact 여부와 관계없이 요청마다 GitHub에 새 commit을 만든다(쓰기와 삭제를 한 commit으로).
 
 클라이언트가 전달한 markdown, repository 소유권, 사용자 ID를 그대로 신뢰하지 않는다.
 Notion provider 응답은 adapter에서 예약 블로그 속성만 제한된 property union으로

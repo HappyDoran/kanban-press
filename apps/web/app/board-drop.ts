@@ -16,10 +16,8 @@ export function boardDropAction(
   ) {
     return "publish";
   }
-  if (
-    to === "stored" &&
-    (from === "stored" || from === "published")
-  ) {
+  // 게시 완료 카드는 블로그에 글이 있는 동안 보관 중으로 옮길 수 없다. 블로그에서 내리기로만 돌아간다.
+  if (to === "stored" && from === "stored") {
     return "move";
   }
   return null;
@@ -43,11 +41,4 @@ export function preferredPointerDropId(
     available[0]?.id ??
     null
   );
-}
-
-export function shouldShowBoardRecord(
-  isVisible: boolean,
-  hasTransientPublishState: boolean,
-): boolean {
-  return isVisible || hasTransientPublishState;
 }

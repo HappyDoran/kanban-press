@@ -189,6 +189,7 @@ describe("GitHubPagesClient", () => {
     ).resolves.toEqual({
       conflictingPaths: [],
       managedPaths: ["package.json"],
+      contentPaths: [],
       pagesSettingsUrl:
         "https://github.com/octocat/octocat.github.io/settings/pages",
       state: "ready",

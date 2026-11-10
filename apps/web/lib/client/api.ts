@@ -54,6 +54,15 @@ const publishResultSchema = z.object({
   pageUrl: z.url({ protocol: /^https$/ }),
 });
 
+const blogPostsSchema = z.object({
+  posts: z.array(
+    z.object({
+      pageIdSuffix: z.string().regex(/^[a-f0-9]{12}$/),
+      pageUrl: z.url({ protocol: /^https$/ }),
+    }),
+  ),
+});
+
 export type Account = z.infer<typeof accountSchema>["user"];
 export type Connection = z.infer<typeof connectionSchema>;
 export type PageSummary = z.infer<typeof pageSchema>;
@@ -117,6 +126,23 @@ export async function requestPublish(connectionId: string, providerPageId: strin
     method: "POST",
   });
   return parse(publishResultSchema, await readJson(response), "invalid_publish_response");
+}
+
+/** 블로그 저장소에 올라가 있는 글: page ID 접미사 → 글 주소. */
+export async function fetchBlogPosts(signal?: AbortSignal): Promise<ReadonlyMap<string, string>> {
+  const response = await fetch("/api/publish/posts", { cache: "no-store", ...(signal === undefined ? {} : { signal }) });
+  const { posts } = parse(blogPostsSchema, await readJson(response));
+  return new Map(posts.map((post) => [post.pageIdSuffix, post.pageUrl]));
+}
+
+/** 블로그에서 내리기. 저장소에서 글 파일을 지우는 commit을 만든다. */
+export async function requestUnpublish(connectionId: string, providerPageId: string): Promise<void> {
+  const response = await fetch("/api/publish/unpublish", {
+    body: JSON.stringify({ connectionId, providerPageId }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  await readJson(response);
 }
 
 /** 게시 전 프리뷰. 서버 응답을 zod로 다시 검증한다. */
@@ -229,6 +255,7 @@ const PUBLISH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
     "기존 저장소 파일을 보호하기 위해 게시를 중단했습니다. 아래 GitHub Pages 대상에서 충돌 경로를 확인해 주세요.",
   repository_owner_mismatch: "현재 계정이 소유하고 쓸 수 있는 GitHub Pages 저장소인지 확인해 주세요.",
   repository_write_denied: "현재 계정이 소유하고 쓸 수 있는 GitHub Pages 저장소인지 확인해 주세요.",
+  blog_post_not_found: "블로그에 이 글이 없습니다. 이미 내려졌을 수 있습니다.",
   timeout: "Provider 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.",
 };
 

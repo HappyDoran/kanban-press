@@ -29,6 +29,23 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
   await installAppRoutes(page, () => userId, () => {
     publishCalls += 1;
   });
+  // R8: 블로그 저장소에 올라간 글 목록과 블로그에서 내리기.
+  let onBlog = false;
+  let unpublishCalls = 0;
+  await page.route("**/api/publish/posts", (route) =>
+    route.fulfill({
+      json: {
+        posts: onBlog
+          ? [{ pageIdSuffix: "9188c6a57381", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/" }]
+          : [],
+      },
+    }),
+  );
+  await page.route("**/api/publish/unpublish", (route) => {
+    unpublishCalls += 1;
+    onBlog = false;
+    return route.fulfill({ json: { commitSha: "c".repeat(40) } });
+  });
   await page.goto("/");
 
   await expect(page.getByText("E2E 게시 문서", { exact: true }).first()).toBeVisible();
@@ -105,7 +122,18 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
     },
     { connectionId: CONNECTION_ID, pageId: PAGE_ID },
   );
-  expect(storedVisibility).toBe(false);
+  // 게시해도 칸반에서 숨기지 않는다. 게시 완료 열은 새로고침 뒤 블로그 저장소 기준으로 다시 그린다.
+  expect(storedVisibility).toBe(true);
+  onBlog = true;
+  await page.reload();
+  await expect(page.getByText("게시 완료 1개")).toBeVisible();
+  await expect(page.getByText("게시된 글 보기")).toBeVisible();
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "블로그에서 내리기" }).click();
+  await expect.poll(() => unpublishCalls).toBe(1);
+  await expect(page.getByText("보관 중 1개")).toBeVisible();
+  await expect(page.getByText("게시 완료 0개")).toBeVisible();
 
   userId = "90000001";
   await page.reload();

@@ -63,6 +63,7 @@ interface KanbanBoardProps {
   onPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
   publishFailures: Readonly<
     Record<
       string,
@@ -78,6 +79,7 @@ export function KanbanBoard({
   onPublish,
   onPreview,
   onRemove,
+  onUnpublish,
   publishFailures,
   records,
 }: KanbanBoardProps) {
@@ -148,6 +150,24 @@ export function KanbanBoard({
     }
   }
 
+  /** 블로그에서 내리기. 되돌릴 수 없는 저장소 변경이라 먼저 확인한다(결정 D1). */
+  async function unpublish(record: KanbanRecord): Promise<void> {
+    const confirmed = window.confirm(
+      `‘${record.title}’을 블로그에서 내립니다.\n저장소에서 글 파일과 이미지를 지우는 commit을 만듭니다. Notion 원문은 그대로 둡니다.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    const id = recordId(record);
+    setMovingId(id);
+    setNotice("");
+    try {
+      await onUnpublish(record);
+    } finally {
+      setMovingId(null);
+    }
+  }
+
   function handleDragStart(event: DragStartEvent): void {
     setActiveId(String(event.active.id));
     setNotice("");
@@ -210,6 +230,7 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onRemove={remove}
+                onUnpublish={unpublish}
                 onRetryPublish={onPublish}
                 onPreview={onPreview}
                 publishFailures={publishFailures}
@@ -239,6 +260,7 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onRemove,
+  onUnpublish,
   onRetryPublish,
   onPreview,
   publishFailures,
@@ -248,6 +270,7 @@ function KanbanColumn({
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
   publishFailures: Readonly<
@@ -288,6 +311,7 @@ function KanbanColumn({
               disabled={movingId === recordId(record)}
               key={recordId(record)}
               onRemove={onRemove}
+              onUnpublish={onUnpublish}
               onRetryPublish={onRetryPublish}
               onPreview={onPreview}
               publishFailure={publishFailures[recordId(record)]}
@@ -299,7 +323,7 @@ function KanbanColumn({
             <p className="emptyColumn">왼쪽 문서 목록에서 추가하세요</p>
           ) : null}
           {column === "published" ? (
-            <p className="columnHint">완료 표시는 새로고침하면 사라집니다.</p>
+            <p className="columnHint">블로그에 올라가 있는 글입니다. 다시 게시하려면 게시 중으로 옮기세요.</p>
           ) : null}
         </div>
       </SortableContext>
@@ -311,6 +335,7 @@ function SortableBoardCard({
   connectionName,
   disabled,
   onRemove,
+  onUnpublish,
   onRetryPublish,
   onPreview,
   publishFailure,
@@ -319,6 +344,7 @@ function SortableBoardCard({
   connectionName: string;
   disabled: boolean;
   onRemove: (record: KanbanRecord) => Promise<void>;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
   publishFailure?:
@@ -357,6 +383,7 @@ function SortableBoardCard({
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
         onRemove={onRemove}
+        onUnpublish={onUnpublish}
         onRetryPublish={onRetryPublish}
         onPreview={onPreview}
         publishFailure={publishFailure}
@@ -373,6 +400,7 @@ export function BoardCard({
   dragListeners,
   dragRef,
   onRemove,
+  onUnpublish,
   onRetryPublish,
   onPreview,
   overlay = false,
@@ -385,6 +413,7 @@ export function BoardCard({
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
   onRemove?: (record: KanbanRecord) => Promise<void>;
+  onUnpublish?: (record: KanbanRecord) => Promise<void>;
   onRetryPublish?: (record: KanbanRecord) => Promise<void>;
   onPreview?: (record: KanbanRecord) => void;
   overlay?: boolean;
@@ -484,6 +513,18 @@ export function BoardCard({
                 type="button"
               >
                 미리보기
+              </button>
+            ) : null}
+            {record.column === "published" && onUnpublish !== undefined ? (
+              <button
+                className="buttonSecondary small"
+                disabled={disabled}
+                onClick={() => void onUnpublish(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                블로그에서 내리기
               </button>
             ) : null}
             <button

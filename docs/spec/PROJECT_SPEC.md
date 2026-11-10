@@ -29,9 +29,9 @@ last_verified: 2026-11-10
 공동 칸반, 팀 권한, 서버 동기화, 예약 게시, 서버 재시도, 결제, 관리자 콘솔은
 MVP 범위가 아니다.
 
-확장 범위(2026-11-10 사용자 선택, 미구현. 계약은 §5.1):
+확장 범위(2026-11-10 사용자 선택. 계약은 §5.1, 진행 상태는 gap-analysis):
 
-- R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원
+- R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원(구현 완료)
 - R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph
 - R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서
 - R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정
@@ -100,28 +100,28 @@ migration하지 않고 열 때 비운다. 칸반은 다음 Notion 동기화로 �
 ## 4. 상태 흐름
 
 ```text
-IndexedDB: stored
+IndexedDB: stored(카드·표시 여부·정렬)
 화면 메모리: stored → publishing → published
-                         └ 실패 ──→ stored
+                         └ 실패 ──→ 원래 열
+블로그 저장소: 글 파일이 있으면 published, 블로그에서 내리면 stored
 ```
 
 - IndexedDB에는 모든 문서를 `stored`로만 저장하고 표시 여부·정렬·구조 검사 결과만
-  유지한다.
-- `publishing`과 `published`는 React 메모리에서만 합성하는 화면 상태다.
-- 게시 성공 시 record의 column이나 게시 결과를 저장하지 않고 `isVisible=false`로
-  전환한다. 현재 화면은 메모리에 남은 card snapshot을 `published`로 계속 보여주지만,
-  새로고침·탭 종료·컴포넌트 재마운트 후에는 완료 링크와 함께 칸반에서 사라진다.
-- 완료 카드를 현재 화면에서 `stored`로 되돌리면 `isVisible=true`로 복구해 이후
-  새로고침에서도 다시 보관 카드로 표시한다.
+  유지한다. 게시 결과는 IndexedDB에 저장하지 않는다.
+- `publishing`은 React 메모리에서만 합성하는 화면 상태다.
+- `published`는 사용자 블로그 저장소에 그 page ID 접미사의 글 파일이 있는지로 정한다(§5.1 R8).
+  칸반을 열 때마다 `/api/publish/posts`로 GitHub에서 다시 읽고, 읽지 못하면 게시 완료 열을 비운다.
+  게시에 성공하면 카드를 숨기지 않고 현재 화면에서 바로 `published`로 옮긴다.
 - `stored` 카드를 같은 column 안에서 드래그하면 보관 순서를 바꾸고 `publishing`
   column에 놓으면 게시를 시작한다. `published` 카드를 `publishing`에 놓으면 다시
-  게시하고 `stored`에 놓으면 현재 완료 표시를 닫는다.
+  게시한다. `published` 카드는 `stored`로 끌어 옮길 수 없고 `블로그에서 내리기`(확인 후 실행)로만
+  `stored`로 돌아간다.
 - 별도 게시 버튼과 상태 선택기는 제공하지 않는다. `publishing` 카드는 배포가 끝날
   때까지 이동할 수 없다.
 - 모든 카드의 `×`는 Notion 원문이나 IndexedDB record를 삭제하지 않고
   `isVisible=false`로 바꿔 칸반에서 숨긴다. 계층 목록에서 다시 표시할 수 있다.
 - `published` 카드에서는 게시된 글 열기를 제공한다.
-- 게시 실패는 오류를 표시한 뒤 화면 상태를 `stored`로 되돌린다.
+- 게시 실패는 오류를 표시한 뒤 화면 상태를 원래 열로 되돌린다.
 - 동일 문서를 다시 게시하면 콘텐츠가 같아도 새 commit과 Actions 실행을 만든다.
 
 ## 5. 주요 흐름
@@ -496,15 +496,18 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 ### R8 블로그 글 관리
 
 - **옛 글 정리(결함 수정)**: 글 파일명은 `<제목 slug>-<page ID 앞 12자>.md`라 제목을 바꿔 다시 게시하면
-  옛 파일이 남아 같은 글이 둘이 된다. 게시 commit은 같은 page ID 접미사를 가진 다른 글 파일과
-  그 글의 `src/assets/blog/<옛 slug>/`를 함께 지운다. 접미사가 없는 v1 글은 건드리지 않는다.
-- **블로그에서 내리기**: `게시 완료` 카드에서 확인을 거쳐 실행한다. 서버는 세션, GitHub 저장소
-  소유권·쓰기 권한, 요청한 Notion 연결 소유권을 다시 확인한 뒤 그 page ID 접미사의 글 파일과
-  이미지 폴더만 지우는 commit 하나를 만든다. Notion 원문과 IndexedDB record는 지우지 않고 카드는
+  옛 파일이 남아 같은 글이 둘이 됐다. 게시 commit은 같은 page ID 접미사를 가진 파일
+  (`src/content/blog/*.md`, `src/assets/blog/<slug>/`, `public/posts/<slug>/index.html`) 중 이번에 쓰지 않는
+  것을 지운다. 이미지가 줄어 남은 옛 이미지도 지워진다. 옛 slug에는 `public/posts/<옛 slug>/index.html`
+  안내 page를 남긴다(D4: JavaScript 없이 상대 주소 `../<새 slug>/`로 이동, canonical은 새 글 절대 주소,
+  `noindex`). 접미사가 없는 v1 글은 건드리지 않는다.
+- **블로그에서 내리기**(`POST /api/publish/unpublish`): `게시 완료` 카드에서 확인 dialog(D1)를 거쳐
+  실행한다. 서버는 같은 origin, 세션, GitHub 저장소 소유권·쓰기 권한, 요청한 Notion 연결 소유권을 다시
+  확인한 뒤 그 page ID 접미사의 글·이미지·옛 주소 안내 page만 지우는 commit 하나를 만든다. Notion 원문은
+  읽지 않는다. 관리 표식이 없는 저장소는 `409 github_repository_not_managed`로 거절한다. Notion 원문과 IndexedDB record는 지우지 않고 카드는
   `보관 중`으로 돌아간다. 지울 파일이 없으면 commit하지 않고 `404 blog_post_not_found`를 준다.
-- **게시 완료 열 복원**: 칸반을 열 때 저장소 tree의 `src/content/blog/*-<12자>.md`를 읽어 접미사가
-  같은 카드를 `게시 완료`로 보여준다. 이 값은 저장하지 않고 열 때마다 GitHub에서 다시 읽는다.
-  이 요구가 구현되면 §4의 "게시 완료는 화면 메모리에만 있다"를 "저장소에서 다시 읽는다"로 바꾼다.
+- **게시 완료 열 복원**(`GET /api/publish/posts`): 칸반을 열 때 저장소 tree의 `src/content/blog/*-<12자>.md`를
+  읽어 접미사와 글 주소만 돌려주고, 접미사가 같은 카드를 `게시 완료`로 보여준다(§4). 이 값은 저장하지 않는다.
 - 완료 조건: 제목 변경 재게시 후 글 파일이 하나뿐이다. 내리기 commit에 다른 글·template 파일 변경이
   없다. 다른 사용자 저장소나 남의 page ID 파일을 지울 수 없다. 새로고침 뒤에도 게시 완료 카드가 보인다.
 
