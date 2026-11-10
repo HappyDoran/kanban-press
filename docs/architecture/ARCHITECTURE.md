@@ -177,6 +177,8 @@ IndexedDB에 포함하지 않는다.
 - commit 이후 응답이 유실된 상태에서 재시도하면 중복 commit이 생길 수 있다.
 - 같은 artifact로 만든 Git tree가 현재 tree와 같아도 새 commit을 만든다.
 - ref update 사이에 다른 변경이 생기면 force push하지 않고 게시 충돌로 반환한다.
+  브라우저는 한 탭의 게시·내리기 commit 요청을 한 번에 하나씩 보내 자기 요청끼리의 충돌을 막는다
+  (`lib/client/publish.ts`). 다른 탭·기기와 동시에 게시하면 여전히 충돌할 수 있다.
 - GitHub Actions/Pages 상태는 GitHub가 source of truth다.
 - 생성하는 deploy workflow는 `concurrency: pages`로 Pages 배포를 직렬화한다. 기다리던 중간 배포가 취소되면
   그 commit을 포함한 기본 branch 최신 commit의 배포 상태를 따른다.

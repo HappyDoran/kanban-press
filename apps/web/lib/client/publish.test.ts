@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "./api";
-import { publishAndWatch } from "./publish";
+import { publishAndWatch, unpublishInOrder } from "./publish";
 
 const COMMIT = "a".repeat(40);
 const ACTIONS = "https://github.com/octocat/octocat.github.io/actions/runs/1";
@@ -87,5 +87,36 @@ describe("publishAndWatch", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(watch()).rejects.toEqual(new ApiError("deployment_timeout"));
+  });
+
+  it("sends commit requests one at a time while deployments are watched in parallel", async () => {
+    let releaseFirst: (response: Response) => void = () => undefined;
+    const commitRequests: string[] = [];
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/publish/status")) {
+        return Promise.resolve(Response.json({ actionsUrl: ACTIONS, pageUrl: "https://octocat.github.io/", state: "succeeded" }));
+      }
+      commitRequests.push(url);
+      if (commitRequests.length === 1) {
+        return new Promise<Response>((resolve) => {
+          releaseFirst = resolve;
+        });
+      }
+      return Promise.resolve(url === "/api/publish" ? published() : new Response(null, { status: 204 }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = watch({ providerPageId: "first" });
+    const second = watch({ providerPageId: "second" });
+    const removed = unpublishInOrder("connection", "third");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(commitRequests).toEqual(["/api/publish"]);
+
+    releaseFirst(published());
+    await expect(first).resolves.toBe("https://octocat.github.io/posts/hello/");
+    await expect(second).resolves.toBe("https://octocat.github.io/posts/hello/");
+    await removed;
+    expect(commitRequests).toEqual(["/api/publish", "/api/publish", "/api/publish/unpublish"]);
   });
 });

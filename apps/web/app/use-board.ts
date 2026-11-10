@@ -14,9 +14,8 @@ import {
   fetchOutline,
   type PageSummary,
   publishErrorMessage,
-  requestUnpublish,
 } from "../lib/client/api";
-import { publishAndWatch } from "../lib/client/publish";
+import { publishAndWatch, unpublishInOrder } from "../lib/client/publish";
 import { filterRenderableOutline } from "../lib/notion/outline";
 import { pageIdSuffix } from "../lib/publish/blog-files";
 
@@ -282,7 +281,7 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     const key = pageKey(record);
     clearFailure(key);
     try {
-      await requestUnpublish(record.connectionId, record.providerPageId);
+      await unpublishInOrder(record.connectionId, record.providerPageId);
       const suffix = suffixOf(record.providerPageId);
       setBlogPosts((current) => {
         const next = new Map(current);
