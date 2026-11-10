@@ -359,6 +359,37 @@ describe("GitHubPagesClient", () => {
     });
   });
 
+  it("turns an exhausted hourly limit into a bounded retry wait", async () => {
+    vi.useFakeTimers({ now: NOW * 1000 });
+    try {
+      const exhausted = (resetInSeconds: number) =>
+        new Response(null, {
+          headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(NOW + resetInSeconds) },
+          status: 403,
+        });
+      const client = new GitHubPagesClient({
+        accessToken: "secret",
+        apiVersion: "2026-03-10",
+        fetch: vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(exhausted(1_200))
+          .mockResolvedValueOnce(exhausted(1_200))
+          .mockResolvedValueOnce(exhausted(99_999))
+          .mockResolvedValueOnce(exhausted(99_999)),
+      });
+
+      await expect(client.getDeploymentStatus(REPOSITORY, "5".repeat(40))).rejects.toMatchObject({
+        code: "rate_limited",
+        retryAfterSeconds: 1_200,
+      });
+      await expect(client.getDeploymentStatus(REPOSITORY, "5".repeat(40))).rejects.toMatchObject({
+        retryAfterSeconds: 3_600,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("creates a new commit when the generated tree is unchanged", async () => {
     const headSha = "1".repeat(40);
     const baseTreeSha = "2".repeat(40);

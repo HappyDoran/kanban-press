@@ -594,7 +594,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - Notion과 GitHub의 OAuth 및 REST 요청은 각각 10초 안에 응답하지 않으면 중단한다.
 - timeout은 provider별 안정적인 `notion_timeout` 또는 `github_timeout` 오류로 반환하며
   credential, 요청 URL, provider 응답 본문은 오류나 로그에 포함하지 않는다.
-- `429`의 `Retry-After`는 0~3,600초 정수만 신뢰해 응답 header로 전달한다. 브라우저는
+- `429`의 `Retry-After`는 0~3,600초 정수만 신뢰해 응답 header로 전달한다. GitHub 시간당 한도를
+  다 쓴 응답처럼 `Retry-After` 없이 `x-ratelimit-reset`만 오면 남은 초를 같은 범위로 잘라 쓴다. 브라우저는
   남은 대기 시간을 안내하고 만료 전 재시도 동작을 비활성화한다.
 - 서버는 읽기와 mutation을 자동 재시도하지 않는다. 사용자가 명시적으로 다시 시도하며,
   특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다.

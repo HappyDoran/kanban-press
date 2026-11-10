@@ -35,6 +35,7 @@ export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
   const [state, setState] = useState<TargetState>("loading");
   const [target, setTarget] = useState<RepositoryTarget | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
+  const [rateLimited, setRateLimited] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
         }
         if (!response.ok) {
           setRetryAt(retryAtFromResponse(response));
+          setRateLimited(response.status === 429);
           throw new Error(providerError(payload));
         }
         setTarget(parseRepositoryTarget(payload));
@@ -77,6 +79,7 @@ export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
   const retry = () => {
     setTarget(null);
     setRetryAt(null);
+    setRateLimited(false);
     setState("loading");
     setReloadKey((value) => value + 1);
   };
@@ -114,7 +117,11 @@ export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
         ) : null}
         {state === "error" ? (
           <div className="pagesRecovery" role="alert">
-            <span>Repository 상태를 확인하지 못했습니다.</span>
+            <span>
+              {rateLimited
+                ? "GitHub 요청 한도에 도달해 Repository 상태를 확인하지 못했습니다. 한도가 풀린 뒤 다시 확인해 주세요."
+                : "Repository 상태를 확인하지 못했습니다."}
+            </span>
             <RetryAction label="다시 확인" onRetry={retry} retryAt={retryAt} />
           </div>
         ) : null}
