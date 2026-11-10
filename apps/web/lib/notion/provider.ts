@@ -2,6 +2,7 @@
 import { z } from "zod";
 
 import {
+  parseRetryAfter,
   providerRequest,
   ProviderTransportError,
 } from "../operations/provider-request";
@@ -122,11 +123,7 @@ function providerError(response: Response): NotionProviderError {
     return new NotionProviderError("access_denied");
   }
   if (response.status === 429) {
-    const retryAfter = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
-    return new NotionProviderError(
-      "rate_limited",
-      Number.isSafeInteger(retryAfter) && retryAfter >= 0 ? Math.min(retryAfter, 3_600) : null,
-    );
+    return new NotionProviderError("rate_limited", parseRetryAfter(response.headers));
   }
   return new NotionProviderError("unavailable");
 }

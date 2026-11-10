@@ -37,9 +37,9 @@ AGENTS.md (= CLAUDE.md)  →  작업 범위·완료 조건 확인(gap-analysis) 
 | 역할 | agent | 쓰기 범위 | 주 입력 |
 |---|---|---|---|
 | 기획 | nkb-planner | docs/spec/PROJECT_SPEC.md, docs/spec/gap-analysis.md, docs/planning/(BLOG_EXPERIENCE_DESIGN.md 제외) | 사용자 결정, 사업 제안 |
-| 디자인 | nkb-designer | apps/web/app/globals.css, docs/planning/BLOG_EXPERIENCE_DESIGN.md | 요구사항의 화면·흐름 |
-| 프론트엔드 | nkb-frontend | apps/web/app의 화면 컴포넌트·`page.tsx`·`layout.tsx`와 테스트(`api/`, `auth/` 제외), apps/web/e2e/, apps/web/playwright.config.ts | 완료 조건, 디자인 기준, package 계약 |
-| 백엔드 | nkb-backend | apps/web/app/api/, apps/web/app/auth/, apps/web/lib/, packages/*, docs/architecture/, docs/adr/ | 요구사항, TECH_RULES.md |
+| 디자인 | nkb-designer | apps/web/app/globals.css, packages/publisher/src/blog-css.ts(블로그·프리뷰 공용 CSS), docs/planning/BLOG_EXPERIENCE_DESIGN.md | 요구사항의 화면·흐름 |
+| 프론트엔드 | nkb-frontend | apps/web/app의 화면 컴포넌트·hook(`use-*.ts`)·`page.tsx`·`layout.tsx`와 테스트(`api/`, `auth/` 제외), apps/web/lib/client/, apps/web/lib/board/, apps/web/e2e/, apps/web/playwright.config.ts | 완료 조건, 디자인 기준, package 계약 |
+| 백엔드 | nkb-backend | apps/web/app/api/, apps/web/app/auth/, apps/web/lib/(`client/`·`board/` 제외), packages/*(`blog-css.ts` 제외), docs/architecture/, docs/adr/ | 요구사항, TECH_RULES.md |
 | AI 프롬프트 | nkb-prompt-engineer | 해당 없음(모델 호출 없음, AI 처리 요구가 생기면 경로를 먼저 등록) | AI 처리 요구, 계약 |
 | 사업 | nkb-business | 없음(제안만) | 기획의 방향·남은 결정 |
 

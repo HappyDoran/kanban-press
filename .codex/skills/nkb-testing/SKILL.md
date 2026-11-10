@@ -20,5 +20,5 @@ description: 코드를 바꾸는 모든 작업에서 어떤 검증을 통과해�
 
 - 새 로직과 바뀐 동작의 테스트를 함께 갱신한다. 의도치 않은 실패는 기대값이 아니라 코드를 먼저 의심한다.
 - 현재 구현하지 않은 기능을 통과 사례로 만들지 않는다. 단순 문구·스타일 변경에 구현을 복사한 테스트를 추가하지 않는다.
-- IndexedDB schema를 바꾸면 이전 version record의 migration·거절 사례를 함께 테스트한다.
+- IndexedDB schema를 바꾸면 이전 version DB를 비우고 다시 동기화하는 사례와 strict schema 거절 사례를 함께 테스트한다(이전 version은 migration하지 않는다).
 - 보고에는 실행한 검증, 실행하지 못한 검증과 이유, mock provider와 실제 provider 확인을 구분한다.

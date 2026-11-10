@@ -17,9 +17,8 @@ export default defineConfig({
     env: {
       APP_ORIGIN: "http://127.0.0.1:3100",
       COOKIE_ACTIVE_KEY_ID: "e2e",
-      COOKIE_KEYS_JSON: JSON.stringify({
-        e2e: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      }),
+      // 앱은 COOKIE_ENCRYPTION_KEY_<key ID>를 읽는다(README 환경 변수 절). 32 byte base64url 테스트 키.
+      COOKIE_ENCRYPTION_KEY_E2E: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       GITHUB_API_VERSION: "2026-03-10",
       GITHUB_OAUTH_CLIENT_ID: "e2e-client",
       GITHUB_OAUTH_CLIENT_SECRET: "e2e-secret",

@@ -1,7 +1,7 @@
 ---
 title: 아키텍처
 kind: design
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # 아키텍처
@@ -32,15 +32,27 @@ apps/web (stateless Next.js)
 |---|---|---|
 | GitHub 세션과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
-| 보관 문서 정렬, 게시 후 숨김과 page 표시·자동 역할·legacy 역할 override | IndexedDB | 비신뢰 입력 |
+| 보관 문서 정렬, 칸반 표시 override, 구조 판별 캐시 | IndexedDB(schema v12, 이전 version은 비움) | 비신뢰 입력 |
 | 게시 중·완료 상태와 현재 완료 링크 | React 메모리 | 새로고침 시 소멸 |
 | 게시 전 프리뷰 DTO와 dialog 상태 | React 메모리 | 닫기·새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |
 | 배포 상태 | GitHub Actions/Pages | GitHub API에서 조회 |
 
-## 3. package 경계
+## 3. package 경계와 코드 위치
 
 package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책임과 의존 그래프 절이 소유한다.
+`apps/web` 안의 층은 다음과 같다. route 파일(`app/api/**/route.ts`, `app/auth/**`)은 아래 함수를 부르기만 한다.
+
+| 층 | 위치 | 하는 일 |
+|---|---|---|
+| 화면 | `app/notion-browser.tsx`, `kanban-board.tsx`, `notion-tree.tsx`, `publish-preview.tsx`, `github-pages-target.tsx` | 조립과 표시 |
+| 화면 상태 | `app/use-workspace.ts`, `app/use-board.ts`, `lib/client/` | 세션·연결·칸반 상태, 브라우저 API 호출과 응답 검증, 게시→배포 확인 |
+| 칸반 저장소 | `lib/board/repository.ts` | 사용자별 IndexedDB(Dexie) |
+| 인증 | `lib/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
+| Notion | `lib/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
+| GitHub | `lib/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
+| 게시 | `lib/publish/` | 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
+| provider 공통 | `lib/operations/` | 10초 timeout·`Retry-After`·allowlist 로그 |
 
 ## 4. 요청 경계
 
@@ -96,6 +108,8 @@ publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한�
 
 프리뷰는 GitHub adapter를 생성하지 않고 repository를 조회·변경하지 않는다. 브라우저는
 프리뷰 결과를 React 메모리에만 두며 IndexedDB나 게시 상태를 변경하지 않는다.
+화면은 블로그 template과 같은 class와 `@notion-kanban-blog/publisher`의 `BLOG_CSS`로 그려
+실제 글과 같은 heading·목록·표 구조를 보여준다. 블로그 안의 이동 링크는 href 없이 그린다.
 
 ### rollout 검증 경계
 
@@ -149,7 +163,7 @@ IndexedDB에 포함하지 않는다.
 ## 6. 장애 특성
 
 - Notion/GitHub API 실패는 요청 실패로 반환하며 브라우저에서 명시적으로 재시도한다.
-- 모든 provider 요청은 10초 timeout과 caller abort를 합성한다. 429의 bounded
+- 모든 provider 요청은 `lib/operations/provider-request.ts`를 거치며 10초 timeout과 caller abort를 합성한다. fetch가 abort를 무시해도 timeout으로 끝난다. 429의 bounded
   `Retry-After`만 브라우저에 전달하고 timeout은 provider별 504 오류로 구분한다.
 - provider 장애 로그는 provider, operation, 안정적인 오류 code, HTTP status,
   bounded retry/소요 시간만 기록하는 allowlist JSON logger를 통한다.

@@ -1,5 +1,7 @@
 "use client";
 
+// 다시 시도 버튼. 서버가 준 `Retry-After`가 지나기 전에는 남은 초를 보여주고 누를 수 없게 한다(제품 명세 §6.1).
+
 import { useEffect, useState } from "react";
 
 export function retrySecondsRemaining(retryAt: number | null, now: number): number {
@@ -27,7 +29,7 @@ export function RetryAction({
   }, [remaining]);
 
   return (
-    <button disabled={remaining > 0} onClick={onRetry} type="button">
+    <button className="buttonSecondary" disabled={remaining > 0} onClick={onRetry} type="button">
       {remaining > 0 ? `${label} (${remaining}초 후)` : label}
     </button>
   );
