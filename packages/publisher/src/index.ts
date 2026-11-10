@@ -247,7 +247,7 @@ const { items } = Astro.props;
 `,
     "src/components/PostCard.astro": `---
 import type { CollectionEntry } from "astro:content";
-import { formatDate, pathFor } from "../lib/blog";
+import { formatDate, pathFor, tagSlug } from "../lib/blog";
 
 interface Props {
   headingLevel?: "h2" | "h3";
@@ -268,13 +268,15 @@ const remainingTagCount = post.data.tags.length - visibleTags.length;
   {post.data.description && <p class="post-card-description">{post.data.description}</p>}
   {visibleTags.length > 0 && (
     <ul class="tag-list" aria-label="태그">
-      {visibleTags.map((tag) => <li>#{tag}</li>)}
+      {visibleTags.map((tag) => <li><a href={pathFor("tags/" + tagSlug(tag) + "/")}>#{tag}</a></li>)}
       {remainingTagCount > 0 && <li aria-label={"태그 " + remainingTagCount + "개 더 있음"}>+{remainingTagCount}</li>}
     </ul>
   )}
 </article>
 `,
-    "src/lib/blog.ts": `import type { CollectionEntry } from "astro:content";
+    "src/lib/blog.ts": `import { createHash } from "node:crypto";
+
+import type { CollectionEntry } from "astro:content";
 
 export const base = ${JSON.stringify(linkBase)};
 
@@ -330,6 +332,67 @@ export function categoriesFor(posts: readonly BlogPost[]): BlogCategory[] {
     );
 }
 
+export interface BlogTag {
+  count: number;
+  name: string;
+  posts: readonly BlogPost[];
+  slug: string;
+}
+
+/** 태그 주소. 카테고리 slug와 같은 규칙(영문·숫자 부분 + 정규화한 이름의 hash 8자)이라 한글 태그도 안정적이다. */
+export function tagSlug(name: string): string {
+  const normalized = name.normalize("NFKC").trim().replace(/\\s+/gu, " ").toLowerCase();
+  const hash = createHash("sha256").update(normalized, "utf8").digest("hex").slice(0, 8);
+  const ascii = normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
+  return ascii ? ascii + "-" + hash : "tag-" + hash;
+}
+
+export function tagsFor(posts: readonly BlogPost[]): BlogTag[] {
+  const grouped = new Map<string, { name: string; posts: BlogPost[] }>();
+  for (const post of sortPosts(posts)) {
+    for (const name of post.data.tags) {
+      const slug = tagSlug(name);
+      const existing = grouped.get(slug);
+      if (existing === undefined) {
+        grouped.set(slug, { name, posts: [post] });
+      } else if (!existing.posts.includes(post)) {
+        existing.posts.push(post);
+      }
+    }
+  }
+  return [...grouped.entries()]
+    .map(([slug, tag]) => ({ count: tag.posts.length, name: tag.name, posts: tag.posts, slug }))
+    .sort((left, right) => right.count - left.count || compareText(left.name, right.name));
+}
+
+/** 게시일(UTC) 기준 연·월 묶음. 최근 달이 먼저다. */
+export function archiveFor(posts: readonly BlogPost[]): { label: string; month: string; posts: BlogPost[] }[] {
+  const grouped = new Map<string, BlogPost[]>();
+  for (const post of sortPosts(posts)) {
+    const month = post.data.publishedAt.toISOString().slice(0, 7);
+    grouped.set(month, [...(grouped.get(month) ?? []), post]);
+  }
+  return [...grouped.entries()].map(([month, monthPosts]) => ({
+    label: Number(month.slice(0, 4)) + "년 " + Number(month.slice(5, 7)) + "월",
+    month,
+    posts: monthPosts,
+  }));
+}
+
+/** base path를 포함한 절대 주소(RSS·sitemap·Open Graph용). */
+export function absoluteUrl(path: string, site: URL | undefined): string {
+  return new URL(pathFor(path), site).href;
+}
+
+export function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
 export function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("ko-KR", {
     day: "numeric",
@@ -347,10 +410,12 @@ export function isDifferentDay(left: Date, right: Date): boolean {
 interface Props {
   description?: string;
   title: string;
+  type?: "article" | "website";
 }
 const {
   description = "Notion에서 게시한 기록입니다.",
   title,
+  type = "website",
 } = Astro.props;
 import { base, pathFor } from "../lib/blog";
 
@@ -375,6 +440,14 @@ const section = pathname === base
     <meta name="theme-color" content="#ffffff" />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <title>{title === "홈" ? siteName : title + " · " + siteName}</title>
+    <meta property="og:type" content={type} />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:title" content={title === "홈" ? siteName : title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={new URL(Astro.url.pathname, Astro.site)} />
+    <meta property="og:locale" content="ko_KR" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="alternate" type="application/rss+xml" title={siteName} href={pathFor("rss.xml")} />
     <style is:global>
       :root {
         --color-bg-canvas: #f6f7f9;
@@ -427,8 +500,8 @@ ${BLOG_CSS}
     <main class="site-main" id="main-content"><slot /></main>
     <footer class="site-footer">
       <div class="site-footer-inner">
-        <span>© {new Date().getUTCFullYear()} {siteOwner}</span>
-        <span>GitHub Pages로 게시됨</span>
+        <span>© {new Date().getUTCFullYear()} {siteOwner} · GitHub Pages로 게시됨</span>
+        <span><a href={pathFor("archive/")}>보관함</a> · <a href={pathFor("tags/")}>태그</a> · <a href={pathFor("rss.xml")}>RSS</a></span>
       </div>
     </footer>
   </body>
@@ -494,7 +567,7 @@ import { getCollection } from "astro:content";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import PostCard from "../../components/PostCard.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, sortPosts } from "../../lib/blog";
+import { base, pathFor, sortPosts } from "../../lib/blog";
 
 const posts = sortPosts(await getCollection("blog"));
 ---
@@ -502,7 +575,7 @@ const posts = sortPosts(await getCollection("blog"));
   <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "전체 글" }]} />
   <header class="page-intro">
     <h1>전체 글</h1>
-    <p class="muted">글 {posts.length}개 · 최신순</p>
+    <p class="muted">글 {posts.length}개 · 최신순 · <a href={pathFor("archive/")}>연·월 보관함</a></p>
   </header>
   {posts.length === 0 ? (
     <section class="empty-state" aria-labelledby="empty-title">
@@ -526,7 +599,7 @@ const categories = categoriesFor(await getCollection("blog"));
   <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "주제" }]} />
   <header class="page-intro">
     <h1>주제</h1>
-    <p class="muted">주제 {categories.length}개</p>
+    <p class="muted">주제 {categories.length}개 · <a href={pathFor("tags/")}>태그 전체 보기</a></p>
   </header>
   {categories.length === 0 ? (
     <section class="empty-state" aria-labelledby="empty-title">
@@ -591,7 +664,7 @@ const { categories, category } = Astro.props;
 import { getCollection, render } from "astro:content";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, formatDate, isDifferentDay, pathFor, sortPosts } from "../../lib/blog";
+import { base, formatDate, isDifferentDay, pathFor, sortPosts, tagSlug } from "../../lib/blog";
 
 export async function getStaticPaths() {
   const posts = sortPosts(await getCollection("blog"));
@@ -609,7 +682,7 @@ const currentIndex = categoryPosts.findIndex((candidate) => candidate.id === pos
 const previousPost = currentIndex > 0 ? categoryPosts[currentIndex - 1] : undefined;
 const nextPost = currentIndex < categoryPosts.length - 1 ? categoryPosts[currentIndex + 1] : undefined;
 ---
-<BaseLayout description={post.data.description} title={post.data.title}>
+<BaseLayout description={post.data.description} title={post.data.title} type="article">
   <Breadcrumbs items={[
     { href: base, label: "홈" },
     { href: pathFor("categories/" + post.data.categorySlug + "/"), label: post.data.category },
@@ -628,7 +701,7 @@ const nextPost = currentIndex < categoryPosts.length - 1 ? categoryPosts[current
       </div>
       {post.data.tags.length > 0 && (
         <ul class="tag-list" aria-label="태그">
-          {post.data.tags.map((tag) => <li>#{tag}</li>)}
+          {post.data.tags.map((tag) => <li><a href={pathFor("tags/" + tagSlug(tag) + "/")}>#{tag}</a></li>)}
         </ul>
       )}
     </header>
@@ -650,6 +723,171 @@ const nextPost = currentIndex < categoryPosts.length - 1 ? categoryPosts[current
     </div>
   </article>
 </BaseLayout>
+`,
+    "src/pages/tags/index.astro": `---
+import { getCollection } from "astro:content";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { base, pathFor, tagsFor } from "../../lib/blog";
+
+const tags = tagsFor(await getCollection("blog"));
+---
+<BaseLayout description="게시된 글의 태그를 모아 봅니다." title="태그">
+  <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "태그" }]} />
+  <header class="page-intro">
+    <h1>태그</h1>
+    <p class="muted">태그 {tags.length}개</p>
+  </header>
+  {tags.length === 0 ? (
+    <section class="empty-state" aria-labelledby="empty-title">
+      <h2 id="empty-title">아직 태그가 없습니다</h2>
+      <p>Notion의 Blog Tags 속성을 채워 게시하면 이곳에 표시됩니다.</p>
+    </section>
+  ) : (
+    <ul class="category-list">
+      {tags.map((tag) => (
+        <li>
+          <a href={pathFor("tags/" + tag.slug + "/")}>
+            <span>#{tag.name}</span>
+            <span class="muted">{tag.count}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
+</BaseLayout>
+`,
+    "src/pages/tags/[slug].astro": `---
+import { getCollection } from "astro:content";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import PostCard from "../../components/PostCard.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { base, pathFor, tagsFor } from "../../lib/blog";
+
+export async function getStaticPaths() {
+  return tagsFor(await getCollection("blog")).map((tag) => ({ params: { slug: tag.slug }, props: { tag } }));
+}
+
+const { tag } = Astro.props;
+---
+<BaseLayout description={"#" + tag.name + " 태그의 글입니다."} title={"#" + tag.name}>
+  <Breadcrumbs items={[{ href: base, label: "홈" }, { href: pathFor("tags/"), label: "태그" }, { label: "#" + tag.name }]} />
+  <header class="page-intro">
+    <h1>#{tag.name}</h1>
+    <p class="muted">글 {tag.count}개</p>
+  </header>
+  <div class="post-list">
+    {tag.posts.map((post) => <PostCard post={post} />)}
+  </div>
+</BaseLayout>
+`,
+    "src/pages/archive.astro": `---
+import { getCollection } from "astro:content";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { archiveFor, base, formatDate, pathFor } from "../lib/blog";
+
+const months = archiveFor(await getCollection("blog"));
+---
+<BaseLayout description="게시된 글을 연·월별로 봅니다." title="보관함">
+  <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "보관함" }]} />
+  <header class="page-intro">
+    <h1>보관함</h1>
+    <p class="muted">게시일 기준 연·월별 글</p>
+  </header>
+  {months.length === 0 ? (
+    <section class="empty-state" aria-labelledby="empty-title">
+      <h2 id="empty-title">아직 게시된 글이 없습니다</h2>
+      <p>새 글이 게시되면 이곳에 표시됩니다.</p>
+    </section>
+  ) : (
+    months.map((month) => (
+      <section class="archive-month" aria-labelledby={"month-" + month.month}>
+        <h2 id={"month-" + month.month}>{month.label} <span class="muted">{month.posts.length}</span></h2>
+        <ul class="archive-list">
+          {month.posts.map((post) => (
+            <li>
+              <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+              <a href={pathFor("posts/" + post.id + "/")}>{post.data.title}</a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  )}
+</BaseLayout>
+`,
+    "src/pages/rss.xml.ts": `import { getCollection } from "astro:content";
+import type { APIContext } from "astro";
+
+import { absoluteUrl, escapeXml, sortPosts } from "../lib/blog";
+
+const siteOwner = ${JSON.stringify(owner)};
+
+/** 최근 글 20개. 본문 대신 설명만 넣는다(결정 D2). */
+export async function GET(context: APIContext): Promise<Response> {
+  const posts = sortPosts(await getCollection("blog")).slice(0, 20);
+  const items = posts.map((post) => {
+    const link = absoluteUrl("posts/" + post.id + "/", context.site);
+    return [
+      "<item>",
+      "<title>" + escapeXml(post.data.title) + "</title>",
+      "<link>" + escapeXml(link) + "</link>",
+      '<guid isPermaLink="true">' + escapeXml(link) + "</guid>",
+      "<pubDate>" + post.data.publishedAt.toUTCString() + "</pubDate>",
+      "<category>" + escapeXml(post.data.category) + "</category>",
+      "<description>" + escapeXml(post.data.description) + "</description>",
+      "</item>",
+    ].join("");
+  });
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0"><channel>',
+    "<title>" + escapeXml(siteOwner + ".log") + "</title>",
+    "<link>" + escapeXml(absoluteUrl("", context.site)) + "</link>",
+    "<description>" + escapeXml(siteOwner + "의 블로그") + "</description>",
+    "<language>ko</language>",
+    ...items,
+    "</channel></rss>",
+    "",
+  ].join("\\n");
+  return new Response(xml, { headers: { "content-type": "application/rss+xml; charset=utf-8" } });
+}
+`,
+    "src/pages/sitemap.xml.ts": `import { getCollection } from "astro:content";
+import type { APIContext } from "astro";
+
+import { absoluteUrl, categoriesFor, escapeXml, sortPosts, tagsFor } from "../lib/blog";
+
+export async function GET(context: APIContext): Promise<Response> {
+  const posts = sortPosts(await getCollection("blog"));
+  const pages: { lastmod?: Date; path: string }[] = [
+    { path: "" },
+    { path: "posts/" },
+    { path: "categories/" },
+    { path: "tags/" },
+    { path: "archive/" },
+    ...categoriesFor(posts).map((category) => ({ path: "categories/" + category.slug + "/" })),
+    ...tagsFor(posts).map((tag) => ({ path: "tags/" + tag.slug + "/" })),
+    ...posts.map((post) => ({ lastmod: post.data.updatedAt, path: "posts/" + post.id + "/" })),
+  ];
+  const urls = pages.map(
+    (page) =>
+      "<url><loc>" +
+      escapeXml(absoluteUrl(page.path, context.site)) +
+      "</loc>" +
+      (page.lastmod === undefined ? "" : "<lastmod>" + page.lastmod.toISOString().slice(0, 10) + "</lastmod>") +
+      "</url>",
+  );
+  const xml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls,
+    "</urlset>",
+    "",
+  ].join("\\n");
+  return new Response(xml, { headers: { "content-type": "application/xml; charset=utf-8" } });
+}
 `,
     "src/pages/404.astro": `---
 import { getCollection } from "astro:content";

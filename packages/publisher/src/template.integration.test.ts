@@ -435,6 +435,70 @@ Post ${number} body.
   });
 });
 
+describe("discovery routes (R9)", () => {
+  it.each([
+    { base: "/", repository: "HappyDoran.github.io", site: "https://happydoran.github.io/" },
+    { base: "/notion-notes/", repository: "notion-notes", site: "https://happydoran.github.io/notion-notes/" },
+  ])("builds tag, archive, RSS, sitemap and Open Graph for $repository", async ({ base, repository, site }) => {
+    const { root } = await createFixture({ defaultBranch: "main", owner: "HappyDoran", repository });
+    const post = (slug: string, title: string, tags: string[], publishedAt: string) =>
+      createMarkdownArtifact({
+        blocks: [{ kind: "paragraph", richText: [{ text: "본문" }] }],
+        category: { name: "개발", slug: "category-a5ac2b72" },
+        description: title + " 설명",
+        publishedAt,
+        schemaVersion: 2,
+        slug,
+        tags,
+        title,
+        updatedAt: publishedAt,
+      });
+    for (const artifact of [
+      post("first-111111111111", "A & B <C>", ["정적 사이트", "Astro"], "2026-11-08T00:00:00.000Z"),
+      post("second-222222222222", "Second", ["astro"], "2026-10-02T00:00:00.000Z"),
+    ]) {
+      await writeFixture(root, artifact.path, artifact.bytes);
+    }
+    await writeFixture(root, "src/content/blog/legacy-post.md", legacyPost);
+    await build(root);
+
+    const read = (path: string) => readFile(join(root, "dist", path), "utf8");
+    const tagIndex = await read("tags/index.html");
+    const astroTag = tagIndex.match(/href="([^"]*tags\/(astro-[a-f0-9]{8})\/)"/);
+    const koreanTag = tagIndex.match(/href="[^"]*tags\/(tag-[a-f0-9]{8})\/"/);
+    expect(astroTag?.[1]?.startsWith(base + "tags/")).toBe(true);
+    expect(koreanTag).not.toBeNull();
+    // 대소문자만 다른 태그는 한 태그로 모인다.
+    expect(await read(`tags/${astroTag?.[2]}/index.html`)).toContain("글 2개");
+    expect(await read(`tags/${koreanTag?.[1]}/index.html`)).toContain("#정적 사이트");
+
+    const postHtml = await read("posts/first-111111111111/index.html");
+    expect(postHtml).toContain(`href="${base}tags/${astroTag?.[2]}/"`);
+    expect(postHtml).toContain('<meta property="og:type" content="article">');
+    // 따옴표 속성값 안의 `<`는 HTML 문법상 escape하지 않아도 된다. `&`와 `"`만 escape된다.
+    expect(postHtml).toContain('<meta property="og:title" content="A &amp; B <C>">');
+    expect(postHtml).toContain(`<link rel="alternate" type="application/rss+xml" title="HappyDoran.log" href="${base}rss.xml">`);
+
+    const archive = await read("archive/index.html");
+    expect(archive.indexOf("2026년 11월")).toBeLessThan(archive.indexOf("2026년 10월"));
+    expect(archive).toContain(`${base}posts/legacy-post/`);
+
+    const rss = await read("rss.xml");
+    expect(rss).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n<rss version="2.0">/);
+    expect(rss).toContain("<title>A &amp; B &lt;C&gt;</title>");
+    expect(rss).toContain(`<link>${site}posts/first-111111111111/</link>`);
+    expect(rss).not.toContain("본문");
+    expect(rss.match(/<item>/g)).toHaveLength(3);
+
+    const sitemap = await read("sitemap.xml");
+    for (const path of ["", "posts/", "tags/", "archive/", "posts/first-111111111111/", "posts/legacy-post/", `tags/${astroTag?.[2]}/`]) {
+      expect(sitemap).toContain(`<loc>${site}${path}</loc>`);
+    }
+    expect(sitemap).toContain("<lastmod>2026-11-08</lastmod>");
+    expect(await read("index.html")).not.toContain("<script");
+  });
+});
+
 async function createFixture(target: {
   defaultBranch: string;
   owner: string;

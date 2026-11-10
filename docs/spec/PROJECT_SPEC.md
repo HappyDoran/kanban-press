@@ -32,7 +32,7 @@ MVP 범위가 아니다.
 확장 범위(2026-11-10 사용자 선택. 계약은 §5.1, 진행 상태는 gap-analysis):
 
 - R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원(구현 완료)
-- R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph
+- R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph(구현 완료)
 - R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서
 - R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정
 
@@ -516,8 +516,10 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 태그: `/tags/`(태그와 글 수)와 `/tags/<태그 slug>/`. 글 카드·상세의 태그는 이 주소로 링크한다.
   태그 slug는 카테고리 slug와 같은 규칙(ASCII + hash)을 쓴다.
 - 보관함: `/archive/`에 연·월별 글 목록.
-- 노출: 정적 `rss.xml`(최근 20개, 제목·설명·링크·게시일), `sitemap.xml`, 모든 화면의 Open Graph·
-  description meta. 생성 블로그에 새 npm 의존성을 추가하지 않고 Astro endpoint로 만든다.
+- 노출: 정적 `rss.xml`(최근 20개, 제목·설명·링크·게시일·카테고리. 본문은 넣지 않는다, D2), `sitemap.xml`
+  (홈·목록·카테고리·태그·보관함·글, 글은 수정일 `lastmod`), 모든 화면의 Open Graph(`og:type`은 글 상세만
+  `article`)·description meta와 RSS `alternate` link. 생성 블로그에 새 npm 의존성을 추가하지 않고 Astro
+  endpoint로 만든다. 보관함·태그·RSS는 footer에서, 보관함은 전체 글, 태그 전체는 주제 화면에서도 연결한다.
 - 완료 조건: user/project base path build에서 모든 새 주소가 생성되고 링크가 base path를 따른다.
   JavaScript 없이 동작한다. RSS·sitemap이 XML 검증을 통과한다.
 
