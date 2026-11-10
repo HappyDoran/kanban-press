@@ -116,8 +116,9 @@ IndexedDB: stored(카드·표시 여부·정렬)
   column에 놓으면 게시를 시작한다. `published` 카드를 `publishing`에 놓으면 다시
   게시한다. `published` 카드는 `stored`로 끌어 옮길 수 없고 `블로그에서 내리기`(확인 후 실행)로만
   `stored`로 돌아간다.
-- 별도 게시 버튼과 상태 선택기는 제공하지 않는다. `publishing` 카드는 배포가 끝날
-  때까지 이동할 수 없다.
+- 상태 선택기는 제공하지 않는다. 게시는 카드를 `publishing`에 놓아 시작한다. 예외로 600px 미만 화면에서는
+  게시 중 열까지 멀리 끌기 어려워 `stored`·`published` 카드에 `게시`·`다시 게시` 버튼을 둔다(놓기와 같은 동작).
+  `publishing` 카드는 배포가 끝날 때까지 이동할 수 없다.
 - 모든 카드의 `×`는 Notion 원문이나 IndexedDB record를 삭제하지 않고
   `isVisible=false`로 바꿔 칸반에서 숨긴다. 계층 목록에서 다시 표시할 수 있다.
 - `published` 카드에서는 게시된 글 열기를 제공한다.

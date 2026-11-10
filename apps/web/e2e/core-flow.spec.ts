@@ -239,6 +239,59 @@ test("blog settings are edited in a dialog and saved as one request", async ({ p
   });
 });
 
+test("document sidebar can be resized and remembers its width", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "경계선은 900px 이상에서만 보인다");
+  await installAppRoutes(page, () => "52277540", () => undefined);
+  await page.goto("/");
+  const handle = page.getByRole("separator", { name: "문서 목록 너비" });
+  await expect(handle).toHaveAttribute("aria-valuenow", "288");
+
+  await handle.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(handle).toHaveAttribute("aria-valuenow", "352");
+  await page.keyboard.press("End");
+  await expect(handle).toHaveAttribute("aria-valuenow", "520");
+  const sidebarWidth = await page.getByRole("navigation", { name: "Notion 문서" }).evaluate((element) => element.getBoundingClientRect().width);
+  expect(Math.round(sidebarWidth)).toBe(520);
+
+  await page.reload();
+  await expect(page.getByRole("separator", { name: "문서 목록 너비" })).toHaveAttribute("aria-valuenow", "520");
+  await page.getByRole("separator", { name: "문서 목록 너비" }).dblclick();
+  await expect(page.getByRole("separator", { name: "문서 목록 너비" })).toHaveAttribute("aria-valuenow", "288");
+});
+
+test("document titles can be searched in the sidebar", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "320px 흐름은 카드 게시 버튼 테스트가 맡는다");
+  await installAppRoutes(page, () => "52277540", () => undefined);
+  await page.goto("/");
+  const sidebar = page.getByRole("navigation", { name: "Notion 문서" });
+  await expect(sidebar.getByText("E2E 게시 문서")).toBeVisible();
+
+  await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("없는 제목");
+  await expect(sidebar.getByRole("status")).toHaveText("일치하는 문서가 없습니다.");
+  await expect(sidebar.getByText("E2E 게시 문서")).toHaveCount(0);
+
+  await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("e2e 게시");
+  await expect(sidebar.getByRole("status")).toHaveText("문서 1개");
+  await expect(sidebar.getByText("E2E 게시 문서")).toBeVisible();
+  await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).press("Escape");
+  await expect(sidebar.getByRole("status")).toHaveCount(0);
+});
+
+test("cards can be published with a button on narrow screens", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "넓은 화면은 끌어 놓기로 게시한다");
+  let publishCalls = 0;
+  await installAppRoutes(page, () => "52277540", () => {
+    publishCalls += 1;
+  });
+  await page.goto("/");
+  await page.getByRole("button", { exact: true, name: "게시" }).click();
+  await expect.poll(() => publishCalls).toBe(1);
+  await expect(page.getByText("게시된 글 보기")).toBeVisible();
+  await expect(page.getByRole("button", { exact: true, name: "다시 게시" })).toBeVisible();
+});
+
 async function installAppRoutes(
   page: Page,
   currentUserId: () => string,

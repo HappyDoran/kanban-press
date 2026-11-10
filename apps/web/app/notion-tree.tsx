@@ -43,9 +43,12 @@ export function NotionTree({
   onToggleVisibility,
   pages,
   pendingKeys,
+  query = "",
   records,
 }: Omit<TreeContextValue, "childPagesByParent" | "pagesById" | "recordsByKey"> & {
   pages: PageSummary[];
+  /** 제목 검색어. 있으면 계층 대신 제목이 맞는 문서를 평평하게 보여준다(database 행 포함). */
+  query?: string;
   records: readonly BoardRecord[];
 }) {
   const pagesById = new Map(pages.map((page) => [page.providerPageId, page]));
@@ -55,11 +58,15 @@ export function NotionTree({
       childPagesByParent.set(page.parentPageId, [...(childPagesByParent.get(page.parentPageId) ?? []), page]);
     }
   }
+  const search = normalizeForSearch(query);
   // database 행(parentContainerId)은 그 database outline 아래에서만 보인다.
-  const roots = pages.filter(
-    (page) =>
-      page.parentContainerId === null && (page.parentPageId === null || !pagesById.has(page.parentPageId)),
-  );
+  const roots =
+    search === ""
+      ? pages.filter(
+          (page) =>
+            page.parentContainerId === null && (page.parentPageId === null || !pagesById.has(page.parentPageId)),
+        )
+      : pages.filter((page) => normalizeForSearch(page.title).includes(search));
 
   return (
     <TreeContext.Provider
@@ -73,6 +80,11 @@ export function NotionTree({
         recordsByKey: new Map(records.map((record) => [pageKey(record), record])),
       }}
     >
+      {search === "" ? null : (
+        <p className="treeSearchStatus" role="status">
+          {roots.length === 0 ? "일치하는 문서가 없습니다." : `문서 ${roots.length}개`}
+        </p>
+      )}
       <ul className="pageTree">
         {roots.map((page) => (
           <PageNode ancestors={new Set()} key={page.providerPageId} page={page} />
@@ -80,6 +92,11 @@ export function NotionTree({
       </ul>
     </TreeContext.Provider>
   );
+}
+
+/** 검색 비교용: 호환 문자·공백을 정리하고 소문자로 맞춘다. */
+export function normalizeForSearch(value: string): string {
+  return value.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase();
 }
 
 function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: PageSummary }) {
@@ -163,9 +180,11 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
           }}
           type="button"
         >
-          <span aria-hidden="true">{hasChildren ? (expanded ? "−" : "+") : "·"}</span>
+          <Chevron expanded={expanded} visible={hasChildren} />
           <PageIcon isContainer={isContainer} page={page} />
-          <span className="pageTitle">{page.title}</span>
+          <span className="pageTitle" title={page.title}>
+            {page.title}
+          </span>
         </button>
         {/* 행마다 상태 하나만: 칸반(표시 중, 누르면 숨김) · 추가 · 폴더 · 판별 중 · 구조 다시 확인 */}
         <span className="pageAction">
@@ -184,7 +203,6 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
               구조 다시 확인
             </button>
           ) : null}
-          {primaryAction === "none" ? <span className="rowStatus">폴더</span> : null}
           {primaryAction === "visibility" ? (
             <button
               aria-label={`${page.title}을 칸반에서 ${visible ? "숨기기" : "표시하기"}`}
@@ -307,11 +325,13 @@ function OutlineBranch({
           onClick={() => setExpanded((value) => !value)}
           type="button"
         >
-          <span aria-hidden="true">{hasChildren ? (expanded ? "−" : "+") : "·"}</span>
+          <Chevron expanded={expanded} visible={hasChildren} />
           <span aria-hidden="true" className="documentIcon">
-            {node.kind === "toggle" ? "⌄" : node.kind === "group" ? "◫" : "▦"}
+            {node.kind === "database" ? <TableIcon /> : <FolderIcon />}
           </span>
-          <span className="pageTitle">{node.title}</span>
+          <span className="pageTitle" title={node.title}>
+            {node.title}
+          </span>
         </button>
       </div>
       {hasChildren && expanded ? (
@@ -334,11 +354,50 @@ function OutlineBranch({
   );
 }
 
+/** 펼칠 수 있는 행만 화살표를 보이고, 아니면 같은 폭의 빈 자리를 둔다. */
+function Chevron({ expanded, visible }: { expanded: boolean; visible: boolean }) {
+  return (
+    <span aria-hidden="true" className="treeChevron" data-expanded={expanded || undefined}>
+      {visible ? (
+        <svg fill="none" height="12" viewBox="0 0 12 12" width="12">
+          <path d="M4.5 2.5 8 6l-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+        </svg>
+      ) : null}
+    </span>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <path d="M3.5 1.5h4.5l3 3v8h-7.5z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.2" />
+      <path d="M5.5 7.5h3.5M5.5 9.75h3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <path d="M1.5 3.5h4l1.25 1.5h5.75v6.5h-11z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+      <rect height="10" rx="1" stroke="currentColor" strokeWidth="1.2" width="11" x="1.5" y="2" />
+      <path d="M1.5 5.5h11M5.25 5.5V12" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
 function PageIcon({ isContainer, page }: { isContainer: boolean; page: PageSummary }) {
   if (isContainer || page.iconUrl === null) {
     return (
       <span aria-hidden="true" className="documentIcon">
-        {isContainer ? "▾" : "▤"}
+        {isContainer ? <FolderIcon /> : <DocumentIcon />}
       </span>
     );
   }

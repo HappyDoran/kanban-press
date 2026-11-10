@@ -449,7 +449,7 @@ export function BoardCard({
               </button>
         ) : null}
       </div>
-      <h3>{record.title}</h3>
+      <h3 title={record.title}>{record.title}</h3>
       <p className="cardMeta">원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
       {!overlay && record.column === "publishing" ? (
         <div className="publishStatus" role="status">
@@ -503,6 +503,19 @@ export function BoardCard({
       ) : null}
       {!overlay ? (
           <div className="cardActions">
+            {/* 좁은 화면에서는 게시 중 열까지 멀리 끌기 어려워 카드에서 바로 게시한다. 넓은 화면에서는 CSS로 숨긴다. */}
+            {record.column !== "publishing" && onRetryPublish !== undefined ? (
+              <button
+                className="buttonPrimary small mobilePublish"
+                disabled={disabled}
+                onClick={() => void onRetryPublish(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                {record.column === "published" ? "다시 게시" : "게시"}
+              </button>
+            ) : null}
             {record.column === "stored" && onPreview !== undefined ? (
               <button
                 className="buttonSecondary small"
@@ -517,7 +530,7 @@ export function BoardCard({
             ) : null}
             {record.column === "published" && onUnpublish !== undefined ? (
               <button
-                className="buttonSecondary small"
+                className="unpublishButton"
                 disabled={disabled}
                 onClick={() => void onUnpublish(record)}
                 onKeyDown={(event) => event.stopPropagation()}

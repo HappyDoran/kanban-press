@@ -1,5 +1,7 @@
 import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
 
+import { APP_NAME } from "./brand-mark";
+
 import "./globals.css";
 
 import type { Metadata } from "next";
@@ -20,7 +22,7 @@ const mono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   description: "Notion 문서를 칸반으로 관리하고 GitHub Pages 블로그에 게시하는 서비스",
-  title: "Notion Kanban Blog",
+  title: APP_NAME,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
