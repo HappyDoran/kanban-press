@@ -1,5 +1,5 @@
 {
-  "name": "@notion-kanban-blog/domain",
+  "name": "@kanban-press/domain",
   "version": "0.0.0",
   "private": true,
   "type": "module",

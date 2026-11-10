@@ -1,39 +1,42 @@
-import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
+import { DESIGN_TOKENS_CSS } from "@kanban-press/publisher";
+import { Hahmlet, JetBrains_Mono } from "next/font/google";
+
+import { APP_NAME } from "./brand-mark";
 
 import "./globals.css";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-const display = Gowun_Batang({
+// 교정쇄 × 원고지 글꼴(디자인 기획 10.2). serif(Hahmlet)는 제목에만 쓴다.
+// 본문 고딕은 시스템 글꼴을 쓴다. 한글 웹 글꼴은 굵기마다 unicode-range 조각이 수백 개라
+// 두 벌을 받으면 Vercel build에서 글꼴 다운로드가 실패했다. 가변 글꼴 한 벌(굵기 지정 없음)만 받는다.
+const title = Hahmlet({
   subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "700"],
+  variable: "--font-hahmlet",
 });
 
-const body = IBM_Plex_Sans_KR({
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "700"],
+  variable: "--font-jetbrains-mono",
 });
 
 export const metadata: Metadata = {
-  description:
-    "Notion 문서를 칸반으로 관리하고 GitHub Pages 블로그에 게시하는 서비스",
-  title: "Notion Kanban Blog",
+  description: "Notion 문서를 칸반으로 관리하고 GitHub Pages 블로그에 게시하는 서비스",
+  title: APP_NAME,
 };
 
-type RootLayoutProps = Readonly<{
-  children: ReactNode;
-}>;
-
-export default function RootLayout({ children }: RootLayoutProps) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html
-      className={`${display.variable} ${body.variable}`}
+      className={`${title.variable} ${mono.variable}`}
       lang="ko"
       suppressHydrationWarning
     >
+      <head>
+        {/* 색·모양 토큰의 정본은 publisher의 DESIGN_TOKENS_CSS다. 블로그 template도 같은 문자열을 쓴다. */}
+        <style dangerouslySetInnerHTML={{ __html: DESIGN_TOKENS_CSS }} />
+      </head>
       <body>{children}</body>
     </html>
   );

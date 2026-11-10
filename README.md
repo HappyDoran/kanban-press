@@ -1,4 +1,4 @@
-# Notion Kanban Blog
+# Kanban Press
 
 각 사용자가 GitHub로 로그인하고 자신의 Notion 문서를 개인 칸반에서 관리해
 자신의 GitHub Pages 블로그에 게시하는 애플리케이션입니다.
@@ -8,14 +8,14 @@
 저장합니다. 게시 중·완료 표시는 현재 화면의 메모리에만 유지되어 새로고침하면
 사라지며, 실제 게시 결과는 사용자 GitHub repository를 source of truth로 사용합니다.
 
-제품 요구사항은 `.codex/docs/PROJECT_SPEC.md`, 구현 순서는 `.codex/TODO.md`를
+제품 요구사항은 [docs/spec/PROJECT_SPEC.md](docs/spec/PROJECT_SPEC.md), 구현 순서는 [docs/spec/gap-analysis.md](docs/spec/gap-analysis.md)를
 기준으로 합니다.
 
 ## 요구사항
 
 - [mise](https://mise.jdx.dev/)
 - Node.js 22 LTS
-- Corepack과 pnpm 11
+- pnpm 11 (`mise.toml`이 설치하며 루트 `package.json`의 `packageManager`와 같은 버전으로 유지)
 
 ```bash
 mise install
@@ -27,8 +27,8 @@ mise exec -- node --version
 Docker나 PostgreSQL은 필요하지 않습니다.
 
 ```bash
-mise exec -- corepack pnpm install --frozen-lockfile
-mise exec -- corepack pnpm dev
+mise exec -- pnpm install --frozen-lockfile
+mise exec -- pnpm dev
 ```
 
 기본 화면은 `http://localhost:3000`, health endpoint는
@@ -37,7 +37,7 @@ mise exec -- corepack pnpm dev
 Web 앱만 실행하려면:
 
 ```bash
-mise exec -- corepack pnpm --filter @notion-kanban-blog/web dev
+mise exec -- pnpm --filter @kanban-press/web dev
 ```
 
 ## GitHub 로그인 설정
@@ -110,13 +110,46 @@ repository와 다른 이름의 repository는 MVP 게시 대상으로 사용할 �
 
 ## 검증
 
+`lint`는 package 경계와 문서·skill·agent 구조 검사를, `test`는 구조 검사의 회귀 테스트를
+먼저 실행합니다. 구조 검사만 실행하려면 `structure:check`, `test:harness`를 사용합니다.
+
 ```bash
-mise exec -- corepack pnpm lint
-mise exec -- corepack pnpm typecheck
-mise exec -- corepack pnpm test
-mise exec -- corepack pnpm test:integration
-mise exec -- corepack pnpm build
+mise exec -- pnpm lint
+mise exec -- pnpm typecheck
+mise exec -- pnpm test
+mise exec -- pnpm test:integration
+mise exec -- pnpm build
 ```
+
+### 실제 provider smoke
+
+release 전 read-only smoke는 예시를 복사해 `apps/web/.env.smoke.local`을 만들고 실제
+테스트 credential과 identity를 설정합니다.
+이 파일은 gitignore 대상이며 실제 token을 commit하거나 명령행 인자로 전달하지 않습니다.
+
+```bash
+cp apps/web/smoke.env.example apps/web/.env.smoke.local
+```
+
+```text
+SMOKE_NOTION_ACCESS_TOKEN
+SMOKE_NOTION_PAGE_ID
+SMOKE_GITHUB_ACCESS_TOKEN
+SMOKE_GITHUB_USER_ID
+SMOKE_GITHUB_LOGIN
+GITHUB_API_VERSION
+NOTION_API_VERSION
+```
+
+테스트용 Notion page는 현재 integration에 공유되어 있어야 하며 GitHub identity는 공개
+`<login>.github.io` repository를 소유하고 `public_repo workflow` scope를 가져야 합니다.
+
+```bash
+mise exec -- pnpm --filter @kanban-press/web test:smoke
+```
+
+smoke는 Notion 원문 조회, 로컬 이미지 변환, GitHub repository readiness까지만 확인하며
+commit이나 Pages 설정 변경을 수행하지 않습니다.
 
 ## 구조
 
@@ -128,11 +161,5 @@ packages/
 ├── domain/          # provider 독립 타입과 상태 규칙
 ├── github/          # GitHub OAuth repository/commit 계약
 ├── notion/          # Notion workspace/page 계약
-├── publisher/       # 결정적 게시 artifact 계약
-└── validation/      # 외부 입력 schema
-templates/
-└── astro-blog/      # GitHub Pages 정적 블로그
+└── publisher/       # 결정적 게시 artifact 계약과 GitHub Pages용 Astro 블로그 생성
 ```
-
-루트의 기존 `src/`, `scripts/`, `astro.config.mjs`는 교체 전까지 보존하는
-단일 사용자 프로토타입입니다. 신규 앱에서 import하지 않습니다.

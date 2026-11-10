@@ -1,993 +1,1371 @@
-/* ── 토큰: 편집실(proof room) 시스템 ─────────────────────────── */
+/* 색·모양 토큰은 publisher의 DESIGN_TOKENS_CSS가 정본이고 app/layout.tsx가 넣는다(디자인 기획 10절).
+   여기에는 앱 글꼴 토큰만 둔다. */
 :root {
   color-scheme: light;
 
-  /* 지면 */
-  --paper: #f6f6f1;
-  --card: #ffffff;
-  --ink: #1c2230;
-  --graphite: #5b6270;
-  --rule: #d8d9cf;
-  --rule-soft: color-mix(in srgb, var(--rule) 65%, transparent);
-
-  /* 브랜드 · 상태 */
-  --indigo: #34509e;
-  --indigo-soft: color-mix(in srgb, var(--indigo) 8%, transparent);
-  --amber: #96690f;
-  --amber-soft: color-mix(in srgb, #b7791f 12%, transparent);
-  --green: #2e7d4f;
-  --green-soft: color-mix(in srgb, var(--green) 10%, transparent);
-  --proof-red: #b0402a;
-  --proof-red-soft: color-mix(in srgb, var(--proof-red) 9%, transparent);
-
-  /* 타이포 */
-  --font-title: var(--font-display), "Gowun Batang", Georgia, serif;
-  --font-ui: var(--font-body), "IBM Plex Sans KR", "Apple SD Gothic Neo",
-    sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-
-  /* 형태 */
-  --radius-s: 0.3rem;
-  --radius-m: 0.55rem;
-  --shadow-card: 0 1px 2px rgba(28, 34, 48, 0.05);
-  --shadow-lift: 0 0.8rem 2rem rgba(28, 34, 48, 0.16);
+  --font-title: var(--font-hahmlet), "Hahmlet", "Noto Serif KR", serif;
+  --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, Menlo, monospace;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html {
-  background: var(--paper);
+  background: var(--color-bg-canvas);
 }
 
 body {
   margin: 0;
-  color: var(--ink);
-  background: var(--paper);
-  font-family: var(--font-ui);
-}
-
-a {
-  color: inherit;
-}
-
-:focus-visible {
-  outline: 2px solid var(--indigo);
-  outline-offset: 2px;
-}
-
-main {
-  width: min(100% - 2rem, 76rem);
   min-height: 100vh;
-  margin: 0 auto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  /* 한글은 단어 단위로 줄바꿈하고, 띄어쓰기 없는 긴 문자열만 어디서든 끊는다. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 h1,
 h2,
 h3,
 p {
-  text-wrap: pretty;
+  margin: 0;
 }
 
-/* ── 내비게이션 ──────────────────────────────────────────────── */
-.navigation {
-  display: flex;
+a {
+  color: var(--color-accent);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ── 버튼 ───────────────────────────────────────────────────── */
+.buttonPrimary,
+.buttonSecondary,
+.buttonQuiet,
+.statusPanel button,
+.pagesRecovery button,
+.pagesTargetActions button,
+.publishError button {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 4.75rem;
-  border-bottom: 1px solid var(--rule);
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* 주 행동은 잉크 검정으로 채운다(디자인 기획 2.4·10.1). */
+.buttonPrimary {
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.buttonPrimary:hover {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+  color: #ffffff;
+}
+
+.buttonPrimary.small {
+  min-height: 2.25rem;
+  padding: 0.375rem 0.75rem;
+}
+
+/* 카드의 게시 버튼은 600px 미만에서만 보인다. 넓은 화면은 끌어 놓기로 게시한다. */
+.mobilePublish {
+  display: none;
+}
+
+@media (max-width: 37.4375rem) {
+  .mobilePublish {
+    display: inline-flex;
+  }
+}
+
+.treeSearch {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.treeSearch:focus {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-strong);
+}
+
+.treeSearchStatus {
+  margin: 0;
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.buttonQuiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.buttonSecondary:hover,
+.buttonQuiet:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+.buttonSecondary.small {
+  min-height: 2.75rem;
+  font-size: 0.75rem;
+}
+
+.iconButton {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.iconButton:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+/* ── 상단 바 ────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-text-primary);
+  background: var(--color-bg-surface);
 }
 
 .brand {
   display: inline-flex;
-  gap: 0.7rem;
+  flex-grow: 1;
   align-items: center;
-  font-size: 0.9rem;
+  gap: 0.625rem;
+  color: var(--color-text-primary);
+  font-family: var(--font-title);
+  font-size: 1.0625rem;
   font-weight: 700;
   text-decoration: none;
-  letter-spacing: -0.01em;
 }
 
 .brandMark {
-  display: grid;
-  width: 1.9rem;
-  height: 1.9rem;
-  color: #fff;
-  background: var(--indigo);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  border-radius: var(--radius-s);
-  place-items: center;
+  display: block;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
 }
 
-.navigationActions {
+.account {
   display: flex;
-  gap: 0.6rem;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 0.25rem;
 }
 
-.sessionChip {
-  padding: 0.4rem 0.7rem;
-  color: var(--graphite);
+.accountLogin {
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
+  font-size: 0.75rem;
 }
 
-.loginLink,
-.notionLink,
-.quietLink {
-  padding: 0.5rem 0.85rem;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: var(--radius-s);
+/* 게시 대상 상태: 접힌 한 줄, 문제가 있으면 펼쳐진 채 시작한다. */
+.pagesStatus {
+  position: relative;
 }
 
-.loginLink {
-  color: #fff;
-  background: var(--ink);
-}
-
-.notionLink {
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--rule);
-}
-
-.quietLink {
-  color: var(--graphite);
-  font-weight: 500;
-}
-
-/* ── 히어로 + 발행 궤도(rail) ────────────────────────────────── */
-.hero {
-  padding: clamp(4rem, 10vw, 8rem) 0 clamp(3rem, 7vw, 5rem);
-}
-
-.eyebrow {
-  margin: 0 0 1.1rem;
-  color: var(--indigo);
+.pagesStatus > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-}
-
-h1 {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: clamp(2.6rem, 7vw, 5.4rem);
-  font-weight: 400;
-  line-height: 1.18;
-  letter-spacing: -0.02em;
-}
-
-.lede {
-  max-width: 38rem;
-  margin: 2rem 0 0;
-  color: var(--graphite);
-  font-size: clamp(1rem, 2vw, 1.15rem);
-  line-height: 1.8;
-}
-
-.heroActions {
-  display: flex;
-  gap: 0.8rem;
-  align-items: center;
-  margin-top: 2.25rem;
-}
-
-.heroCta {
-  padding: 0.75rem 1.3rem;
-  color: #fff;
-  background: var(--ink);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: var(--radius-s);
-}
-
-.rail {
-  display: flex;
-  margin-top: clamp(2.5rem, 6vw, 4rem);
-  align-items: center;
-  gap: 0.9rem;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.74rem;
-}
-
-.railStop {
-  display: flex;
-  gap: 0.45rem;
-  align-items: center;
-  opacity: 0;
-  animation: railIn 0.45s ease forwards;
-}
-
-.railStop:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-.railStop:nth-child(5) {
-  animation-delay: 0.6s;
-}
-
-.railLine {
-  flex: 0 1 5rem;
-  border-top: 1px solid var(--rule);
-}
-
-.railDot {
-  color: var(--indigo);
-  font-size: 0.85rem;
-}
-
-@keyframes railIn {
-  to {
-    opacity: 1;
-  }
-}
-
-/* ── 섹션 공통 ──────────────────────────────────────────────── */
-.workflow {
-  padding: 3rem 0 5rem;
-  border-top: 1px solid var(--rule);
-}
-
-.notionBrowser {
-  padding: 3.5rem 0;
-}
-
-.notionBrowser .sectionHeading > div {
-  max-width: 38rem;
-}
-
-.sectionHeading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 2.25rem;
-}
-
-.sectionHeading .eyebrow {
-  margin: 0;
-}
-
-h2 {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.sectionDescription {
-  margin: 0.6rem 0 0;
-  color: var(--graphite);
-  font-size: 0.85rem;
-}
-
-h3 {
-  margin: 0 0 0.75rem;
-  font-size: 1.05rem;
-}
-
-.workflowGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  padding: 0;
-  margin: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
   list-style: none;
 }
 
-.workflowGrid li {
-  padding: 1.5rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
+.pagesStatus > summary::-webkit-details-marker {
+  display: none;
 }
 
-.stepMark {
-  display: block;
-  margin-bottom: 2.75rem;
-  color: var(--indigo);
+.pagesRepository {
+  color: var(--color-text-secondary);
+}
+
+.statusDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+}
+
+.statusDot.ok {
+  background: var(--color-success);
+}
+
+.statusDot.problem {
+  background: var(--color-danger);
+}
+
+.pagesStatusBody {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  display: grid;
+  gap: 0.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 0.875rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-dialog);
+}
+
+.pagesReadiness,
+.pagesRecovery {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.pagesReadiness strong {
   font-family: var(--font-mono);
+}
+
+.pagesReadiness.warning,
+.pagesReadiness.danger,
+.pagesRecovery {
+  padding: 0.625rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+}
+
+.pagesTargetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.conflictingPaths {
+  margin: 0;
+  padding-left: 1.125rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* ── 로그인 전 소개 ─────────────────────────────────────────── */
+.intro {
+  display: grid;
+  justify-items: start;
+  gap: 1.25rem;
+  max-width: 45rem;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 8vw, 5rem) 1.25rem;
+}
+
+.intro h1 {
+  font-family: var(--font-title);
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.2;
+}
+
+.introLede {
+  color: var(--color-text-secondary);
   font-size: 1rem;
 }
 
-.workflowGrid p {
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.88rem;
-  line-height: 1.7;
-}
-
-/* ── 상태 패널 ──────────────────────────────────────────────── */
-.statusPanel {
-  display: flex;
-  min-height: 11rem;
-  padding: 1.5rem;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 1rem;
-  text-align: center;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-}
-
-.statusPanel.compact {
-  min-height: 9rem;
-  margin: 1rem;
-}
-
-.statusPanel p {
-  max-width: 36rem;
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-.statusPanel a,
-.statusPanel button {
-  padding: 0.6rem 0.95rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-/* ── 문서 탐색기 ────────────────────────────────────────────── */
-.documentExplorer {
+.introSteps {
   display: grid;
-  min-height: 30rem;
-  grid-template-columns: minmax(12rem, 17rem) 1fr;
-  overflow: hidden;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
+  justify-self: stretch;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 1.25rem 0 0 1.25rem;
+  border-top: 1px solid var(--color-border);
 }
 
-.workspaceList {
-  padding: 1rem;
-  background: color-mix(in srgb, var(--paper) 55%, var(--card));
-  border-right: 1px solid var(--rule);
+.introSteps li {
+  padding-left: 0.25rem;
 }
 
-.workspaceListHeading,
-.pagePanelHeading {
+.introSteps strong,
+.introSteps span {
+  display: block;
+}
+
+.introSteps span {
+  color: var(--color-text-secondary);
+}
+
+/* ── 작업대: 문서 사이드바 + 칸반 ───────────────────────────── */
+.workbench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  min-height: calc(100vh - 3.5rem);
+}
+
+/* 900px 이상: 사이드바는 끌어서 바꾼 너비(--sidebar-width)로 고정하고, 칸반과 따로 스크롤한다. */
+.sidebar {
+  display: flex;
+  position: sticky;
+  top: 0;
+  flex: 0 0 var(--sidebar-width, 18rem);
+  flex-direction: column;
+  align-self: flex-start;
+  width: var(--sidebar-width, 18rem);
+  min-width: 0;
+  min-height: calc(100vh - 3.5rem);
+  max-height: 100vh;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
+  background: var(--color-bg-surface);
+}
+
+.sidebarResizer {
+  position: relative;
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: var(--color-guide);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* 눈에 보이는 선은 1px이지만 잡을 수 있는 폭은 9px이다. */
+.sidebarResizer::before {
+  position: absolute;
+  inset: 0 -4px;
+  content: "";
+}
+
+.sidebarResizer:hover,
+.sidebarResizer:focus-visible,
+.sidebarResizer:active {
+  background: var(--color-focus);
+  box-shadow: 0 0 0 1px var(--color-focus);
+}
+
+.sidebarResizer:focus-visible {
+  outline: none;
+}
+
+.sidebarToggle {
+  display: none;
+}
+
+/* 한 줄로 자르는 긴 제목 때문에 grid 칸이 넓어지지 않게 칸 최소 폭을 0으로 둔다. */
+.sidebarBody,
+.workspaceList,
+.pageTree,
+.pageTree ul {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sidebarBody {
+  display: grid;
+  align-content: start;
+  gap: 0.875rem;
+}
+
+.sidebarHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.workspaceListHeading {
-  padding: 0.45rem 0.5rem 1rem;
-  color: var(--graphite);
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.workspaceListHeading a {
-  color: var(--indigo);
-  font-family: var(--font-ui);
-  font-size: 0.74rem;
-  font-weight: 700;
+.sidebarHeading a {
+  font-weight: 600;
   text-decoration: none;
-  text-transform: none;
-  letter-spacing: normal;
+}
+
+.workspaceList {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .workspaceButton {
   display: flex;
-  width: 100%;
-  padding: 0.7rem 0.75rem;
   align-items: center;
-  gap: 0.7rem;
-  color: var(--ink);
-  background: transparent;
-  font: inherit;
-  font-size: 0.84rem;
-  text-align: left;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.5rem;
   border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
+  border-radius: var(--radius-control);
+  background: transparent;
+  text-align: left;
 }
 
-.workspaceButton:hover {
-  background: var(--indigo-soft);
+.workspaceButton:hover,
+.workspaceButton[aria-pressed="true"] {
+  background: var(--color-bg-selected);
 }
 
 .workspaceButton[aria-pressed="true"] {
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--rule);
+  font-weight: 600;
+}
+
+.workspaceButton {
+  min-width: 0;
+}
+
+.workspaceName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .workspaceIcon,
 .documentIcon {
   display: inline-grid;
-  flex: 0 0 auto;
-  overflow: hidden;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
   place-items: center;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
 }
 
 .workspaceIcon {
-  width: 1.8rem;
-  height: 1.8rem;
-  background: var(--paper);
-  font-size: 0.78rem;
-  font-weight: 700;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
+  border: 1px solid var(--color-border-strong);
+  font-weight: 600;
 }
 
 .workspaceIcon.image,
 .documentIcon.image {
+  border: 0;
   background-position: center;
-  background-repeat: no-repeat;
   background-size: cover;
 }
 
-.pagePanel {
-  min-width: 0;
+.treeSkeleton {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
 }
 
-.pagePanelHeading {
-  min-height: 4.4rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--rule);
+.treeSkeleton span {
+  height: 0.875rem;
+  border-radius: 4px;
+  background: var(--color-bg-column);
 }
 
-.pagePanelHeading > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.panelLabel {
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.pagePanelHeading strong {
-  font-size: 0.95rem;
-}
-
-.pageCount {
-  padding: 0.35rem 0.55rem;
-  color: var(--graphite);
-  background: var(--paper);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
-}
-
-.pageMetrics,
-.pageActions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.pageActions {
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.boardNotice {
-  padding: 0.7rem 1.25rem;
-  margin: 0;
-  color: var(--proof-red);
-  background: var(--proof-red-soft);
-  font-size: 0.78rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
-}
-
-/* ── 페이지 트리 ────────────────────────────────────────────── */
 .pageTree,
 .pageTree ul {
-  padding: 0;
+  display: grid;
+  gap: 0.125rem;
   margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.pageTree {
-  padding: 0.8rem;
-  max-height: 22rem;
-  overflow-y: auto;
-}
-
 .pageTree ul {
-  margin-left: 1.45rem;
-  border-left: 1px solid var(--rule-soft);
+  padding-left: 0.875rem;
 }
 
 .pageRow {
   display: flex;
-  min-width: 0;
-  min-height: 2.7rem;
-  padding: 0.25rem 0.55rem;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-radius: var(--radius-s);
+  gap: 0.25rem;
+  border-radius: var(--radius-control);
 }
 
 .pageRow:hover {
-  background: var(--indigo-soft);
+  background: var(--color-bg-canvas);
 }
 
 .pageToggle {
   display: flex;
-  min-width: 0;
-  padding: 0;
+  flex: 1;
   align-items: center;
-  gap: 0.6rem;
-  color: var(--ink);
-  background: transparent;
-  font: inherit;
+  gap: 0.375rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.375rem;
   border: 0;
-  cursor: pointer;
+  background: transparent;
+  text-align: left;
 }
 
 .pageToggle:disabled {
   cursor: default;
+  opacity: 1;
 }
 
-.pageToggle > span:first-child {
-  width: 0.8rem;
-  color: var(--graphite);
-  font-family: var(--font-mono);
+.treeChevron {
+  display: inline-grid;
+  width: 0.875rem;
+  flex: none;
+  place-items: center;
+  color: var(--color-text-secondary);
+  transition: transform 120ms var(--ease);
 }
 
-.documentIcon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--indigo);
-  font-size: 0.8rem;
+.treeChevron[data-expanded] {
+  transform: rotate(90deg);
 }
 
+/* 긴 제목은 한 줄로 자르고 전체 제목은 title(마우스 올림)로 보여준다. */
 .pageTitle {
+  min-width: 0;
   overflow: hidden;
-  font-size: 0.86rem;
-  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pageRow time {
-  flex: 0 0 auto;
-  color: var(--graphite);
+.pageAction {
+  flex: none;
+}
+
+.rowStatus {
+  padding: 0 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+}
+
+.rowButton {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-bg-surface);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+/* 칸반에 표시 중: 같은 버튼 모양에 색을 채워 "추가"와 상태 차이를 분명히 한다. */
+.rowButton.onBoard {
+  background: var(--color-text-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.boardNotice {
+  padding: 0.25rem 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.boardMain {
+  display: flex;
+  flex: 999 1 35rem;
+  flex-direction: column;
+  gap: 1.125rem;
+  min-width: 0;
+  padding: 1.5rem 1.75rem;
+  /* 교정지 기준선(디자인 기획 10.3) */
+  background: repeating-linear-gradient(to bottom, transparent 0 23px, var(--color-guide-soft) 23px 24px);
+}
+
+.boardHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.boardHeading > div {
+  display: grid;
+  flex-grow: 1;
+  gap: 0.25rem;
+}
+
+.boardHeading h1 {
+  font-family: var(--font-title);
+  font-size: 1.5rem;
+}
+
+.boardHeading p,
+.boardCounts {
+  color: var(--color-text-secondary);
+}
+
+.boardCounts {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-}
-
-.draftButton {
-  min-width: 4.6rem;
-  padding: 0.42rem 0.6rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.draftButton.added {
-  color: var(--graphite);
-  background: var(--card);
-  border: 1px solid var(--rule);
-}
-
-.draftButton:disabled {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.pageActionStatus {
-  display: inline-grid;
-  place-items: center;
+  font-size: 0.75rem;
 }
 
 /* ── 칸반 ───────────────────────────────────────────────────── */
-.kanbanSection {
-  padding: 4rem 0 1rem;
-  margin-top: 4rem;
-  border-top: 1px solid var(--rule);
-}
-
-.documentExplorer .kanbanSection {
-  padding: 2rem 1rem 1rem;
-  margin-top: 0;
-}
-
-.kanbanHeading {
-  display: flex;
-  margin-bottom: 1.5rem;
-  align-items: end;
-  justify-content: space-between;
-  gap: 2rem;
-}
-
-.kanbanHeading .eyebrow {
-  margin-bottom: 0.65rem;
-}
-
-.kanbanHeading > p {
-  max-width: 31rem;
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.82rem;
-  line-height: 1.6;
-}
-
-.kanbanNotice {
-  padding: 0.75rem 1rem;
-  margin: 0 0 1rem;
-  color: var(--proof-red);
-  background: var(--proof-red-soft);
-  font-size: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
-  border-radius: var(--radius-s);
-}
-
-.emptyBoard {
-  display: grid;
-  min-height: 11rem;
-  padding: 1.5rem;
-  color: var(--graphite);
-  background: var(--card);
-  font-size: 0.88rem;
-  text-align: center;
-  border: 1px dashed var(--rule);
-  border-radius: var(--radius-m);
-  place-items: center;
-}
-
 .kanbanBoard {
   display: grid;
-  padding: 0 0 1rem;
-  grid-template-columns: repeat(3, minmax(14.5rem, 1fr));
-  gap: 0.8rem;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.75rem), 1fr));
+  gap: 1rem 0;
+  align-items: stretch;
 }
 
+/* 한 줄로 자르는 카드 윗줄(워크스페이스 이름) 때문에 열·카드가 넓어지지 않도록 grid 칸 최소 폭을 0으로 둔다. */
+.kanbanColumn,
+.kanbanCards,
+.boardCard {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sortableCard {
+  min-width: 0;
+}
+
+/* 열은 회색 패널 대신 교정지의 단처럼 연필 파랑 세로 안내선으로 나눈다(디자인 기획 2.4). */
 .kanbanColumn {
-  min-height: 24rem;
-  padding: 0.75rem;
-  background: color-mix(in srgb, var(--paper) 60%, var(--card));
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.625rem;
+  min-height: 12rem;
+  padding: 0 1rem 1rem;
+  border-left: 1px solid var(--color-guide);
+  transition: background-color 120ms var(--ease);
+}
+
+.kanbanColumn:first-child {
+  border-left-color: transparent;
+}
+
+/* 세로로 쌓이는 좁은 화면에서는 단 구분선이 필요 없다. */
+@media (max-width: 37.4375rem) {
+  .kanbanColumn {
+    border-left-color: transparent;
+  }
 }
 
 .kanbanColumn.over {
-  background: var(--indigo-soft);
-  border-color: color-mix(in srgb, var(--indigo) 55%, var(--rule));
+  background: var(--color-bg-selected);
 }
 
 .kanbanColumn > header {
   display: flex;
-  min-height: 2.6rem;
-  padding: 0.2rem 0.25rem 0.75rem;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.columnMark {
-  color: var(--indigo);
+  justify-content: space-between;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--color-text-primary);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
 }
 
-.kanbanColumn > header h3 {
-  margin: 0;
-  font-size: 0.82rem;
-  letter-spacing: -0.01em;
+.kanbanColumn h2 {
+  font-size: inherit;
+  font-weight: 600;
 }
 
-.kanbanColumn > header span:last-child {
-  display: grid;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  padding: 0 0.35rem;
-  margin-left: auto;
-  color: var(--graphite);
-  background: var(--card);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
-  place-items: center;
+.kanbanColumn > header span {
+  font-weight: 600;
 }
 
 .kanbanCards {
-  min-height: 19.5rem;
+  display: grid;
+  gap: 1.125rem;
+  padding-top: 0.5rem;
 }
 
-.sortableCard {
-  margin-bottom: 0.6rem;
+/* 재단선: 카드·drop 영역 네 모서리 바깥의 짧은 연필 파랑 선(디자인 기획 10.3). */
+.boardCard::before,
+.dropZone::before {
+  position: absolute;
+  inset: -9px;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(var(--color-guide), var(--color-guide)) 0 8px / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 8px 0 / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 100% 8px / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) calc(100% - 8px) 0 / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 0 calc(100% - 8px) / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 8px 100% / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 100% calc(100% - 8px) / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) calc(100% - 8px) 100% / 1px 6px no-repeat;
 }
 
 .sortableCard.dragging {
-  opacity: 0.25;
+  opacity: 0.4;
 }
 
 .boardCard {
-  padding: 0.85rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
-  box-shadow: var(--shadow-card);
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
 }
 
 .boardCard.overlay {
-  width: 14.5rem;
-  box-shadow: var(--shadow-lift);
-  transform: rotate(1.5deg);
-}
-
-.boardCard.draggable {
-  cursor: grab;
-  touch-action: none;
-}
-
-.boardCard.draggable:active {
-  cursor: grabbing;
+  box-shadow: var(--shadow-dialog);
 }
 
 .boardCardTopline {
   display: flex;
-  min-height: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+.boardCardTopline > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dragHandleButton {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: -0.5rem -0.5rem -0.5rem 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: grab;
+  font-size: 1rem;
+  touch-action: none;
+}
+
+.dragHandleButton:hover {
+  background: var(--color-bg-canvas);
+}
+
+.dragHandleButton:active {
+  cursor: grabbing;
+}
+
+/* 카드 제목은 세 줄까지 보이고 나머지는 자른다(전체 제목은 title). */
+.boardCard h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  font-family: var(--font-title);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* 블로그에서 내리기: 카드마다 크게 보이지 않도록 작은 글자 버튼으로 둔다. */
+.unpublishButton {
+  white-space: nowrap;
+  min-height: 2rem;
+  padding: 0 0.25rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-danger);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.unpublishButton:hover {
+  text-decoration: underline;
+}
+
+.cardMeta {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+/* 교료 도장: 게시 완료 카드에만 찍는 장식(디자인 기획 2.4·10.3). 제목이 도장 밑으로 가지 않게 오른쪽을 비운다. */
+.boardCard.published h3 {
+  padding-right: 3.75rem;
+}
+
+.proofStamp {
+  position: absolute;
+  top: 2.25rem;
+  right: 0.75rem;
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-content: center;
+  border: 2px solid var(--color-proof);
+  border-radius: 50%;
+  color: var(--color-proof);
+  font-family: var(--font-title);
+  font-size: 0.875rem;
+  font-weight: 700;
+  pointer-events: none;
+  transform: rotate(-9deg);
+}
+
+.cardActions {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.boardCardTopline > span {
+.cardActions .iconButton {
+  margin-left: auto;
+}
+
+.cardLink {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.publishStatus {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--color-proof);
+  font-size: 0.75rem;
+}
+
+/* 게시 중은 교정 붉은색 한 줄이 지나간다. */
+.progress {
+  position: relative;
+  height: 1px;
   overflow: hidden;
-  color: var(--indigo);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--color-guide-soft);
 }
 
-.boardCard h4 {
-  margin: 0.7rem 0 0.45rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  line-height: 1.4;
+.progress::after {
+  position: absolute;
+  inset: 0 70% 0 0;
+  background: var(--color-proof);
+  animation: progress 1.4s var(--ease) infinite;
+  content: "";
 }
 
-.boardCard > p {
-  margin: 0;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-}
+@keyframes progress {
+  from {
+    transform: translateX(-100%);
+  }
 
-.publishedLink {
-  display: block;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  margin-top: 0.8rem;
-  color: #fff;
-  background: var(--green);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.boardCardControls {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-.removeCardButton {
-  display: grid;
-  width: 1.65rem;
-  height: 1.65rem;
-  color: var(--graphite);
-  background: transparent;
-  font: inherit;
-  font-size: 1rem;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-  place-items: center;
-}
-
-.removeCardButton:hover {
-  color: var(--proof-red);
-  background: var(--paper);
-}
-
-.removeCardButton:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
-.boardCard > .publishStatus {
-  display: flex;
-  padding: 0.5rem 0.6rem;
-  margin-top: 0.8rem;
-  align-items: center;
-  gap: 0.45rem;
-  color: var(--amber);
-  background: var(--amber-soft);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
-}
-
-.pulseDot {
-  animation: pulse 1.6s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
+  to {
+    transform: translateX(250%);
   }
 }
 
-.boardCard > .publishError {
-  margin-top: 0.65rem;
-  color: var(--proof-red);
-  font-family: var(--font-ui);
-  font-size: 0.72rem;
-  line-height: 1.5;
+.publishError {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+  font-size: 0.75rem;
 }
 
+.publishError p {
+  color: var(--color-danger);
+}
+
+.dropZone,
 .emptyColumn {
-  display: grid;
-  min-height: 7rem;
-  margin: 0;
-  color: color-mix(in srgb, var(--graphite) 60%, transparent);
-  font-size: 0.7rem;
+  padding: 1.125rem 0.75rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
   text-align: center;
-  border: 1px dashed var(--rule-soft);
-  border-radius: var(--radius-s);
-  place-items: center;
 }
 
-/* ── 게시 대상 ──────────────────────────────────────────────── */
-.pagesTarget {
-  display: grid;
-  padding: 2rem;
-  margin-top: 2rem;
-  align-items: center;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, auto);
-  gap: 2rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
-}
-
-.pagesTarget .eyebrow {
-  margin-bottom: 0.65rem;
-}
-
-.pagesTargetStatus {
-  display: flex;
-  min-width: 16rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-  color: var(--graphite);
-  font-size: 0.78rem;
-}
-
-.pagesTargetStatus strong {
-  color: var(--ink);
+/* 게시 중 열의 빈 자리: 재단선만 있는 판(점선 업로드 칸처럼 보이지 않게). */
+.dropZone {
+  position: relative;
+  padding-block: 1.75rem;
+  color: var(--color-guide-text);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
 }
 
-.pagesTargetStatus a,
-.pagesTargetStatus button {
-  padding: 0.52rem 0.75rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-decoration: none;
+.columnHint {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+/* ── 상태 안내 ──────────────────────────────────────────────── */
+.statusPanel {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  max-width: 45rem;
+  margin: 2rem auto;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+}
+
+.statusPanel.compact {
+  margin: 0;
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.notice {
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+}
+
+.notice.danger {
+  color: var(--color-danger);
+}
+
+/* ── 블로그 설정 dialog ─────────────────────────────────────── */
+.settingsDialog {
+  width: min(92vw, 34rem);
+  max-height: 92dvh;
+  padding: 0;
+  overflow: auto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dialog);
+}
+
+.settingsDialog::backdrop {
+  background: rgb(28 34 48 / 55%);
+}
+
+.settingsBody {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.settingsBody label,
+.settingsBody fieldset {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-s);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.settingsBody legend {
+  margin-bottom: 0.375rem;
+  padding: 0;
+}
+
+.settingsBody input,
+.settingsBody textarea {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.625rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 400;
+}
+
+.settingsBody textarea {
+  resize: vertical;
+}
+
+.settingsLink {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settingsNotice {
+  margin: 0;
+  padding: 1rem 1.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.settingsBody .settingsNotice {
+  padding: 0;
+}
+
+.settingsActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settingsBody fieldset > .buttonQuiet {
+  justify-self: start;
+}
+
+/* 좁은 화면에서는 링크 주소 칸을 다음 줄 전체 폭으로 내린다. */
+@media (max-width: 37.4375rem) {
+  .settingsLink {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settingsLink input[type="url"] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* ── 게시 전 프리뷰 ─────────────────────────────────────────── */
+.previewDialog {
+  width: min(92vw, 90rem);
+  max-width: none;
+  max-height: 92dvh;
+  padding: 0;
+  overflow: auto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dialog);
+}
+
+.previewDialog::backdrop {
+  background: rgb(28 34 48 / 55%);
+}
+
+.previewDialogHeader {
+  display: flex;
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.previewTitle {
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.previewTitle span {
+  margin-right: 0.5rem;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.previewNotice {
+  margin: 0;
+  padding: 0.625rem 1.5rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-selected);
+  font-size: 0.8125rem;
+}
+
+.previewNotice:last-child {
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.previewStatus {
+  display: grid;
+  min-height: 28rem;
+  padding: 2rem;
+  align-content: center;
+  justify-items: center;
+  gap: 0.75rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.previewStatus.error strong {
+  color: var(--color-danger);
+}
+
+.previewStatus p {
+  max-width: 32rem;
+  margin: 0;
+}
+
+.previewSkeleton {
+  width: min(100%, 32rem);
+  height: 12rem;
+  background: linear-gradient(100deg, var(--color-border) 20%, var(--color-bg-surface) 45%, var(--color-border) 70%);
+  background-size: 200% 100%;
+  border-radius: var(--radius-card);
+  animation: previewShimmer 1.6s linear infinite;
+}
+
+@keyframes previewShimmer {
+  to {
+    background-position-x: -200%;
+  }
+}
+
+.previewReady {
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+.previewWarnings {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font-size: 0.8125rem;
+}
+
+.previewWarnings ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.previewToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.previewFreshness {
+  margin: 0 0 0 auto;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* 버튼 묶음 중 하나를 고르는 전환 버튼 */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--color-bg-column);
+  border-radius: var(--radius-control);
+}
+
+.segmented button {
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.8125rem;
   cursor: pointer;
 }
 
-/* ── 반응형 ─────────────────────────────────────────────────── */
+.segmented button[aria-pressed="true"] {
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  font-weight: 600;
+}
+
+/* 프레임 안은 블로그 CSS(BLOG_CSS)가 그린다. 여기서는 블로그 전용 크기 토큰과 기본 글자만 맞춘다. */
+.previewFrame {
+  --shell-max: 67.5rem;
+  --reading-max: 45rem;
+  --toc-width: 13.75rem;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.previewFrame.mobile {
+  max-width: 24.375rem;
+}
+
+.previewFrame.tablet {
+  max-width: 48rem;
+}
+
+.previewFrame.desktop {
+  max-width: 80rem;
+}
+
+.previewFrame :is(h1, h2, h3, h4) {
+  line-height: 1.3;
+}
+
+.previewFrame .site-main {
+  min-height: 0;
+}
+
+/* 블로그 CSS는 화면 폭으로 목차 위치를 정한다. 좁은 프레임에서는 실제 화면 폭과 무관하게 목차를 본문 위에 둔다. */
+.previewFrame:not(.desktop) .article-layout.with-toc {
+  grid-template-columns: minmax(0, var(--reading-max));
+}
+
+.previewFrame:not(.desktop) .article-layout.with-toc > * {
+  position: static;
+  grid-column: auto;
+  grid-row: auto;
+  max-height: none;
+}
+
+.previewFrame:not(.desktop) .article-layout.with-toc > .post-toc {
+  margin-bottom: 2rem;
+}
+
+.previewImagePlaceholder > div {
+  display: grid;
+  min-height: 10rem;
+  place-items: center;
+  padding: 1rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-canvas);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 56.1875rem) {
+  .workbench {
+    align-content: flex-start;
+  }
+
+  .sidebar {
+    position: static;
+    flex-basis: 100%;
+    width: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: visible;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .sidebarResizer {
+    display: none;
+  }
+
+  .accountLogin {
+    display: none;
+  }
+
+  .boardMain {
+    padding: 1.25rem 1rem;
+  }
+}
+
+/* 600–899px: 문서 목록은 기본으로 접고 토글로 연다. */
+@media (min-width: 37.5rem) and (max-width: 56.1875rem) {
+  .sidebarToggle {
+    display: block;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-bg-surface);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .sidebar:not([data-open]) .sidebarBody {
+    display: none;
+  }
+
+  .sidebar[data-open] .sidebarBody {
+    margin-top: 0.75rem;
+  }
+}
+
+@media (max-width: 37.4375rem) {
+  .topbar {
+    padding: 0.75rem 1rem;
+  }
+
+  .pagesStatus {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .pagesStatusBody {
+    right: auto;
+    left: 0;
+  }
+
+  .accountLogin {
+    display: none;
+  }
+}
+
+/* 프리뷰 dialog는 태블릿 폭부터 전체 화면으로 연다. */
 @media (max-width: 48rem) {
-  main {
-    width: min(100% - 1.25rem, 76rem);
+  .previewDialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
   }
 
-  .sessionChip {
+  .previewDialogHeader,
+  .previewNotice,
+  .previewReady {
+    padding-right: 1rem;
+    padding-left: 1rem;
+  }
+
+  .previewViewportButtons {
     display: none;
-  }
-
-  .lede {
-    margin-left: 0;
-  }
-
-  .rail {
-    gap: 0.5rem;
-    font-size: 0.66rem;
-  }
-
-  .sectionHeading {
-    display: block;
-  }
-
-  .sectionHeading .eyebrow {
-    margin-bottom: 0.8rem;
-  }
-
-  .workflowGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .stepMark {
-    margin-bottom: 1.5rem;
-  }
-
-  .documentExplorer {
-    grid-template-columns: 1fr;
-  }
-
-  .workspaceList {
-    border-right: 0;
-    border-bottom: 1px solid var(--rule);
-  }
-
-  .pageRow time {
-    display: none;
-  }
-
-  .kanbanHeading {
-    display: block;
-  }
-
-  .kanbanHeading > p {
-    margin-top: 1rem;
-  }
-
-  .pagesTarget {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -996,10 +1374,7 @@ h3 {
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
     scroll-behavior: auto !important;
-  }
-
-  .railStop {
-    opacity: 1;
   }
 }

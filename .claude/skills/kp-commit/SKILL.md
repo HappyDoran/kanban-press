@@ -1,0 +1,1 @@
+../../../.codex/skills/kp-commit/SKILL.md

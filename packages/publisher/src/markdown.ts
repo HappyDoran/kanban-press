@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { PublishArtifact } from "./index.js";
+import { countManuscriptPages } from "./manuscript.js";
 
 const MAX_BLOCK_DEPTH = 20;
 const encoder = new TextEncoder();
@@ -10,6 +11,30 @@ const slugSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const isoDateSchema = z.iso.datetime({ offset: true });
+const categorySchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    slug: slugSchema,
+  })
+  .strict();
+const tagSchema = z.string().trim().min(1).max(40);
+const tagsSchema = z
+  .array(tagSchema)
+  .max(10)
+  .superRefine((tags, context) => {
+    const seen = new Set<string>();
+    for (const [index, tag] of tags.entries()) {
+      const normalizedTag = normalizeTag(tag);
+      if (seen.has(normalizedTag)) {
+        context.addIssue({
+          code: "custom",
+          message: "Tags must be unique after normalization",
+          path: [index],
+        });
+      }
+      seen.add(normalizedTag);
+    }
+  });
 const richTextSchema = z
   .object({
     bold: z.boolean().optional(),
@@ -23,21 +48,40 @@ const richTextSchema = z
 
 export type PublishRichText = z.infer<typeof richTextSchema>;
 
-export type PublishBlock =
+/** 게시 문서 블록. 단계마다 image 블록 모양만 다르다(Notion 원본 URL → 저장소 자산 경로). */
+export type PublishBlockWith<Image> =
+  | { children: PublishBlockWith<Image>[]; icon: string | null; kind: "callout"; richText: PublishRichText[] }
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
+  | { expression: string; kind: "equation" }
   | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
-  | { kind: "image"; caption: PublishRichText[]; url: string }
+  | Image
+  | {
+      children: PublishBlockWith<Image>[];
+      kind: "listItem";
+      richText: PublishRichText[];
+      style: "bulleted" | "numbered";
+    }
+  | { caption: PublishRichText[]; kind: "linkCard"; url: string }
+  | { caption: PublishRichText[]; kind: "media"; mediaType: "audio" | "file" | "pdf" | "video"; url: string | null }
   | { kind: "paragraph"; richText: PublishRichText[] }
   | { kind: "quote"; richText: PublishRichText[] }
-  | {
-      kind: "toggle";
-      children: PublishBlock[];
-      summary: PublishRichText[];
-    };
+  | { hasColumnHeader: boolean; hasRowHeader: boolean; kind: "table"; rows: PublishRichText[][][] }
+  | { checked: boolean; children: PublishBlockWith<Image>[]; kind: "toDo"; richText: PublishRichText[] }
+  | { children: PublishBlockWith<Image>[]; kind: "toggle"; summary: PublishRichText[] };
+
+export type PublishBlock = PublishBlockWith<{ assetPath: string; caption: PublishRichText[]; kind: "image" }>;
 
 const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
   z.discriminatedUnion("kind", [
+    z
+      .object({
+        children: z.array(blockSchema).max(5_000),
+        icon: z.string().trim().min(1).max(16).nullable(),
+        kind: z.literal("callout"),
+        richText: z.array(richTextSchema).max(1_000),
+      })
+      .strict(),
     z
       .object({
         code: z.string().max(1_000_000),
@@ -45,7 +89,21 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
         language: z.string().max(64),
       })
       .strict(),
+    z
+      .object({
+        children: z.array(blockSchema).max(5_000),
+        kind: z.literal("listItem"),
+        richText: z.array(richTextSchema).max(1_000),
+        style: z.enum(["bulleted", "numbered"]),
+      })
+      .strict(),
     z.object({ kind: z.literal("divider") }).strict(),
+    z
+      .object({
+        expression: z.string().max(100_000),
+        kind: z.literal("equation"),
+      })
+      .strict(),
     z
       .object({
         kind: z.literal("heading"),
@@ -56,8 +114,28 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
     z
       .object({
         caption: z.array(richTextSchema).max(1_000),
+        kind: z.literal("linkCard"),
+        url: z.string().max(2_048),
+      })
+      .strict(),
+    z
+      .object({
+        caption: z.array(richTextSchema).max(1_000),
+        kind: z.literal("media"),
+        mediaType: z.enum(["audio", "file", "pdf", "video"]),
+        url: z.string().max(2_048).nullable(),
+      })
+      .strict(),
+    z
+      .object({
+        assetPath: z
+          .string()
+          .max(240)
+          .regex(
+            /^\.\.\/\.\.\/assets\/blog\/[a-z0-9]+(?:-[a-z0-9]+)*\/image-\d{3}\.(?:gif|jpg|png|webp)$/,
+          ),
+        caption: z.array(richTextSchema).max(1_000),
         kind: z.literal("image"),
-        url: z.string().max(4_096),
       })
       .strict(),
     z
@@ -74,6 +152,24 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
       .strict(),
     z
       .object({
+        hasColumnHeader: z.boolean(),
+        hasRowHeader: z.boolean(),
+        kind: z.literal("table"),
+        rows: z
+          .array(z.array(z.array(richTextSchema).max(1_000)).max(100))
+          .max(1_000),
+      })
+      .strict(),
+    z
+      .object({
+        checked: z.boolean(),
+        children: z.array(blockSchema).max(5_000),
+        kind: z.literal("toDo"),
+        richText: z.array(richTextSchema).max(1_000),
+      })
+      .strict(),
+    z
+      .object({
         children: z.array(blockSchema).max(5_000),
         kind: z.literal("toggle"),
         summary: z.array(richTextSchema).max(1_000),
@@ -85,9 +181,15 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
 const publishDocumentSchema = z
   .object({
     blocks: z.array(blockSchema).max(5_000),
+    category: categorySchema,
     description: z.string().max(1_000),
+    pinned: z.literal(true).optional(),
     publishedAt: isoDateSchema,
+    schemaVersion: z.literal(2),
+    series: categorySchema.optional(),
+    seriesOrder: z.number().finite().min(-1_000_000).max(1_000_000).optional(),
     slug: slugSchema,
+    tags: tagsSchema,
     title: z.string().trim().min(1).max(2_000),
     updatedAt: isoDateSchema,
   })
@@ -95,9 +197,20 @@ const publishDocumentSchema = z
 
 export interface PublishDocument {
   blocks: PublishBlock[];
+  category: {
+    name: string;
+    slug: string;
+  };
   description: string;
+  /** 홈 상단 고정(R10). 고정할 때만 둔다. */
+  pinned?: true;
   publishedAt: string;
+  schemaVersion: 2;
+  /** 연재 묶음(R10)과 그 안의 순서. 순서는 시리즈가 있을 때만 의미가 있다. */
+  series?: { name: string; slug: string };
+  seriesOrder?: number;
   slug: string;
+  tags: string[];
   title: string;
   updatedAt: string;
 }
@@ -106,13 +219,29 @@ export function createMarkdownArtifact(
   input: PublishDocument,
 ): PublishArtifact {
   const document = publishDocumentSchema.parse(input) as PublishDocument;
-  const body = renderBlocks(document.blocks, 0);
+  const body = renderBlocks(document.blocks, 0, document.slug);
+  const manuscriptPages = countManuscriptPages(document.blocks);
   const frontmatter = [
     "---",
+    `schemaVersion: ${document.schemaVersion}`,
     `title: ${frontmatterString(document.title)}`,
     `description: ${frontmatterString(document.description)}`,
+    `category: ${frontmatterString(document.category.name)}`,
+    `categorySlug: ${frontmatterString(document.category.slug)}`,
+    `tags: [${document.tags.map(frontmatterString).join(", ")}]`,
     `publishedAt: ${frontmatterString(document.publishedAt)}`,
     `updatedAt: ${frontmatterString(document.updatedAt)}`,
+    // 판권의 분량(디자인 기획 2.4). 본문 글자가 없으면 쓰지 않는다.
+    ...(manuscriptPages > 0 ? [`manuscriptPages: ${manuscriptPages}`] : []),
+    // R10 필드는 값이 있을 때만 쓴다. 없으면 이전과 같은 Markdown이 나온다.
+    ...(document.pinned === true ? ["pinned: true"] : []),
+    ...(document.series === undefined
+      ? []
+      : [
+          `series: ${frontmatterString(document.series.name)}`,
+          `seriesSlug: ${frontmatterString(document.series.slug)}`,
+          ...(document.seriesOrder === undefined ? [] : [`seriesOrder: ${document.seriesOrder}`]),
+        ]),
     "---",
   ].join("\n");
   const markdown = `${frontmatter}\n\n${body}`.trimEnd() + "\n";
@@ -125,18 +254,52 @@ export function createMarkdownArtifact(
 function renderBlocks(
   blocks: readonly PublishBlock[],
   depth: number,
+  documentSlug: string,
 ): string {
   if (depth > MAX_BLOCK_DEPTH) {
     throw new Error("Document block depth exceeds the safe limit");
   }
-  return blocks
-    .map((block) => renderBlock(block, depth))
-    .filter(Boolean)
-    .join("\n\n");
+  const rendered: string[] = [];
+  for (let index = 0; index < blocks.length; ) {
+    const block = blocks[index];
+    if (block === undefined) break;
+    if (block.kind === "listItem" || block.kind === "toDo") {
+      const list: string[] = [];
+      while (index < blocks.length) {
+        const item = blocks[index];
+        if (item?.kind !== "listItem" && item?.kind !== "toDo") break;
+        list.push(renderListItem(item, depth, documentSlug));
+        index += 1;
+      }
+      rendered.push(list.join("\n"));
+      continue;
+    }
+    const value = renderBlock(block, depth, documentSlug);
+    if (value) rendered.push(value);
+    index += 1;
+  }
+  return rendered.join("\n\n");
 }
 
-function renderBlock(block: PublishBlock, depth: number): string {
+function renderBlock(
+  block: PublishBlock,
+  depth: number,
+  documentSlug: string,
+): string {
   switch (block.kind) {
+    case "callout": {
+      const icon = block.icon === null ? "💡" : escapeMarkdown(block.icon);
+      const content = [
+        `${icon} ${renderRichText(block.richText)}`.trim(),
+        renderBlocks(block.children, depth + 1, documentSlug),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      return content
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+    }
     case "paragraph":
       return renderRichText(block.richText);
     case "heading":
@@ -154,16 +317,25 @@ function renderBlock(block: PublishBlock, depth: number): string {
       return `${fence}${language}\n${normalizeNewlines(block.code)}\n${fence}`;
     }
     case "image": {
-      const url = safeUrl(block.url, new Set(["https:"]));
-      if (url === null) {
-        throw new Error("Image URL must use HTTPS");
+      const expectedPrefix = `../../assets/blog/${documentSlug}/`;
+      if (!block.assetPath.startsWith(expectedPrefix)) {
+        throw new Error("Image asset path must belong to the document");
       }
       const caption = escapeMarkdown(plainText(block.caption));
-      return `![${caption}](<${escapeLinkDestination(url)}>)`;
+      return `![${caption}](<${block.assetPath}>)`;
     }
+    case "listItem":
+    case "toDo":
+      return renderListItem(block, depth, documentSlug);
+    case "table":
+      return renderTable(block);
     case "toggle": {
       const summary = escapeHtml(plainText(block.summary));
-      const children = renderBlocks(block.children, depth + 1);
+      const children = renderBlocks(
+        block.children,
+        depth + 1,
+        documentSlug,
+      );
       return [
         "<details>",
         `<summary>${summary || "자세히 보기"}</summary>`,
@@ -175,7 +347,98 @@ function renderBlock(block: PublishBlock, depth: number): string {
     }
     case "divider":
       return "---";
+    case "equation":
+      return `<div class="notion-equation" role="math"><code>${escapeHtml(block.expression)}</code></div>`;
+    case "linkCard":
+      return renderResourceCard("링크", block.caption, block.url);
+    case "media":
+      return renderResourceCard(
+        { audio: "오디오", file: "첨부 파일", pdf: "PDF", video: "동영상" }[
+          block.mediaType
+        ],
+        block.caption,
+        block.url,
+      );
   }
+}
+
+function renderResourceCard(
+  label: string,
+  caption: readonly PublishRichText[],
+  url: string | null,
+): string {
+  const content = renderRichTextHtml(caption, false) || escapeHtml(label);
+  const safeHref = url === null
+    ? null
+    : safeUrl(url, new Set(["http:", "https:"]));
+  const inner = `<span class="notion-resource-label">${escapeHtml(label)}</span><span>${content}</span>`;
+  return safeHref === null
+    ? `<div class="notion-resource-card">${inner}</div>`
+    : `<a class="notion-resource-card" href="${escapeHtml(safeHref)}">${inner}</a>`;
+}
+
+function renderListItem(
+  block: Extract<PublishBlock, { kind: "listItem" | "toDo" }>,
+  depth: number,
+  documentSlug: string,
+): string {
+  const marker =
+    block.kind === "toDo"
+      ? `- [${block.checked ? "x" : " "}]`
+      : block.style === "numbered"
+        ? "1."
+        : "-";
+  const children = renderBlocks(block.children, depth + 1, documentSlug);
+  return [
+    `${marker} ${renderRichText(block.richText)}`.trimEnd(),
+    children
+      ? children
+          .split("\n")
+          .map((line) => `   ${line}`)
+          .join("\n")
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function renderTable(
+  block: Extract<PublishBlock, { kind: "table" }>,
+): string {
+  if (block.rows.length === 0) return "";
+  const renderRow = (row: PublishRichText[][], rowIndex: number): string => {
+    const cells = row.map((cell, columnIndex) => {
+      const header =
+        (block.hasColumnHeader && rowIndex === 0) ||
+        (block.hasRowHeader && columnIndex === 0);
+      const tag = header ? "th" : "td";
+      const scope = header
+        ? rowIndex === 0
+          ? ' scope="col"'
+          : ' scope="row"'
+        : "";
+      return `<${tag}${scope}>${renderRichTextHtml(cell)}</${tag}>`;
+    });
+    return `<tr>${cells.join("")}</tr>`;
+  };
+  const headerRows = block.hasColumnHeader ? block.rows.slice(0, 1) : [];
+  const bodyRows = block.hasColumnHeader ? block.rows.slice(1) : block.rows;
+  return [
+    '<div class="notion-table-wrap">',
+    "<table>",
+    headerRows.length > 0
+      ? `<thead>${headerRows.map((row, index) => renderRow(row, index)).join("")}</thead>`
+      : "",
+    `<tbody>${bodyRows
+      .map((row, index) =>
+        renderRow(row, index + (block.hasColumnHeader ? 1 : 0)),
+      )
+      .join("")}</tbody>`,
+    "</table>",
+    "</div>",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function renderRichText(parts: readonly PublishRichText[]): string {
@@ -200,6 +463,30 @@ function renderRichText(parts: readonly PublishRichText[]): string {
       return href === null
         ? content
         : `[${content}](<${escapeLinkDestination(href)}>)`;
+    })
+    .join("");
+}
+
+function renderRichTextHtml(
+  parts: readonly PublishRichText[],
+  allowLinks = true,
+): string {
+  return parts
+    .map((part) => {
+      let content = escapeHtml(normalizeNewlines(part.text)).replaceAll(
+        "\n",
+        "<br>",
+      );
+      if (part.code) content = `<code>${content}</code>`;
+      if (part.bold) content = `<strong>${content}</strong>`;
+      if (part.italic) content = `<em>${content}</em>`;
+      if (part.strikethrough) content = `<s>${content}</s>`;
+      const href = allowLinks
+        ? safeUrl(part.href ?? "", new Set(["http:", "https:", "mailto:"]))
+        : null;
+      return href === null
+        ? content
+        : `<a href="${escapeHtml(href)}">${content}</a>`;
     })
     .join("");
 }
@@ -251,6 +538,14 @@ function frontmatterString(value: string): string {
 
 function normalizeNewlines(value: string): string {
   return value.replace(/\r\n?/g, "\n");
+}
+
+function normalizeTag(value: string): string {
+  return value
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .toLowerCase();
 }
 
 function safeUrl(

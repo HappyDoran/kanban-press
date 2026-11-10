@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kanban Press"
+  short_description: "DB 없이 Notion 칸반 게시 앱을 구현하고 검증"
+  default_prompt: "Use $kanban-press to implement the next verified DB-free vertical slice."

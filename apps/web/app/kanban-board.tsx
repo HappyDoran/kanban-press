@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { BOARD_COLUMNS } from "@notion-kanban-blog/domain";
+import { BOARD_COLUMNS } from "@kanban-press/domain";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatEditedAt } from "../lib/format-date";
@@ -26,6 +26,7 @@ import {
   boardDropAction,
   preferredPointerDropId,
 } from "./board-drop";
+import { RetryAction } from "./retry-action";
 
 import type {
   Active,
@@ -36,11 +37,12 @@ import type {
   CollisionDetection,
   Over,
 } from "@dnd-kit/core";
-import type { BoardColumn } from "@notion-kanban-blog/domain";
+import type { BoardColumn } from "@kanban-press/domain";
 import type { BoardRecord } from "../lib/board/repository";
 
 export type KanbanRecord = Omit<BoardRecord, "column"> & {
   column: BoardColumn;
+  publishActionsUrl: string | null;
   publishedUrl: string | null;
   publishStartedAt: number | null;
 };
@@ -51,12 +53,6 @@ const COLUMN_LABELS: Readonly<Record<BoardColumn, string>> = {
   stored: "보관 중",
 };
 
-const COLUMN_MARKS: Readonly<Record<BoardColumn, string>> = {
-  published: "●",
-  publishing: "◐",
-  stored: "○",
-};
-
 interface KanbanBoardProps {
   connectionNames: Readonly<Record<string, string>>;
   onMove: (
@@ -65,8 +61,15 @@ interface KanbanBoardProps {
     targetIndex: number,
   ) => Promise<void>;
   onPublish: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishErrors: Readonly<Record<string, string>>;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
+  publishFailures: Readonly<
+    Record<
+      string,
+      { actionsUrl: string | null; message: string; retryAt: number | null }
+    >
+  >;
   records: readonly KanbanRecord[];
 }
 
@@ -74,8 +77,10 @@ export function KanbanBoard({
   connectionNames,
   onMove,
   onPublish,
+  onPreview,
   onRemove,
-  publishErrors,
+  onUnpublish,
+  publishFailures,
   records,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -145,6 +150,24 @@ export function KanbanBoard({
     }
   }
 
+  /** 블로그에서 내리기. 되돌릴 수 없는 저장소 변경이라 먼저 확인한다(결정 D1). */
+  async function unpublish(record: KanbanRecord): Promise<void> {
+    const confirmed = window.confirm(
+      `‘${record.title}’을 블로그에서 내립니다.\n저장소에서 글 파일과 이미지를 지우는 commit을 만듭니다. Notion 원문은 그대로 둡니다.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    const id = recordId(record);
+    setMovingId(id);
+    setNotice("");
+    try {
+      await onUnpublish(record);
+    } finally {
+      setMovingId(null);
+    }
+  }
+
   function handleDragStart(event: DragStartEvent): void {
     setActiveId(String(event.active.id));
     setNotice("");
@@ -161,30 +184,13 @@ export function KanbanBoard({
   }
 
   return (
-    <section aria-labelledby="kanban-title" className="kanbanSection">
-      <div className="kanbanHeading">
-        <div>
-          <p className="eyebrow">Personal board</p>
-          <h2 id="kanban-title">내 게시 칸반</h2>
-        </div>
-        <p>
-          카드를 게시 중으로 옮기면 게시가 시작됩니다. ×를 누르면 Notion 원문은
-          유지한 채 칸반에서만 숨깁니다.
-        </p>
-      </div>
-
+    <>
       {notice ? (
-        <p className="kanbanNotice" role="status">
+        <p className="notice danger" role="status">
           {notice}
         </p>
       ) : null}
-
-      {records.length === 0 ? (
-        <div className="emptyBoard">
-          위 문서 목록에서 게시할 페이지를 표시해 주세요.
-        </div>
-      ) : (
-        <DndContext
+      <DndContext
           accessibility={{
             announcements: {
               onDragCancel: () => "카드 이동을 취소했습니다.",
@@ -224,7 +230,10 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onRemove={remove}
-                publishErrors={publishErrors}
+                onUnpublish={unpublish}
+                onRetryPublish={onPublish}
+                onPreview={onPreview}
+                publishFailures={publishFailures}
                 records={grouped[column]}
               />
             ))}
@@ -242,8 +251,7 @@ export function KanbanBoard({
             )}
           </DragOverlay>
         </DndContext>
-      )}
-    </section>
+    </>
   );
 }
 
@@ -252,14 +260,25 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onRemove,
-  publishErrors,
+  onUnpublish,
+  onRetryPublish,
+  onPreview,
+  publishFailures,
   records,
 }: {
   column: BoardColumn;
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishErrors: Readonly<Record<string, string>>;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
+  publishFailures: Readonly<
+    Record<
+      string,
+      { actionsUrl: string | null; message: string; retryAt: number | null }
+    >
+  >;
   records: readonly KanbanRecord[];
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -275,11 +294,8 @@ function KanbanColumn({
       ref={setNodeRef}
     >
       <header>
-        <span aria-hidden="true" className="columnMark">
-          {COLUMN_MARKS[column]}
-        </span>
-        <h3>{COLUMN_LABELS[column]}</h3>
-        <span>{records.length}</span>
+        <h2>{COLUMN_LABELS[column]}</h2>
+        <span aria-hidden="true">{records.length}편</span>
       </header>
       <SortableContext
         items={records.map(recordId)}
@@ -295,18 +311,19 @@ function KanbanColumn({
               disabled={movingId === recordId(record)}
               key={recordId(record)}
               onRemove={onRemove}
-              publishError={publishErrors[recordId(record)]}
+              onUnpublish={onUnpublish}
+              onRetryPublish={onRetryPublish}
+              onPreview={onPreview}
+              publishFailure={publishFailures[recordId(record)]}
               record={record}
             />
           ))}
-          {records.length === 0 ? (
-            <p className="emptyColumn">
-              {column === "stored"
-                ? "표시할 문서가 없습니다"
-                : column === "publishing"
-                  ? "게시할 카드를 여기에 놓으세요"
-                  : "현재 없음"}
-            </p>
+          {column === "publishing" ? <p className="dropZone">여기에 놓으면 게시</p> : null}
+          {column === "stored" && records.length === 0 ? (
+            <p className="emptyColumn">왼쪽 문서 목록에서 추가하세요</p>
+          ) : null}
+          {column === "published" ? (
+            <p className="columnHint">블로그에 올라가 있는 글입니다. 다시 게시하려면 게시 중으로 옮기세요.</p>
           ) : null}
         </div>
       </SortableContext>
@@ -318,13 +335,21 @@ function SortableBoardCard({
   connectionName,
   disabled,
   onRemove,
-  publishError,
+  onUnpublish,
+  onRetryPublish,
+  onPreview,
+  publishFailure,
   record,
 }: {
   connectionName: string;
   disabled: boolean;
   onRemove: (record: KanbanRecord) => Promise<void>;
-  publishError?: string | undefined;
+  onUnpublish: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish: (record: KanbanRecord) => Promise<void>;
+  onPreview: (record: KanbanRecord) => void;
+  publishFailure?:
+    | { actionsUrl: string | null; message: string; retryAt: number | null }
+    | undefined;
   record: KanbanRecord;
 }) {
   const {
@@ -358,22 +383,28 @@ function SortableBoardCard({
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
         onRemove={onRemove}
-        publishError={publishError}
+        onUnpublish={onUnpublish}
+        onRetryPublish={onRetryPublish}
+        onPreview={onPreview}
+        publishFailure={publishFailure}
         record={record}
       />
     </div>
   );
 }
 
-function BoardCard({
+export function BoardCard({
   connectionName,
   disabled = false,
   dragAttributes,
   dragListeners,
   dragRef,
   onRemove,
+  onUnpublish,
+  onRetryPublish,
+  onPreview,
   overlay = false,
-  publishError,
+  publishFailure,
   record,
 }: {
   connectionName: string;
@@ -382,33 +413,142 @@ function BoardCard({
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
   onRemove?: (record: KanbanRecord) => Promise<void>;
+  onUnpublish?: (record: KanbanRecord) => Promise<void>;
+  onRetryPublish?: (record: KanbanRecord) => Promise<void>;
+  onPreview?: (record: KanbanRecord) => void;
   overlay?: boolean;
-  publishError?: string | undefined;
+  publishFailure?:
+    | { actionsUrl: string | null; message: string; retryAt: number | null }
+    | undefined;
   record: KanbanRecord;
 }) {
   const draggable =
     !overlay && !disabled && record.column !== "publishing";
   return (
     <article
-      {...(draggable ? dragAttributes : undefined)}
-      {...(draggable ? dragListeners : undefined)}
-      aria-label={draggable ? `${record.title} 카드 이동` : undefined}
-      className={
-        overlay
-          ? "boardCard overlay"
-          : draggable
-            ? "boardCard draggable"
-            : "boardCard"
-      }
-      ref={draggable ? dragRef : undefined}
+      className={[
+        "boardCard",
+        overlay ? "overlay" : draggable ? "draggable" : null,
+        record.column === "published" ? "published" : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
+      {/* 교료 도장(디자인 기획 2.4): 장식이라 읽지 않는다. 상태는 열 이름이 알린다. */}
+      {record.column === "published" ? (
+        <span aria-hidden="true" className="proofStamp">
+          교료
+        </span>
+      ) : null}
       <div className="boardCardTopline">
         <span>{connectionName}</span>
-        {!overlay ? (
-          <div className="boardCardControls">
+        {!overlay && draggable ? (
+              <button
+                {...dragAttributes}
+                {...dragListeners}
+                aria-label={`${record.title} 카드 이동`}
+                className="dragHandleButton"
+                ref={dragRef}
+                type="button"
+              >
+                <span aria-hidden="true">⠿</span>
+              </button>
+        ) : null}
+      </div>
+      <h3 title={record.title}>{record.title}</h3>
+      <p className="cardMeta">원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
+      {!overlay && record.column === "publishing" ? (
+        <div className="publishStatus" role="status">
+          <span>
+            GitHub Pages 배포 중
+            {record.publishStartedAt === null ? null : (
+              <>
+                {" · "}
+                <PublishElapsed since={record.publishStartedAt} />
+              </>
+            )}
+          </span>
+          <span aria-hidden="true" className="progress" />
+        </div>
+      ) : null}
+      {!overlay && record.column === "published" && record.publishedUrl !== null ? (
+        <a
+          className="cardLink"
+          href={record.publishedUrl}
+          onKeyDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          rel="noreferrer"
+          target="_blank"
+        >
+          게시된 글 보기
+        </a>
+      ) : null}
+      {!overlay && record.publishActionsUrl !== null ? (
+        <a
+          className="cardLink"
+          href={record.publishActionsUrl}
+          onKeyDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub Actions 로그 보기
+        </a>
+      ) : null}
+      {!overlay && publishFailure ? (
+        <div className="publishError" role="alert">
+          <p>{publishFailure.message}</p>
+          {onRetryPublish === undefined ? null : (
+            <RetryAction
+              label="다시 게시"
+              onRetry={() => void onRetryPublish(record)}
+              retryAt={publishFailure.retryAt}
+            />
+          )}
+        </div>
+      ) : null}
+      {!overlay ? (
+          <div className="cardActions">
+            {/* 좁은 화면에서는 게시 중 열까지 멀리 끌기 어려워 카드에서 바로 게시한다. 넓은 화면에서는 CSS로 숨긴다. */}
+            {record.column !== "publishing" && onRetryPublish !== undefined ? (
+              <button
+                className="buttonPrimary small mobilePublish"
+                disabled={disabled}
+                onClick={() => void onRetryPublish(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                {record.column === "published" ? "다시 게시" : "게시"}
+              </button>
+            ) : null}
+            {record.column === "stored" && onPreview !== undefined ? (
+              <button
+                className="buttonSecondary small"
+                disabled={disabled}
+                onClick={() => onPreview(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                미리보기
+              </button>
+            ) : null}
+            {record.column === "published" && onUnpublish !== undefined ? (
+              <button
+                className="unpublishButton"
+                disabled={disabled}
+                onClick={() => void onUnpublish(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                블로그에서 내리기
+              </button>
+            ) : null}
             <button
               aria-label={`${record.title} 칸반에서 제거`}
-              className="removeCardButton"
+              className="iconButton"
               disabled={disabled}
               onKeyDown={(event) => event.stopPropagation()}
               onClick={() => {
@@ -420,47 +560,9 @@ function BoardCard({
               title="칸반에서 제거"
               type="button"
             >
-              ×
+              ✕
             </button>
           </div>
-        ) : null}
-      </div>
-      <h4>{record.title}</h4>
-      <p>원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
-      {!overlay && record.column === "publishing" ? (
-        <p className="publishStatus" role="status">
-          <span aria-hidden="true" className="pulseDot">
-            ◐
-          </span>
-          <span>
-            GitHub Pages 배포 중
-            {record.publishStartedAt === null ? null : (
-              <>
-                {" · "}
-                <PublishElapsed since={record.publishStartedAt} />
-              </>
-            )}
-          </span>
-        </p>
-      ) : null}
-      {!overlay &&
-      record.column === "published" &&
-      record.publishedUrl !== null ? (
-        <a
-          className="publishedLink"
-          href={record.publishedUrl}
-          onKeyDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          rel="noreferrer"
-          target="_blank"
-        >
-          게시된 글 보기
-        </a>
-      ) : null}
-      {!overlay && publishError ? (
-        <p className="publishError" role="alert">
-          {publishError}
-        </p>
       ) : null}
     </article>
   );

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { entityId } from "@notion-kanban-blog/domain";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -113,6 +113,25 @@ describe("stateless session cookie codec", () => {
     await expect(
       sessionCodec().seal({ ...session, expiresAt: session.issuedAt }),
     ).rejects.toThrow("later than");
+  });
+
+  it("opens a cookie issued by the previous implementation (envelope v1 compatibility)", async () => {
+    // 테스트 전용 key(0x07 x 32)로 재작성 전 codec이 발급한 쿠키. 형식이 바뀌면 기존 사용자 세션이 모두 끊긴다.
+    const issued =
+      "v1.v1.XMXetcIPV7qTcVZa.OJJ66rpzqOXHNMZSeUSnpMF9uWwXptwgmqjKvMZQlnrW7XrRAmb5JeBsej2dveEBvWJMyhFF6iMuzNSOuZ4J1eULF-zt4_T1Ni8UDHTQgnbuBgJDk6ML-PT0jgnjwKrBFcv2NRuTib6FOEhQXyJsS7731ZSL08lUjecY5HOPUgU.PNbNZAXMWh3xnY3pbY9_mQ";
+    const codec = createSessionCookieCodec({
+      activeKeyId: "v1",
+      keys: { v1: new Uint8Array(32).fill(7) },
+      now: () => NOW,
+    });
+
+    await expect(codec.open(issued)).resolves.toEqual({
+      accessToken: "gho_fixture",
+      expiresAt: NOW + 600,
+      githubLogin: "octocat",
+      issuedAt: NOW,
+      userId: "583231",
+    });
   });
 
   it("rejects a decrypted payload that fails its schema", async () => {

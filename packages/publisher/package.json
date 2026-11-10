@@ -1,5 +1,5 @@
 {
-  "name": "@notion-kanban-blog/publisher",
+  "name": "@kanban-press/publisher",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,10 @@
     "build": "tsc --project tsconfig.build.json --noEmit false --outDir dist --rootDir src",
     "lint": "eslint .",
     "test": "vitest run src/index.test.ts src/markdown.test.ts",
-    "test:integration": "vitest run src/template.integration.test.ts",
+    "test:integration": "vitest run --testTimeout=15000 src/template.integration.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notion-kanban-blog/domain": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

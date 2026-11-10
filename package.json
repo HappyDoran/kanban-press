@@ -1,5 +1,5 @@
 {
-  "name": "notion-kanban-blog",
+  "name": "kanban-press",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,13 +9,16 @@
     "pnpm": ">=11.15.0 <12"
   },
   "scripts": {
-    "build": "corepack pnpm --recursive --if-present run build",
+    "build": "pnpm --recursive --if-present run build",
     "check:boundaries": "node tooling/scripts/check-package-boundaries.mjs",
-    "dev": "corepack pnpm --recursive --parallel --if-present run dev",
-    "lint": "node tooling/scripts/check-package-boundaries.mjs && corepack pnpm --recursive --if-present run lint",
-    "test": "corepack pnpm --recursive --if-present run test",
-    "test:integration": "corepack pnpm --recursive --if-present run test:integration",
-    "typecheck": "corepack pnpm --recursive --if-present run typecheck"
+    "dev": "pnpm --recursive --parallel --if-present run dev",
+    "lint": "node tooling/scripts/check-package-boundaries.mjs && node tooling/scripts/check-structure.mjs && pnpm --recursive --if-present run lint",
+    "structure:check": "node tooling/scripts/check-structure.mjs",
+    "test": "node --test tooling/scripts/*.test.mjs && pnpm --recursive --if-present run test",
+    "test:e2e": "pnpm --filter @kanban-press/web test:e2e",
+    "test:harness": "node --test tooling/scripts/*.test.mjs",
+    "test:integration": "pnpm --recursive --if-present run test:integration",
+    "typecheck": "pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

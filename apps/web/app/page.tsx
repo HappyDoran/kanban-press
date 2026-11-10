@@ -1,82 +1,38 @@
 import { NotionBrowser } from "./notion-browser";
 
-const workflow = [
-  {
-    description: "허용한 페이지와 하위 문서만 안전하게 불러옵니다.",
-    mark: "○",
-    step: "Notion 연결",
-  },
-  {
-    description: "보관 중인 문서와 게시 상태를 간결하게 관리합니다.",
-    mark: "◐",
-    step: "칸반 관리",
-  },
-  {
-    description: "승인된 글을 각 사용자의 GitHub Pages에 배포합니다.",
-    mark: "●",
-    step: "블로그 게시",
-  },
-] as const;
-
 export default function Home() {
-  return (
-    <main>
-      <NotionBrowser marketing={<Marketing />} />
-    </main>
-  );
+  return <NotionBrowser marketing={<Marketing />} />;
 }
 
+/** 로그인 전 화면: 한 화면짜리 소개와 시작 버튼 하나(디자인 기획 6.4). */
 function Marketing() {
   return (
-    <>
-      <section className="hero">
-        <p className="eyebrow">Notion to GitHub Pages</p>
-        <h1>
-          글쓰기는 Notion에서,
-          <br />
-          발행은 한눈에.
-        </h1>
-        <p className="lede">
-          여러 Notion 워크스페이스의 문서를 하나의 칸반에서 검수하고,
-          승인된 콘텐츠만 정적 블로그로 안전하게 배포합니다.
-        </p>
-        <div className="heroActions">
-          <a className="heroCta" href="/auth/github/start?returnTo=%2F">
-            GitHub로 시작
-          </a>
-        </div>
-        <p aria-hidden="true" className="rail">
-          <span className="railStop">
-            <span className="railDot">○</span> 보관 중
-          </span>
-          <span className="railLine" />
-          <span className="railStop">
-            <span className="railDot">◐</span> 게시 중
-          </span>
-          <span className="railLine" />
-          <span className="railStop">
-            <span className="railDot">●</span> 게시 완료
-          </span>
-        </p>
-      </section>
-
-      <section aria-labelledby="workflow-title" className="workflow">
-        <div className="sectionHeading">
-          <p className="eyebrow">Workflow</p>
-          <h2 id="workflow-title">문서에서 게시까지</h2>
-        </div>
-        <ol className="workflowGrid">
-          {workflow.map((item) => (
-            <li key={item.step}>
-              <span aria-hidden="true" className="stepMark">
-                {item.mark}
-              </span>
-              <h3>{item.step}</h3>
-              <p>{item.description}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
-    </>
+    <main className="intro" id="main">
+      <h1>
+        글쓰기는 Notion에서,
+        <br />
+        발행은 한눈에.
+      </h1>
+      <p className="introLede">
+        Notion 문서를 칸반에 올려 두고, 게시 중으로 옮기면 내 GitHub Pages 블로그에 바로 게시합니다.
+      </p>
+      <a className="buttonPrimary" href="/auth/github/start?returnTo=%2F">
+        GitHub로 시작
+      </a>
+      <ol className="introSteps">
+        <li>
+          <strong>Notion 연결</strong>
+          <span>공유를 허용한 페이지와 하위 문서만 불러옵니다.</span>
+        </li>
+        <li>
+          <strong>칸반에서 고르기</strong>
+          <span>게시할 문서를 보관 중에 모아 둡니다.</span>
+        </li>
+        <li>
+          <strong>블로그 게시</strong>
+          <span>내 계정의 공개 &lt;login&gt;.github.io 저장소에 게시합니다.</span>
+        </li>
+      </ol>
+    </main>
   );
 }

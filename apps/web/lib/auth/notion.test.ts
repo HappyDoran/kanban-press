@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -12,7 +12,8 @@ import {
   disconnectNotion,
   finishNotionConnection,
   listNotionConnections,
-  NotionApiClient,
+  createNotionOAuthClient,
+  NotionAuthenticationError,
   startNotionConnection,
 } from "./notion";
 
@@ -93,7 +94,7 @@ async function sessionCookie(
     issuedAt: NOW,
     userId: entityId("GitHubUser", userId),
   });
-  return `nkb_session=${value}`;
+  return `kp_session=${value}`;
 }
 
 async function start(deps: NotionAuthDependencies) {
@@ -105,7 +106,7 @@ async function start(deps: NotionAuthDependencies) {
   );
   const location = new URL(response.headers.get("location") ?? "");
   const state = location.searchParams.get("state");
-  const stateCookie = cookiePair(response, "nkb_notion_oauth_state");
+  const stateCookie = cookiePair(response, "kp_notion_oauth_state");
   if (state === null || stateCookie === null) {
     throw new Error("Expected Notion OAuth state");
   }
@@ -146,7 +147,7 @@ describe("Notion OAuth connections", () => {
     );
 
     expect(response.status).toBe(302);
-    const connectionsCookie = cookiePair(response, "nkb_notion_connections");
+    const connectionsCookie = cookiePair(response, "kp_notion_connections");
     expect(connectionsCookie).not.toBeNull();
     expect(connectionsCookie).not.toContain("notion-access-token");
 
@@ -181,6 +182,64 @@ describe("Notion OAuth connections", () => {
       deps,
     );
     await expect(isolated.json()).resolves.toEqual({ connections: [] });
+  });
+
+  it("replaces a reconnected workspace and revokes only the previous token", async () => {
+    const deps = dependencies();
+    const session = await sessionCookie(deps);
+    const first = await start(deps);
+    const connected = await finishNotionConnection(
+      callbackRequest(first.state, [session, first.stateCookie]),
+      deps,
+    );
+    const connectionsCookie = cookiePair(connected, "kp_notion_connections") ?? "";
+
+    vi.mocked(deps.notion.authorize).mockResolvedValueOnce({
+      accessToken: "second-access-token",
+      botId: BOT_ID,
+      refreshToken: null,
+      workspaceIcon: null,
+      workspaceId: WORKSPACE_ID,
+      workspaceName: "테스트 워크스페이스",
+    });
+    const second = await start(deps);
+    const reconnected = await finishNotionConnection(
+      callbackRequest(second.state, [session, second.stateCookie, connectionsCookie]),
+      deps,
+    );
+
+    expect(reconnected.status).toBe(302);
+    expect(deps.notion.revoke).toHaveBeenCalledTimes(1);
+    expect(deps.notion.revoke).toHaveBeenCalledWith("notion-access-token");
+    const listed = await listNotionConnections(
+      new Request(`${ORIGIN}/api/notion/connections`, {
+        headers: {
+          cookie: [session, cookiePair(reconnected, "kp_notion_connections")].join("; "),
+        },
+      }),
+      deps,
+    );
+    await expect(listed.json()).resolves.toMatchObject({
+      connections: [{ connectionId: WORKSPACE_ID }],
+    });
+  });
+
+  it("reports a Notion timeout as 504 and stores no connection", async () => {
+    const deps = dependencies({
+      notion: {
+        authorize: vi.fn().mockRejectedValue(new NotionAuthenticationError("timeout")),
+        revoke: vi.fn(),
+      },
+    });
+    const begun = await start(deps);
+    const response = await finishNotionConnection(
+      callbackRequest(begun.state, [await sessionCookie(deps), begun.stateCookie]),
+      deps,
+    );
+
+    expect(response.status).toBe(504);
+    await expect(response.json()).resolves.toEqual({ error: "notion_timeout" });
+    expect(cookiePair(response, "kp_notion_connections")).toBeNull();
   });
 
   it("rejects state owned by another GitHub user", async () => {
@@ -222,7 +281,7 @@ describe("Notion OAuth connections", () => {
 
     expect(response.status).toBe(409);
     expect(notion.revoke).toHaveBeenCalledWith("x".repeat(4_000));
-    expect(cookiePair(response, "nkb_notion_connections")).toBeNull();
+    expect(cookiePair(response, "kp_notion_connections")).toBeNull();
   });
 
   it("enforces the three-connection limit and revokes the rejected token", async () => {
@@ -247,7 +306,7 @@ describe("Notion OAuth connections", () => {
       callbackRequest(begun.state, [
         await sessionCookie(deps),
         begun.stateCookie,
-        `nkb_notion_connections=${value}`,
+        `kp_notion_connections=${value}`,
       ]),
       deps,
     );
@@ -264,7 +323,7 @@ describe("Notion OAuth connections", () => {
       callbackRequest(begun.state, [session, begun.stateCookie]),
       deps,
     );
-    const connectionsCookie = cookiePair(connected, "nkb_notion_connections");
+    const connectionsCookie = cookiePair(connected, "kp_notion_connections");
 
     const response = await disconnectNotion(
       new Request(`${ORIGIN}/api/notion/connections/disconnect`, {
@@ -301,7 +360,7 @@ describe("Notion OAuth API contract", () => {
         }),
       )
       .mockResolvedValueOnce(Response.json({ request_id: WORKSPACE_ID }));
-    const client = new NotionApiClient({
+    const client = createNotionOAuthClient({
       apiVersion: "2026-03-11",
       clientId: "client-id",
       clientSecret: "client-secret",

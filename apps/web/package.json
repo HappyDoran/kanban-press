@@ -1,5 +1,5 @@
 {
-  "name": "@notion-kanban-blog/web",
+  "name": "@kanban-press/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -8,18 +8,21 @@
     "dev": "next dev",
     "lint": "eslint .",
     "start": "next start",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'e2e/**' --exclude '**/*.integration.test.ts' --exclude '**/*.smoke.test.ts'",
+    "test:e2e": "playwright test",
+    "test:integration": "vitest run lib/publish/rollout.integration.test.ts",
+    "test:smoke": "vitest run --mode smoke --testTimeout=120000 lib/publish/provider.smoke.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@notion-kanban-blog/auth": "workspace:*",
-    "@notion-kanban-blog/domain": "workspace:*",
-    "@notion-kanban-blog/github": "workspace:*",
-    "@notion-kanban-blog/notion": "workspace:*",
-    "@notion-kanban-blog/publisher": "workspace:*",
+    "@kanban-press/auth": "workspace:*",
+    "@kanban-press/domain": "workspace:*",
+    "@kanban-press/github": "workspace:*",
+    "@kanban-press/notion": "workspace:*",
+    "@kanban-press/publisher": "workspace:*",
     "dexie": "^4.4.4",
     "next": "^16.2.10",
     "react": "^19.2.7",
@@ -27,6 +30,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

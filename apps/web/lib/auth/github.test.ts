@@ -3,15 +3,16 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
   finishGitHubLogin,
   getCurrentUser,
-  GitHubApiClient,
+  createGitHubOAuthClient,
+  GitHubAuthenticationError,
   logout,
   startGitHubLogin,
 } from "./github";
@@ -78,7 +79,7 @@ async function beginLogin(dependencies: GitHubAuthDependencies) {
     throw new Error("Expected GitHub authorization location");
   }
   const state = new URL(location).searchParams.get("state");
-  const stateCookie = cookiePair(response, "nkb_oauth_state");
+  const stateCookie = cookiePair(response, "kp_oauth_state");
   if (state === null || stateCookie === null) {
     throw new Error("Expected OAuth state and cookie");
   }
@@ -103,6 +104,22 @@ describe("GitHub login flow", () => {
     expect(setCookies(response).join(";")).toContain("HttpOnly");
     expect(setCookies(response).join(";")).toContain("SameSite=Lax");
     expect(setCookies(response).join(";")).toContain("Max-Age=600");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("moves deployment aliases to the canonical origin before issuing state", async () => {
+    const response = await startGitHubLogin(
+      new Request(
+        "https://preview-deployment.vercel.app/auth/github/start?returnTo=%2Fdashboard",
+      ),
+      createDependencies(),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      `${APP_ORIGIN}/auth/github/start?returnTo=%2Fdashboard`,
+    );
+    expect(response.headers.get("set-cookie")).toBeNull();
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
@@ -142,10 +159,10 @@ describe("GitHub login flow", () => {
       `${APP_ORIGIN}/auth/github/callback`,
     );
     expect(setCookies(response).join(";")).toContain(
-      "nkb_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+      "kp_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     );
 
-    const sessionCookie = cookiePair(response, "nkb_session");
+    const sessionCookie = cookiePair(response, "kp_session");
     expect(sessionCookie).not.toBeNull();
     await expect(
       dependencies.sessionCodec.open(sessionCookie?.split("=")[1] ?? ""),
@@ -232,6 +249,26 @@ describe("GitHub login flow", () => {
     expect(body).not.toContain("secret");
     expect(setCookies(response).join(";")).toContain("Max-Age=0");
   });
+
+  it("reports a GitHub timeout as 504 without issuing a session", async () => {
+    const dependencies = createDependencies({
+      github: {
+        authenticate: vi
+          .fn()
+          .mockRejectedValue(new GitHubAuthenticationError("timeout")),
+      },
+    });
+    const { state, stateCookie } = await beginLogin(dependencies);
+
+    const response = await finishGitHubLogin(
+      callbackRequest(state, stateCookie),
+      dependencies,
+    );
+
+    expect(response.status).toBe(504);
+    await expect(response.json()).resolves.toEqual({ error: "github_timeout" });
+    expect(cookiePair(response, "kp_session")).toBeNull();
+  });
 });
 
 describe("session endpoints", () => {
@@ -247,7 +284,7 @@ describe("session endpoints", () => {
 
     const response = await getCurrentUser(
       new Request(`${APP_ORIGIN}/api/me`, {
-        headers: { cookie: `nkb_session=${cookieValue}` },
+        headers: { cookie: `kp_session=${cookieValue}` },
       }),
       dependencies,
     );
@@ -291,10 +328,12 @@ describe("session endpoints", () => {
       dependencies,
     );
     expect(response.status).toBe(204);
-    expect(setCookies(response)).toHaveLength(2);
+    // 세션(새 이름 + 이름 변경 전 nkb_session)과 OAuth state 쿠키를 지운다.
+    expect(setCookies(response)).toHaveLength(3);
     expect(setCookies(response).join(";")).toContain(
-      "nkb_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+      "kp_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     );
+    expect(setCookies(response).join(";")).toContain("nkb_session=; Path=/;");
   });
 });
 
@@ -309,7 +348,7 @@ describe("GitHub API contract", () => {
         }),
       )
       .mockResolvedValueOnce(Response.json({ id: 583231, login: "octocat" }));
-    const client = new GitHubApiClient({
+    const client = createGitHubOAuthClient({
       apiVersion: "2026-03-10",
       clientId: "client-id",
       clientSecret: "client-secret",
@@ -338,6 +377,23 @@ describe("GitHub API contract", () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    ["token endpoint error", () => new Response("bad", { status: 401 })],
+    ["non-bearer token", () => Response.json({ access_token: "t", token_type: "mac" })],
+    ["non-JSON body", () => new Response("<html>", { status: 200 })],
+  ])("turns a %s into a redacted authentication error", async (_, response) => {
+    const client = createGitHubOAuthClient({
+      apiVersion: "2026-03-10",
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(response()),
+    });
+
+    await expect(
+      client.authenticate("temporary-code", `${APP_ORIGIN}/auth/github/callback`),
+    ).rejects.toEqual(new GitHubAuthenticationError("unavailable"));
   });
 });
 
