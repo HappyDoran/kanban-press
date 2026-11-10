@@ -2,7 +2,7 @@
 
 // 게시 전 프리뷰(디자인 기획 6.1–6.3). 블로그 template과 같은 class·CSS(BLOG_CSS)로 그려서
 // 실제 글 상세·홈과 같은 구조를 보여준다. 블로그 안의 이동 링크는 프리뷰 밖으로 나가지 않도록 href 없이 둔다.
-import { BLOG_CSS } from "@notion-kanban-blog/publisher";
+import { BLOG_CSS } from "@kanban-press/publisher";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ApiError, fetchPublishPreview } from "../lib/client/api";

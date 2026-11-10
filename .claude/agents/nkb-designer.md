@@ -1,1 +1,0 @@
-../../.codex/agents/nkb-designer.md

@@ -36,14 +36,14 @@ describe("createAstroTemplateManifest", () => {
     expect(workflow).toContain('branches: ["main"]');
     expect(workflow).not.toContain("withastro/action");
     expect(
-      readArtifact(first.artifacts, ".notion-kanban-blog/managed.json"),
+      readArtifact(first.artifacts, ".kanban-press/managed.json"),
     ).toBe('{\n  "publisher": "astro",\n  "templateVersion": 2\n}\n');
     expect(readArtifact(first.artifacts, "pnpm-workspace.yaml")).toBe(
       "allowBuilds:\n  esbuild: true\n",
     );
     const paths = first.artifacts.map(({ path }) => path);
     expect(paths).toEqual([...paths].sort());
-    expect(paths).toContain(".notion-kanban-blog/managed.json");
+    expect(paths).toContain(".kanban-press/managed.json");
     expect(paths).toEqual(
       expect.arrayContaining([
         "src/components/Breadcrumbs.astro",
@@ -72,7 +72,7 @@ describe("createAstroTemplateManifest", () => {
     const blogLib = readArtifact(first.artifacts, "src/lib/blog.ts");
     expect(blogLib).toContain('export const siteOwner = "HappyDoran"');
     expect(blogLib).toContain('title: siteOwner + ".log"');
-    expect(blogLib).toContain('".notion-kanban-blog", "site.json"');
+    expect(blogLib).toContain('[".kanban-press", ".notion-kanban-blog"]');
     expect(layout).toContain("const siteName = site.title;");
     expect(layout).toContain("--color-accent: #2453c7");
     expect(layout).not.toContain("Gowun Batang");

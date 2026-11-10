@@ -4,7 +4,7 @@ kind: rule
 last_verified: 2026-11-10
 ---
 
-# Notion Kanban Blog
+# Kanban Press
 
 각 GitHub 사용자가 자신의 Notion 문서를 개인 칸반에서 관리해 자신의 `<login>.github.io` GitHub Pages 블로그에 게시하는 DB 없는 다중 사용자 앱이다. 현재 P0~P5 구현을 마친 상태다.
 
@@ -33,20 +33,20 @@ last_verified: 2026-11-10
 | 작업 지원 체계·역할 소유 범위·검사 범위와 한계 | [AI_AGENT_HARNESS.md](docs/AI_AGENT_HARNESS.md) | 진입점·skill·역할·검사 흐름 변경 |
 | 변경 이유와 검증 결과 | Git 커밋 본문 | 구조 규칙 도입, 예외 승인, 동작 변경 |
 
-새 문서는 `nkb-doc-policy`를 통과한 뒤에만 만들고 이 표에 한 줄 추가한다.
+새 문서는 `kp-doc-policy`를 통과한 뒤에만 만들고 이 표에 한 줄 추가한다.
 
 ## 작업 유형별 필독
 
 | 작업 | 시작 전 읽는 것 |
 |---|---|
-| 모든 코드 변경 | TECH_RULES.md, 아키텍처, `nkb-testing`, `notion-kanban-blog` |
-| 파일·package 배치, 의존 변경 | `nkb-structure` |
-| 문서·skill·agent 변경 | docs/AI_AGENT_HARNESS.md, `nkb-doc-policy` |
-| 범위 정리·변경, 아이디어를 요구로 옮기기 | docs/spec/PROJECT_SPEC.md, `nkb-spec-discovery` |
-| 기능 착수·완료, 다음 작업 선택 | docs/spec/gap-analysis.md, `nkb-backlog` |
-| 역할을 지정받은 작업 | `.codex/agents/nkb-<역할>.md`, docs/AI_AGENT_HARNESS.md 역할 표 |
-| 여러 역할로 나누는 작업 | `nkb-parallel` |
-| 완료 전 / 커밋 | `nkb-review` / `nkb-commit` |
+| 모든 코드 변경 | TECH_RULES.md, 아키텍처, `kp-testing`, `kanban-press` |
+| 파일·package 배치, 의존 변경 | `kp-structure` |
+| 문서·skill·agent 변경 | docs/AI_AGENT_HARNESS.md, `kp-doc-policy` |
+| 범위 정리·변경, 아이디어를 요구로 옮기기 | docs/spec/PROJECT_SPEC.md, `kp-spec-discovery` |
+| 기능 착수·완료, 다음 작업 선택 | docs/spec/gap-analysis.md, `kp-backlog` |
+| 역할을 지정받은 작업 | `.codex/agents/kp-<역할>.md`, docs/AI_AGENT_HARNESS.md 역할 표 |
+| 여러 역할로 나누는 작업 | `kp-parallel` |
+| 완료 전 / 커밋 | `kp-review` / `kp-commit` |
 
 ## 절대 금지
 
@@ -89,5 +89,5 @@ last_verified: 2026-11-10
    기능 작업은 docs/spec/gap-analysis.md의 가장 앞선 미완료 단계에서 시작하고 끝나면 상태를 갱신한다.
 2. 변경 범위의 소유 문서만 읽고 실제 코드·설정으로 현재 상태를 확인한다.
 3. 코드와 소유 문서를 함께 바꾸고 frontmatter의 `last_verified`를 갱신한다.
-4. README.md의 검증을 실행하고 `nkb-review`를 적용한다. 완료 항목은 수용 기준과 실패 경로가 테스트로 증명되고, token과 사용자 데이터가 지정된 저장 경계를 벗어나지 않으며, 문서·환경 변수 예시·실제 구현과 gap-analysis 상태가 일치해야 한다.
+4. README.md의 검증을 실행하고 `kp-review`를 적용한다. 완료 항목은 수용 기준과 실패 경로가 테스트로 증명되고, token과 사용자 데이터가 지정된 저장 경계를 벗어나지 않으며, 문서·환경 변수 예시·실제 구현과 gap-analysis 상태가 일치해야 한다.
 5. 완료 보고와 커밋 본문에 실행한 검증과 실행하지 못한 검증을 구분해 적는다.

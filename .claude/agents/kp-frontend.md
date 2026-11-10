@@ -1,0 +1,1 @@
+../../.codex/agents/kp-frontend.md

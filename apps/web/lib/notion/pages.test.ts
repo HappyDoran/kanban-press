@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 
 import { NotionProviderError } from "./content";
@@ -84,7 +84,7 @@ async function requestCookies(
     { connections: [connection] },
     { expiresAt: NOW + 3_600, issuedAt: NOW },
   );
-  return `nkb_session=${session}; nkb_notion_connections=${connections}`;
+  return `kp_session=${session}; kp_notion_connections=${connections}`;
 }
 
 describe("Notion page tree orchestration", () => {

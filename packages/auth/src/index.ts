@@ -1,4 +1,4 @@
-import type { UserId } from "@notion-kanban-blog/domain";
+import type { UserId } from "@kanban-press/domain";
 
 /** Unix time in whole seconds. */
 export type UnixTimestamp = number;

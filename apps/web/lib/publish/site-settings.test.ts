@@ -1,8 +1,8 @@
 // R11 사이트 설정 읽기·저장(결정 D3).
 import { randomBytes } from "node:crypto";
 
-import { createSessionCookieCodec } from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+import { createSessionCookieCodec } from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 
 import { GitHubPagesClient } from "../github/pages";
@@ -29,7 +29,7 @@ describe("site settings route", () => {
       },
       stored: false,
     });
-    expect(context.readFile).toHaveBeenCalledWith(expect.anything(), ".notion-kanban-blog/site.json");
+    expect(context.readFile).toHaveBeenCalledWith(expect.anything(), ".kanban-press/site.json");
   });
 
   it("returns stored settings and falls back to defaults for a malformed file", async () => {
@@ -55,8 +55,8 @@ describe("site settings route", () => {
       unknown,
     ];
     expect(message).toBe("Update blog settings");
-    expect(deletePaths).toBeUndefined();
-    expect(artifacts.map((artifact) => artifact.path)).toEqual([".notion-kanban-blog/site.json"]);
+    expect(deletePaths).toEqual([]);
+    expect(artifacts.map((artifact) => artifact.path)).toEqual([".kanban-press/site.json"]);
     expect(JSON.parse(new TextDecoder().decode(artifacts[0]?.bytes))).toEqual(SETTINGS);
   });
 
@@ -100,11 +100,11 @@ describe("GitHubPagesClient.readFile", () => {
       providerRepositoryId: "1",
     };
 
-    await expect(client.readFile(repository, ".notion-kanban-blog/site.json")).resolves.toBe('{"title":"블로그"}');
+    await expect(client.readFile(repository, ".kanban-press/site.json")).resolves.toBe('{"title":"블로그"}');
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
-      "https://api.github.com/repos/octocat/octocat.github.io/contents/.notion-kanban-blog/site.json?ref=release%2Fsite",
+      "https://api.github.com/repos/octocat/octocat.github.io/contents/.kanban-press/site.json?ref=release%2Fsite",
     );
-    await expect(client.readFile(repository, ".notion-kanban-blog/site.json")).resolves.toBeNull();
+    await expect(client.readFile(repository, ".kanban-press/site.json")).resolves.toBeNull();
   });
 });
 
@@ -135,7 +135,7 @@ async function fixture(file: string | null) {
     }),
     sessionCodec,
   };
-  return { commitArtifacts, cookie: `nkb_session=${session}`, dependencies, getRepositoryReadiness, readFile };
+  return { commitArtifacts, cookie: `kp_session=${session}`, dependencies, getRepositoryReadiness, readFile };
 }
 
 function get(cookie: string): Request {

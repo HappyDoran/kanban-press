@@ -46,8 +46,16 @@ MVP 범위가 아니다.
 
 ### 서버 쿠키
 
-- GitHub 세션 쿠키: 사용자 ID, login, GitHub credential, 만료 시각
-- Notion 연결 쿠키: 연결 ID, workspace 표시 정보, Notion credential
+- GitHub 세션 쿠키(`kp_session`): 사용자 ID, login, GitHub credential, 만료 시각
+- Notion 연결 쿠키(`kp_notion_connections`): 연결 ID, workspace 표시 정보, Notion credential
+
+프로젝트 이름 변경(2026-11-10, `notion-kanban-blog` → `kanban-press`) 전 데이터 호환:
+쿠키는 새 이름이 없을 때 옛 이름(`nkb_session`, `nkb_notion_connections`)을 읽고 옛 AAD
+(`notion-kanban-blog.cookie.v1.<keyId>`)로 봉인된 값도 연다. 새로 쓸 때는 새 이름·새 AAD만 쓰고, 로그아웃과
+마지막 Notion 연결 해제는 옛 이름 쿠키도 지운다. 칸반 DB는 처음 열 때 옛 이름(`notion-kanban-blog.board.<id>`)의
+v12 record를 새 DB가 비어 있을 때만 옮기고 옛 DB를 지운다. 블로그 저장소의 옛 폴더 `.notion-kanban-blog/`는
+관리 표식으로 인정하고, 다음 게시에서 옛 표식을 지우며, 사이트 설정은 새 파일이 없을 때 옛 파일을 읽고 저장할 때
+새 위치로 옮긴다.
 - 모든 payload는 서버만 해독 가능한 AEAD envelope로 보호한다.
 - 쿠키는 `HttpOnly`, `Secure`(production), `SameSite=Lax`, 제한된 `Path`를 사용한다.
 - Notion 연결은 쿠키 예산 내 명시적 개수 상한을 둔다.
@@ -76,7 +84,7 @@ BoardRecord
 
 token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 않는다.
 
-칸반 데이터베이스 이름은 `notion-kanban-blog.board.<GitHub numeric ID>` 형식으로
+칸반 데이터베이스 이름은 `kanban-press.board.<GitHub numeric ID>` 형식으로
 사용자별 분리한다. record에도 동일한 owner ID를 저장해 이중으로 검증한다.
 현재 Dexie schema version은 12이며 compound primary key는
 `[ownerGitHubUserId+connectionId+providerPageId]`다. 모든 read 전에 strict schema를
@@ -470,7 +478,7 @@ GitHubPagesReadiness
 - `repository_not_managed`: 비어 있지 않고 앱 marker/legacy 경로 규칙을 만족하지 않는다.
   기존 파일을 보호하기 위해 게시를 중단하고 충돌 경로를 표시한다.
 
-publisher는 `.notion-kanban-blog/managed.json` marker를 결정적으로 생성한다. marker에는
+publisher는 `.kanban-press/managed.json` marker를 결정적으로 생성한다. marker에는
 publisher와 template version만 두며 token, 사용자 ID, repository ID를 넣지 않는다.
 legacy repository는 다음 성공 게시에서 marker를 함께 받아 이후 앱 관리 repository가 된다.
 현재 template version은 2이며 marker가 없는 repository는 v1 legacy로 취급한다.
@@ -556,7 +564,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - `Blog Slug`가 비어 있으면 제목을 쓰고, 형식이 틀리면 `422 invalid_blog_metadata`다. 주소가 바뀐 옛 글은 R8
   정리 규칙대로 지우고 옛 주소 안내 page를 남긴다(D4).
 - 사이트 설정(D3): 앱 상단 바의 게시 대상 상태를 펼친 곳의 `블로그 설정`에서 편집한다. `GET /api/blog/settings`는
-  저장소의 `.notion-kanban-blog/site.json`을 읽어 주고(없거나 형식이 틀리면 기본값과 `stored: false`),
+  저장소의 `.kanban-press/site.json`을 읽어 주고(없거나 형식이 틀리면 기본값과 `stored: false`),
   `PUT /api/blog/settings`는 같은 origin·세션·저장소 소유권·쓰기 권한·관리 표식을 확인한 뒤 그 파일 하나만 commit한다.
   형식: 이름 1~40자, 소개 0~200자, 프로필 링크 최대 4개(이름 1~20자, `https` 주소). 게시 commit은 이 파일을 바꾸지 않는다.
 - template은 빌드할 때 설정 파일을 읽어 사이트 이름(header·`<title>`·Open Graph·RSS), 홈 소개, 홈 프로필 링크에 쓴다.

@@ -1,4 +1,4 @@
-import type { BoardColumn } from "@notion-kanban-blog/domain";
+import type { BoardColumn } from "@kanban-press/domain";
 
 export interface PointerDropCandidate {
   column: BoardColumn | null;

@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
-const scope = "@notion-kanban-blog/";
+const scope = "@kanban-press/";
 const expectedPackages = [
   "auth",
   "domain",
@@ -63,7 +63,7 @@ export async function checkPackageBoundaries(rootDirectory = process.cwd()) {
     for (const filePath of await sourceFiles(path.join(packageDirectory, "src"))) {
       const source = await readFile(filePath, "utf8");
       const imports = source.matchAll(
-        /(?:from\s+|import\s*\()["'](@notion-kanban-blog\/[^"']+)["']/g,
+        /(?:from\s+|import\s*\()["'](@kanban-press\/[^"']+)["']/g,
       );
 
       for (const match of imports) {

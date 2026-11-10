@@ -1,10 +1,10 @@
 // Route Handler들이 공유하는 세션·쿠키·응답 도구. provider별 OAuth 흐름은 github.ts, notion.ts가 가진다.
 import { timingSafeEqual } from "node:crypto";
 
-import type { SessionCodec, UnixTimestamp } from "@notion-kanban-blog/auth";
-import { decodeBase64UrlKey } from "@notion-kanban-blog/auth/server";
+import type { SessionCodec, UnixTimestamp } from "@kanban-press/auth";
+import { decodeBase64UrlKey } from "@kanban-press/auth/server";
 
-export const SESSION_COOKIE = "nkb_session";
+export const SESSION_COOKIE = "kp_session";
 
 export function currentUnixTimestamp(): UnixTimestamp {
   return Math.floor(Date.now() / 1000);
@@ -91,7 +91,23 @@ export function readCookie(request: Request, name: string): string | null {
       return value.length === 0 ? null : value;
     }
   }
-  return null;
+  const legacy = LEGACY_COOKIE_NAMES[name];
+  return legacy === undefined ? null : readCookie(request, legacy);
+}
+
+/**
+ * 프로젝트 이름을 바꾸기 전(2026-11-10) 쿠키 이름. 새 이름 쿠키가 없을 때만 읽고, 새로 쓸 때는 새 이름만 쓴다.
+ * 로그아웃처럼 쿠키를 지울 때는 옛 이름도 함께 지워야 옛 값이 되살아나지 않는다(`expiredCookies`).
+ */
+const LEGACY_COOKIE_NAMES: Readonly<Record<string, string>> = {
+  kp_notion_connections: "nkb_notion_connections",
+  kp_session: "nkb_session",
+};
+
+/** 쿠키 하나를 지우는 `Set-Cookie` 값들. 옛 이름이 있으면 그것도 지운다. */
+export function expiredCookies(name: string, secure: boolean): string[] {
+  const legacy = LEGACY_COOKIE_NAMES[name];
+  return [name, ...(legacy === undefined ? [] : [legacy])].map((cookie) => serializeExpiredCookie(cookie, secure));
 }
 
 /** 모든 인증 쿠키는 `HttpOnly; SameSite=Lax`, HTTPS origin이면 `Secure`다. */

@@ -57,18 +57,26 @@ export class BoardRecordError extends Error {
 
 export interface BoardRepositoryOptions {
   databaseName?: string;
+  /** 옮겨 올 옛 DB 이름. 기본값은 이름 변경 전 이름이며, `databaseName`을 직접 주면 기본으로 옮기지 않는다. */
+  legacyDatabaseName?: string | null;
   dexie?: DexieOptions;
   now?: () => Date;
 }
 
-export function boardDatabaseName(ownerGitHubUserId: string): string {
+/** 프로젝트 이름을 바꾸기 전(2026-11-10) DB 이름. 처음 열 때 새 DB로 옮기고 지운다. */
+export function legacyBoardDatabaseName(ownerGitHubUserId: string): string {
   return `notion-kanban-blog.board.${ownerGitHubUserIdSchema.parse(ownerGitHubUserId)}`;
+}
+
+export function boardDatabaseName(ownerGitHubUserId: string): string {
+  return `kanban-press.board.${ownerGitHubUserIdSchema.parse(ownerGitHubUserId)}`;
 }
 
 export class BoardRepository {
   readonly #database: BoardDatabase;
   readonly #now: () => Date;
   readonly #owner: string;
+  readonly #ready: Promise<void>;
 
   constructor(ownerGitHubUserId: string, options: BoardRepositoryOptions = {}) {
     this.#owner = ownerGitHubUserIdSchema.parse(ownerGitHubUserId);
@@ -77,15 +85,24 @@ export class BoardRepository {
       options.databaseName ?? boardDatabaseName(this.#owner),
       options.dexie,
     );
+    const legacyName =
+      options.legacyDatabaseName === undefined
+        ? options.databaseName === undefined
+          ? legacyBoardDatabaseName(this.#owner)
+          : null
+        : options.legacyDatabaseName;
+    this.#ready = legacyName === null ? Promise.resolve() : this.#importLegacy(legacyName, options.dexie);
   }
 
   /** 현재 사용자의 모든 record(숨김 포함)를 칸반 순서로. 형식이 틀린 record는 이때 지운다. */
   async list(): Promise<readonly BoardRecord[]> {
+    await this.#ready;
     await this.#purgeInvalidRecords();
     return (await this.#records()).sort(compareRecords);
   }
 
   async get(connectionId: string, providerPageId: string): Promise<BoardRecord | null> {
+    await this.#ready;
     const key = this.#key(connectionId, providerPageId);
     const value = await this.#database.boardRecords.get(key);
     if (value === undefined) {
@@ -105,6 +122,7 @@ export class BoardRepository {
    * 원문이 바뀌었으면 구조 판별 캐시를 무효화한다.
    */
   async syncDrafts(sources: readonly BoardSyncSource[]): Promise<readonly BoardRecord[]> {
+    await this.#ready;
     const parsedSources = z.array(syncSourceSchema).max(10_000).parse(sources);
     await this.#purgeInvalidRecords();
     await this.#transaction(async () => {
@@ -152,6 +170,7 @@ export class BoardRepository {
     providerPageId: string,
     targetIndex: number,
   ): Promise<readonly BoardRecord[]> {
+    await this.#ready;
     const index = z.number().int().nonnegative().parse(targetIndex);
     const key = this.#key(connectionId, providerPageId);
     await this.#purgeInvalidRecords();
@@ -181,6 +200,7 @@ export class BoardRepository {
     providerPageId: string,
     isVisible: boolean,
   ): Promise<readonly BoardRecord[]> {
+    await this.#ready;
     const shown = z.boolean().parse(isVisible);
     await this.#update(this.#key(connectionId, providerPageId), async (current) => {
       if (current.pageRole === "container" && shown) {
@@ -206,6 +226,7 @@ export class BoardRepository {
     hasNavigableChildren: boolean,
     isVisibleByDefault = true,
   ): Promise<readonly BoardRecord[]> {
+    await this.#ready;
     const inspectedAt = isoDateSchema.parse(sourceLastEditedAt);
     const hasChildren = z.boolean().parse(hasNavigableChildren);
     const defaultVisibility = z.boolean().parse(isVisibleByDefault);
@@ -237,6 +258,30 @@ export class BoardRepository {
   }
 
   /** 현재 사용자의 record 중 schema를 통과한 것만. */
+  /**
+   * 옛 이름 DB가 있으면 record를 새 DB로 옮기고 옛 DB를 지운다. 새 DB에 이미 record가 있으면 옮기지 않는다.
+   * v12가 아닌 옛 DB는 v11 이하 정책대로 옮기지 않고 지운다. 실패해도 새 DB는 그대로 쓴다.
+   */
+  async #importLegacy(legacyName: string, dexieOptions: DexieOptions | undefined): Promise<void> {
+    const legacy = new Dexie(legacyName, dexieOptions);
+    try {
+      await legacy.open();
+    } catch {
+      return; // 옛 DB가 없다(NoSuchDatabaseError) 또는 열 수 없다.
+    }
+    try {
+      if (legacy.verno === SCHEMA_VERSION && legacy.tables.some((table) => table.name === BOARD_STORE)) {
+        const records = await legacy.table(BOARD_STORE).toArray();
+        if (records.length > 0 && (await this.#database.boardRecords.count()) === 0) {
+          await this.#database.boardRecords.bulkPut(records as BoardRecord[]);
+        }
+      }
+      await legacy.delete(); // 같은 indexedDB 구현으로 지운다(테스트의 fake-indexeddb 포함).
+    } catch {
+      legacy.close();
+    }
+  }
+
   async #records(): Promise<BoardRecord[]> {
     const values = await this.#database.boardRecords
       .where("ownerGitHubUserId")

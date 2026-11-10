@@ -1,5 +1,5 @@
 {
-  "name": "notion-kanban-blog",
+  "name": "kanban-press",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "lint": "node tooling/scripts/check-package-boundaries.mjs && node tooling/scripts/check-structure.mjs && pnpm --recursive --if-present run lint",
     "structure:check": "node tooling/scripts/check-structure.mjs",
     "test": "node --test tooling/scripts/*.test.mjs && pnpm --recursive --if-present run test",
-    "test:e2e": "pnpm --filter @notion-kanban-blog/web test:e2e",
+    "test:e2e": "pnpm --filter @kanban-press/web test:e2e",
     "test:harness": "node --test tooling/scripts/*.test.mjs",
     "test:integration": "pnpm --recursive --if-present run test:integration",
     "typecheck": "pnpm --recursive --if-present run typecheck"

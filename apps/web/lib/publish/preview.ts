@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import type {
   PublishRichText,
-} from "@notion-kanban-blog/publisher";
+} from "@kanban-press/publisher";
 
 import type {
   PublishSourceBlock,

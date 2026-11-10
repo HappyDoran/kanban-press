@@ -3,16 +3,16 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 
 import type {
   GitHubArtifact,
   GitHubRepositoryAdapter,
-} from "@notion-kanban-blog/github";
-import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
-import { createMarkdownArtifact } from "@notion-kanban-blog/publisher";
+} from "@kanban-press/github";
+import type { NotionContentAdapter } from "@kanban-press/notion";
+import { createMarkdownArtifact } from "@kanban-press/publisher";
 import type { NotionConnectionsPayload } from "../auth/notion";
 import { NotionProviderError } from "../notion/content";
 import {
@@ -24,9 +24,9 @@ import {
 } from "./orchestration";
 import { previewNotionPage } from "./preview-orchestration";
 
-vi.mock("@notion-kanban-blog/publisher", async (importOriginal) => {
+vi.mock("@kanban-press/publisher", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@notion-kanban-blog/publisher")>();
+    await importOriginal<typeof import("@kanban-press/publisher")>();
   return {
     ...actual,
     createMarkdownArtifact: vi.fn((document: { slug: string }) => ({
@@ -157,7 +157,7 @@ async function fixture() {
     notionAuth: { connectionsCodec, sessionCodec },
     sessionCodec,
   };
-  const cookie = `nkb_session=${session}; nkb_notion_connections=${connections}`;
+  const cookie = `kp_session=${session}; kp_notion_connections=${connections}`;
   return {
     commitArtifacts,
     cookie,
@@ -225,7 +225,7 @@ describe("publish orchestration", () => {
     expect(artifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          path: ".notion-kanban-blog/managed.json",
+          path: ".kanban-press/managed.json",
         }),
         expect.objectContaining({
           path: "src/content/blog/notion-9188c6a57381.md",

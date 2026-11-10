@@ -235,7 +235,7 @@ OAuth 로그인부터 실제 repository commit, GitHub Actions, Pages URL 응답
 - publisher unit: 2 files, 13 tests 통과.
 - publisher Astro integration: 1 file, 2 tests 통과.
 - web의 publish/GitHub/Notion/kanban 관련 대상: 4 files, 37 tests 통과. 이 실행 전에
-  `@notion-kanban-blog/publisher`를 build해야 했다.
+  `@kanban-press/publisher`를 build해야 했다.
 - Node 22 Corepack 경로를 명시한 전체 `lint`, `typecheck`, `test`, `test:integration`, `build`
   통과. 전체 unit 결과 중 web은 13 files/105 tests, publisher는 2 files/13 tests가 통과했고,
   Astro integration 2 tests와 Next.js production build도 통과했다.

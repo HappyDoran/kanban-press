@@ -1,4 +1,4 @@
-import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
+import type { NotionOutlineNode } from "@kanban-press/notion";
 
 export interface ClientPageReference {
   parentContainerId: string | null;

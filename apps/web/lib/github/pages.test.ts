@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-import { createSessionCookieCodec } from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+import { createSessionCookieCodec } from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -202,7 +202,7 @@ describe("GitHubPagesClient", () => {
       apiVersion: "2026-03-10",
       fetch: readinessFetch({
         tree: [
-          blob(".notion-kanban-blog/managed.json"),
+          blob(".kanban-press/managed.json"),
           blob("existing-user-note.txt"),
         ],
         truncated: false,
@@ -602,7 +602,7 @@ describe("GitHub Pages repository route orchestration", () => {
 
     const response = await getGitHubPagesRepository(
       new Request(`${ORIGIN}/api/github/pages-repository`, {
-        headers: { cookie: `nkb_session=${session}` },
+        headers: { cookie: `kp_session=${session}` },
       }),
       {
         createClient: (accessToken) => {

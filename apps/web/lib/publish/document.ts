@@ -4,12 +4,12 @@ import type {
   NotionContentBlock,
   NotionPageContent,
   NotionPageProperty,
-} from "@notion-kanban-blog/notion";
+} from "@kanban-press/notion";
 import type {
   PublishBlockWith,
   PublishDocument,
   PublishRichText,
-} from "@notion-kanban-blog/publisher";
+} from "@kanban-press/publisher";
 import { z } from "zod";
 
 import { pageIdSuffix } from "./blog-files";

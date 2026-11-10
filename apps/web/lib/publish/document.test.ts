@@ -1,7 +1,7 @@
 import type {
   NotionPageContent,
   NotionRichText,
-} from "@notion-kanban-blog/notion";
+} from "@kanban-press/notion";
 import { describe, expect, it } from "vitest";
 
 import {

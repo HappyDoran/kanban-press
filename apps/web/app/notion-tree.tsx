@@ -2,7 +2,7 @@
 
 // 선택한 Notion 연결의 문서 계층. page는 search 결과의 부모 관계로, page 안의 토글·그룹·database는
 // 펼칠 때 받아 오는 outline으로 그린다. 화면에 나타난 미확인 page는 자동으로 구조를 판별한다.
-import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
+import type { NotionOutlineNode } from "@kanban-press/notion";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import type { BoardRecord } from "../lib/board/repository";

@@ -1,8 +1,8 @@
-import { entityId } from "@notion-kanban-blog/domain";
+import { entityId } from "@kanban-press/domain";
 import {
   createAstroTemplateManifest,
   createMarkdownArtifact,
-} from "@notion-kanban-blog/publisher";
+} from "@kanban-press/publisher";
 import { describe, it } from "vitest";
 import { z } from "zod";
 

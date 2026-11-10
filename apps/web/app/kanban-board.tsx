@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { BOARD_COLUMNS } from "@notion-kanban-blog/domain";
+import { BOARD_COLUMNS } from "@kanban-press/domain";
 import { useEffect, useMemo, useState } from "react";
 
 import { formatEditedAt } from "../lib/format-date";
@@ -37,7 +37,7 @@ import type {
   CollisionDetection,
   Over,
 } from "@dnd-kit/core";
-import type { BoardColumn } from "@notion-kanban-blog/domain";
+import type { BoardColumn } from "@kanban-press/domain";
 import type { BoardRecord } from "../lib/board/repository";
 
 export type KanbanRecord = Omit<BoardRecord, "column"> & {

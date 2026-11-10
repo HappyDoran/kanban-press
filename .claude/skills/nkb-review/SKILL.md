@@ -1,1 +1,0 @@
-../../../.codex/skills/nkb-review/SKILL.md

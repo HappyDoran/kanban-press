@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { forbiddenFileErrors, frontmatterErrors, linkErrors, parseFrontmatter, symlinkErrors } from "./check-structure.mjs";
 
 function withRoot(run) {
-  const root = mkdtempSync(join(tmpdir(), "nkb-structure-"));
+  const root = mkdtempSync(join(tmpdir(), "kp-structure-"));
   try {
     run(root);
   } finally {
@@ -23,7 +23,7 @@ test("규범 문서·skill·agent frontmatter 누락과 이름 불일치를 잡�
     mkdirSync(join(root, ".codex/skills/good"), { recursive: true });
     writeFileSync(join(root, ".codex/skills/good/SKILL.md"), "---\nname: other\ndescription: 설명\n---\n");
     mkdirSync(join(root, ".codex/agents"));
-    writeFileSync(join(root, ".codex/agents/nkb-a.md"), "---\nname: nkb-a\n---\n");
+    writeFileSync(join(root, ".codex/agents/kp-a.md"), "---\nname: kp-a\n---\n");
     const errors = frontmatterErrors(root, ["AGENTS.md", "docs/a.md", "docs/b.md"]);
     assert.equal(errors.length, 5, errors.join("\n"));
     assert.deepEqual(parseFrontmatter("---\nname: a\n---\n"), { name: "a" });
@@ -39,10 +39,10 @@ test("canonical symlink가 아니면 거부하고 올바른 symlink는 통과한
     mkdirSync(join(root, ".claude/skills/s"), { recursive: true });
     symlinkSync("../../../.codex/skills/s/SKILL.md", join(root, ".claude/skills/s/SKILL.md"));
     mkdirSync(join(root, ".codex/agents"));
-    writeFileSync(join(root, ".codex/agents/nkb-a.md"), "");
+    writeFileSync(join(root, ".codex/agents/kp-a.md"), "");
     assert.deepEqual(symlinkErrors(root), [
       "CLAUDE.md: AGENTS.md의 symlink가 필요합니다.",
-      ".claude/agents/nkb-a.md: .codex/agents/nkb-a.md의 symlink가 필요합니다.",
+      ".claude/agents/kp-a.md: .codex/agents/kp-a.md의 symlink가 필요합니다.",
     ]);
   });
 });

@@ -1,6 +1,6 @@
 // 브라우저에서 앱 API를 부르고 응답을 검증한다. 서버 응답도 신뢰 경계 밖에서 온 값으로 보고
 // zod로 확인한 뒤에만 화면 상태에 넣는다. 오류는 서버가 준 code 문자열로만 전달한다.
-import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
+import type { NotionOutlineNode } from "@kanban-press/notion";
 import { z } from "zod";
 
 import { parsePublishPreviewResponse, type PublishPreviewResponse } from "../publish/preview";

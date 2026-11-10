@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -94,7 +94,7 @@ async function sessionCookie(
     issuedAt: NOW,
     userId: entityId("GitHubUser", userId),
   });
-  return `nkb_session=${value}`;
+  return `kp_session=${value}`;
 }
 
 async function start(deps: NotionAuthDependencies) {
@@ -106,7 +106,7 @@ async function start(deps: NotionAuthDependencies) {
   );
   const location = new URL(response.headers.get("location") ?? "");
   const state = location.searchParams.get("state");
-  const stateCookie = cookiePair(response, "nkb_notion_oauth_state");
+  const stateCookie = cookiePair(response, "kp_notion_oauth_state");
   if (state === null || stateCookie === null) {
     throw new Error("Expected Notion OAuth state");
   }
@@ -147,7 +147,7 @@ describe("Notion OAuth connections", () => {
     );
 
     expect(response.status).toBe(302);
-    const connectionsCookie = cookiePair(response, "nkb_notion_connections");
+    const connectionsCookie = cookiePair(response, "kp_notion_connections");
     expect(connectionsCookie).not.toBeNull();
     expect(connectionsCookie).not.toContain("notion-access-token");
 
@@ -192,7 +192,7 @@ describe("Notion OAuth connections", () => {
       callbackRequest(first.state, [session, first.stateCookie]),
       deps,
     );
-    const connectionsCookie = cookiePair(connected, "nkb_notion_connections") ?? "";
+    const connectionsCookie = cookiePair(connected, "kp_notion_connections") ?? "";
 
     vi.mocked(deps.notion.authorize).mockResolvedValueOnce({
       accessToken: "second-access-token",
@@ -214,7 +214,7 @@ describe("Notion OAuth connections", () => {
     const listed = await listNotionConnections(
       new Request(`${ORIGIN}/api/notion/connections`, {
         headers: {
-          cookie: [session, cookiePair(reconnected, "nkb_notion_connections")].join("; "),
+          cookie: [session, cookiePair(reconnected, "kp_notion_connections")].join("; "),
         },
       }),
       deps,
@@ -239,7 +239,7 @@ describe("Notion OAuth connections", () => {
 
     expect(response.status).toBe(504);
     await expect(response.json()).resolves.toEqual({ error: "notion_timeout" });
-    expect(cookiePair(response, "nkb_notion_connections")).toBeNull();
+    expect(cookiePair(response, "kp_notion_connections")).toBeNull();
   });
 
   it("rejects state owned by another GitHub user", async () => {
@@ -281,7 +281,7 @@ describe("Notion OAuth connections", () => {
 
     expect(response.status).toBe(409);
     expect(notion.revoke).toHaveBeenCalledWith("x".repeat(4_000));
-    expect(cookiePair(response, "nkb_notion_connections")).toBeNull();
+    expect(cookiePair(response, "kp_notion_connections")).toBeNull();
   });
 
   it("enforces the three-connection limit and revokes the rejected token", async () => {
@@ -306,7 +306,7 @@ describe("Notion OAuth connections", () => {
       callbackRequest(begun.state, [
         await sessionCookie(deps),
         begun.stateCookie,
-        `nkb_notion_connections=${value}`,
+        `kp_notion_connections=${value}`,
       ]),
       deps,
     );
@@ -323,7 +323,7 @@ describe("Notion OAuth connections", () => {
       callbackRequest(begun.state, [session, begun.stateCookie]),
       deps,
     );
-    const connectionsCookie = cookiePair(connected, "nkb_notion_connections");
+    const connectionsCookie = cookiePair(connected, "kp_notion_connections");
 
     const response = await disconnectNotion(
       new Request(`${ORIGIN}/api/notion/connections/disconnect`, {

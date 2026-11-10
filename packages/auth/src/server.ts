@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 
-import { entityId } from "@notion-kanban-blog/domain";
+import { entityId } from "@kanban-press/domain";
 import { z } from "zod";
 
 import type { GitHubSession, SessionCodec, UnixTimestamp } from "./index.js";
@@ -95,15 +95,13 @@ export function createEncryptedCookieCodec<Payload>(
           return null;
         }
 
-        const decipher = createDecipheriv("aes-256-gcm", key, nonce, {
-          authTagLength: TAG_BYTES,
-        });
-        decipher.setAAD(aad(keyId));
-        decipher.setAuthTag(tag);
-        const plaintext = Buffer.concat([
-          decipher.update(ciphertext),
-          decipher.final(),
-        ]);
+        // 이름을 바꾸기 전(notion-kanban-blog) AAD로 봉인한 쿠키도 연다. 새로 봉인할 때는 새 AAD만 쓴다.
+        const plaintext =
+          decrypt(key, nonce, ciphertext, tag, aad(keyId)) ??
+          decrypt(key, nonce, ciphertext, tag, legacyAad(keyId));
+        if (plaintext === null) {
+          return null;
+        }
 
         const envelope = envelopeSchema.safeParse(
           JSON.parse(plaintext.toString()),
@@ -212,7 +210,24 @@ function assertKeyId(keyId: string): void {
 }
 
 function aad(keyId: string): Buffer {
+  return Buffer.from(`kanban-press.cookie.${VERSION}.${keyId}`);
+}
+
+/** 프로젝트 이름을 바꾸기 전(2026-11-10) 쿠키의 AAD. 열 때만 쓴다. */
+function legacyAad(keyId: string): Buffer {
   return Buffer.from(`notion-kanban-blog.cookie.${VERSION}.${keyId}`);
+}
+
+/** AES-256-GCM 복호화. 인증 실패면 null. */
+function decrypt(key: Uint8Array, nonce: Buffer, ciphertext: Buffer, tag: Buffer, additionalData: Buffer): Buffer | null {
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, nonce, { authTagLength: TAG_BYTES });
+    decipher.setAAD(additionalData);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    return null;
+  }
 }
 
 function currentUnixTimestamp(): UnixTimestamp {

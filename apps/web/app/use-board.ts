@@ -2,8 +2,8 @@
 
 // 칸반 상태. 카드와 표시 여부는 IndexedDB(BoardRepository)에, 게시 중과 실패 안내는 이 hook의 메모리에 둔다.
 // 게시 완료 열은 블로그 저장소에 그 글이 있는지로 정한다(제품 명세 §5.1 R8). 열 때마다 GitHub에서 다시 읽는다.
-import type { BoardColumn } from "@notion-kanban-blog/domain";
-import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
+import type { BoardColumn } from "@kanban-press/domain";
+import type { NotionOutlineNode } from "@kanban-press/notion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { type BoardRecord, BoardRepository } from "../lib/board/repository";

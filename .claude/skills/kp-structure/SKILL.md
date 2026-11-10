@@ -1,0 +1,1 @@
+../../../.codex/skills/kp-structure/SKILL.md

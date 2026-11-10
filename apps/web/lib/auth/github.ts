@@ -1,13 +1,13 @@
 // GitHub OAuth 로그인 흐름: start → GitHub 동의 → callback → 세션 쿠키 → /api/me, logout.
 import { randomBytes } from "node:crypto";
 
-import type { SessionCodec, UnixTimestamp } from "@notion-kanban-blog/auth";
+import type { SessionCodec, UnixTimestamp } from "@kanban-press/auth";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
   type EncryptedCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { z } from "zod";
 
 import {
@@ -21,6 +21,7 @@ import {
   cookieKeysFromEnvironment,
   currentUnixTimestamp,
   errorResponse,
+  expiredCookies,
   isAllowedReturnTo,
   parseAppOrigin,
   readCookie,
@@ -34,7 +35,7 @@ import {
 
 // 게시 대상 repository에 commit하고 Pages workflow 파일을 쓰려면 public_repo와 workflow가 필요하다.
 const GITHUB_SCOPE = "read:user public_repo workflow";
-const STATE_COOKIE = "nkb_oauth_state";
+const STATE_COOKIE = "kp_oauth_state";
 const STATE_TTL_SECONDS = 10 * 60;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
@@ -196,7 +197,7 @@ export function logout(
     return errorResponse(403, "invalid_origin");
   }
   const headers = new Headers({ "cache-control": "no-store" });
-  headers.append("set-cookie", serializeExpiredCookie(SESSION_COOKIE, config.secureCookies));
+  for (const cookie of expiredCookies(SESSION_COOKIE, config.secureCookies)) headers.append("set-cookie", cookie);
   headers.append("set-cookie", serializeExpiredCookie(STATE_COOKIE, config.secureCookies));
   return new Response(null, { headers, status: 204 });
 }
@@ -298,7 +299,7 @@ export function createGitHubOAuthClient(options: {
             headers: {
               accept: "application/json",
               "content-type": "application/x-www-form-urlencoded",
-              "user-agent": "notion-kanban-blog",
+              "user-agent": "kanban-press",
             },
             method: "POST",
           },
@@ -316,7 +317,7 @@ export function createGitHubOAuthClient(options: {
             headers: {
               accept: "application/vnd.github+json",
               authorization: `Bearer ${token.data.access_token}`,
-              "user-agent": "notion-kanban-blog",
+              "user-agent": "kanban-press",
               "x-github-api-version": options.apiVersion,
             },
           },

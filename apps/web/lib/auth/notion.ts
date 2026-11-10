@@ -1,13 +1,13 @@
 // Notion 워크스페이스 연결: GitHub 로그인 사용자가 OAuth로 Notion을 연결하고,
-// 연결 token은 암호화된 HttpOnly 쿠키(nkb_notion_connections)에만 보관한다.
+// 연결 token은 암호화된 HttpOnly 쿠키(kp_notion_connections)에만 보관한다.
 import { randomBytes } from "node:crypto";
 
-import type { SessionCodec, UnixTimestamp } from "@notion-kanban-blog/auth";
+import type { SessionCodec, UnixTimestamp } from "@kanban-press/auth";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
   type EncryptedCookieCodec,
-} from "@notion-kanban-blog/auth/server";
+} from "@kanban-press/auth/server";
 import { z } from "zod";
 
 import {
@@ -21,6 +21,7 @@ import {
   cookieKeysFromEnvironment,
   currentUnixTimestamp,
   errorResponse,
+  expiredCookies,
   isAllowedReturnTo,
   parseAppOrigin,
   readCookie,
@@ -31,8 +32,8 @@ import {
   serializeExpiredCookie,
 } from "./session";
 
-const STATE_COOKIE = "nkb_notion_oauth_state";
-const CONNECTIONS_COOKIE = "nkb_notion_connections";
+const STATE_COOKIE = "kp_notion_oauth_state";
+const CONNECTIONS_COOKIE = "kp_notion_connections";
 const STATE_TTL_SECONDS = 10 * 60;
 const CONNECTIONS_TTL_SECONDS = 30 * 24 * 60 * 60;
 // 브라우저 쿠키 하나는 약 4KB다. 연결 수와 암호화된 값 크기를 함께 제한하고 넘으면 명시적으로 거절한다.
@@ -326,13 +327,12 @@ export async function disconnectNotion(
   }
   const remaining = payload.connections.filter((item) => item !== connection);
   const headers = new Headers({ "cache-control": "no-store" });
-  headers.append(
-    "set-cookie",
+  const cookies =
     remaining.length === 0
-      ? serializeExpiredCookie(CONNECTIONS_COOKIE, secureCookies)
+      ? expiredCookies(CONNECTIONS_COOKIE, secureCookies)
       : // 남은 연결은 이미 저장돼 있던 값이라 크기 상한을 넘지 않는다.
-        ((await sealConnections(remaining, dependencies)) as string),
-  );
+        [(await sealConnections(remaining, dependencies)) as string];
+  for (const cookie of cookies) headers.append("set-cookie", cookie);
   return new Response(null, { headers, status: 204 });
 }
 

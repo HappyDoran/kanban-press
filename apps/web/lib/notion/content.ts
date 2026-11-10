@@ -6,7 +6,7 @@ import type {
   NotionOutlineNode,
   NotionPageContent,
   NotionPageSummary,
-} from "@notion-kanban-blog/notion";
+} from "@kanban-press/notion";
 import { z } from "zod";
 
 import {

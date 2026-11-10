@@ -3,16 +3,16 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import type {
   GitHubArtifact,
   GitHubRepositoryAdapter,
-} from "@notion-kanban-blog/github";
+} from "@kanban-press/github";
 import type {
   NotionContentAdapter,
   NotionPageContent,
-} from "@notion-kanban-blog/notion";
+} from "@kanban-press/notion";
 import { describe, expect, it, vi } from "vitest";
 
 import type { NotionConnectionsPayload } from "../auth/notion";
@@ -106,7 +106,7 @@ describe("preview/category/template v2 rollout", () => {
     expect(artifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          path: ".notion-kanban-blog/managed.json",
+          path: ".kanban-press/managed.json",
         }),
         {
           bytes: PNG,
@@ -115,7 +115,7 @@ describe("preview/category/template v2 rollout", () => {
       ]),
     );
     const marker = JSON.parse(
-      textArtifact(artifacts, ".notion-kanban-blog/managed.json"),
+      textArtifact(artifacts, ".kanban-press/managed.json"),
     ) as unknown;
     expect(marker).toEqual({ publisher: "astro", templateVersion: 2 });
     const commitMessage = context.commitArtifacts.mock.calls[0]?.[2];
@@ -282,7 +282,7 @@ async function fixture(initialPage: NotionPageContent): Promise<RolloutFixture> 
 
   return {
     commitArtifacts,
-    cookie: `nkb_session=${session}; nkb_notion_connections=${connections}`,
+    cookie: `kp_session=${session}; kp_notion_connections=${connections}`,
     dependencies,
     getPageContent,
     getPagesRepository,

@@ -1,6 +1,6 @@
 // `/api/notion/connections/:connectionId/pages`와 `.../pages/:pageId/outline` route 본체.
 // 요청마다 연결 소유권을 확인한 뒤 그 연결의 token으로만 Notion을 읽는다.
-import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
+import type { NotionContentAdapter } from "@kanban-press/notion";
 import { z } from "zod";
 
 import {

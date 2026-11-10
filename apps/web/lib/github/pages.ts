@@ -1,6 +1,6 @@
 // 사용자 OAuth token으로 `<login>.github.io` 저장소를 읽고 게시 commit을 만드는 GitHub REST client.
 // HTTP 요청·응답 검증은 #send·#json·#optional 세 곳만 거친다.
-import type { SessionCodec } from "@notion-kanban-blog/auth";
+import type { SessionCodec } from "@kanban-press/auth";
 import type {
   GitHubArtifact,
   GitHubCommitResult,
@@ -8,8 +8,8 @@ import type {
   GitHubPagesReadiness,
   GitHubRepository,
   GitHubRepositoryAdapter,
-} from "@notion-kanban-blog/github";
-import { createAstroTemplateManifest } from "@notion-kanban-blog/publisher";
+} from "@kanban-press/github";
+import { createAstroTemplateManifest } from "@kanban-press/publisher";
 import { z } from "zod";
 
 import { createGitHubAuthDependencies } from "../auth/github";
@@ -76,7 +76,9 @@ const fileContentSchema = z.object({
 const pagesSettingsSchema = z.object({ build_type: z.string() });
 
 // 관리 표식이 없는 저장소에서도 덮어써도 되는 v1 template 파일과 글.
-const MANAGED_MARKER_PATH = ".notion-kanban-blog/managed.json";
+const MANAGED_MARKER_PATH = ".kanban-press/managed.json";
+/** 프로젝트 이름을 바꾸기 전(2026-11-10) 관리 표식. 이것이 있어도 관리 저장소로 본다. */
+export const LEGACY_MANAGED_MARKER_PATH = ".notion-kanban-blog/managed.json";
 const LEGACY_V1_PATHS = new Set([
   ".github/workflows/deploy.yml",
   ".gitignore",
@@ -91,7 +93,8 @@ const LEGACY_V1_PATHS = new Set([
   "tsconfig.json",
 ]);
 const LEGACY_BLOG_POST_PATH = /^src\/content\/blog\/[^/]+\.md$/;
-const CONTENT_PATH = /^(?:src\/content\/blog|src\/assets\/blog|public\/posts)\//;
+// 게시 글 파일과, 새 폴더로 옮길 옛 앱 폴더(.notion-kanban-blog/)의 파일.
+const CONTENT_PATH = /^(?:src\/content\/blog|src\/assets\/blog|public\/posts|\.notion-kanban-blog)\//;
 const FAILED_PAGES_STATUSES = new Set(["cancelled", "error", "errored", "failed"]);
 const OK_RUN_CONCLUSIONS = new Set(["neutral", "skipped", "success"]);
 
@@ -266,7 +269,8 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       }
       const blobs = entries.filter((entry) => entry.type === "blob").map((entry) => entry.path);
       contentPaths = blobs.filter((path) => CONTENT_PATH.test(path)).sort((left, right) => left.localeCompare(right));
-      const conflictingPaths = blobs.includes(MANAGED_MARKER_PATH)
+      const conflictingPaths =
+        blobs.includes(MANAGED_MARKER_PATH) || blobs.includes(LEGACY_MANAGED_MARKER_PATH)
         ? []
         : blobs
             .filter((path) => !LEGACY_V1_PATHS.has(path) && !LEGACY_BLOG_POST_PATH.test(path))
@@ -380,7 +384,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
             accept: "application/vnd.github+json",
             authorization: `Bearer ${this.#accessToken}`,
             ...(init.body === undefined ? {} : { "content-type": "application/json" }),
-            "user-agent": "notion-kanban-blog",
+            "user-agent": "kanban-press",
             "x-github-api-version": this.#apiVersion,
           },
         },

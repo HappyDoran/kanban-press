@@ -1,1 +1,0 @@
-../../../.codex/skills/nkb-doc-policy/SKILL.md

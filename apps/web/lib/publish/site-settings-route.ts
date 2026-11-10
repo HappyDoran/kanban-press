@@ -1,5 +1,5 @@
 // `/api/blog/settings`: 사이트 설정 읽기·저장(R11, 결정 D3). 저장은 설정 파일 하나만 바꾸는 commit이다.
-import type { SessionCodec } from "@notion-kanban-blog/auth";
+import type { SessionCodec } from "@kanban-press/auth";
 
 import { createGitHubAuthDependencies } from "../auth/github";
 import { errorResponse, readSession } from "../auth/session";
@@ -8,6 +8,7 @@ import { GitHubPagesClient } from "../github/pages";
 import { NO_STORE_HEADERS, notReadyResponse, pageErrorResponse, templatePaths } from "./orchestration";
 import {
   defaultSiteSettings,
+  LEGACY_SITE_SETTINGS_PATH,
   serializeSiteSettings,
   SITE_SETTINGS_PATH,
   siteSettingsSchema,
@@ -35,7 +36,9 @@ export async function getSiteSettings(request: Request, dependencies: SiteSettin
   try {
     const github = dependencies.createClient(session.accessToken);
     const repository = await github.getPagesRepository(session.userId, session.githubLogin);
-    const raw = await github.readFile(repository, SITE_SETTINGS_PATH);
+    const raw =
+      (await github.readFile(repository, SITE_SETTINGS_PATH)) ??
+      (await github.readFile(repository, LEGACY_SITE_SETTINGS_PATH));
     const parsed = raw === null ? null : siteSettingsSchema.safeParse(parseJson(raw));
     return Response.json(
       parsed?.success === true
@@ -73,6 +76,7 @@ export async function saveSiteSettings(request: Request, dependencies: SiteSetti
       repository,
       [{ bytes: new TextEncoder().encode(serializeSiteSettings(input.data)), path: SITE_SETTINGS_PATH }],
       "Update blog settings",
+      readiness.contentPaths.filter((path) => path === LEGACY_SITE_SETTINGS_PATH),
     );
     return Response.json({ commitSha: committed.commitSha, settings: input.data }, { headers: NO_STORE_HEADERS });
   } catch (error) {

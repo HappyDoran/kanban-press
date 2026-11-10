@@ -1,4 +1,4 @@
-import type { UserId } from "@notion-kanban-blog/domain";
+import type { UserId } from "@kanban-press/domain";
 
 export interface GitHubRepository {
   defaultBranch: string;

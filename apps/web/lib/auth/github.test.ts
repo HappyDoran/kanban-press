@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import {
   createEncryptedCookieCodec,
   createSessionCookieCodec,
-} from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
+} from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -79,7 +79,7 @@ async function beginLogin(dependencies: GitHubAuthDependencies) {
     throw new Error("Expected GitHub authorization location");
   }
   const state = new URL(location).searchParams.get("state");
-  const stateCookie = cookiePair(response, "nkb_oauth_state");
+  const stateCookie = cookiePair(response, "kp_oauth_state");
   if (state === null || stateCookie === null) {
     throw new Error("Expected OAuth state and cookie");
   }
@@ -159,10 +159,10 @@ describe("GitHub login flow", () => {
       `${APP_ORIGIN}/auth/github/callback`,
     );
     expect(setCookies(response).join(";")).toContain(
-      "nkb_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+      "kp_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     );
 
-    const sessionCookie = cookiePair(response, "nkb_session");
+    const sessionCookie = cookiePair(response, "kp_session");
     expect(sessionCookie).not.toBeNull();
     await expect(
       dependencies.sessionCodec.open(sessionCookie?.split("=")[1] ?? ""),
@@ -267,7 +267,7 @@ describe("GitHub login flow", () => {
 
     expect(response.status).toBe(504);
     await expect(response.json()).resolves.toEqual({ error: "github_timeout" });
-    expect(cookiePair(response, "nkb_session")).toBeNull();
+    expect(cookiePair(response, "kp_session")).toBeNull();
   });
 });
 
@@ -284,7 +284,7 @@ describe("session endpoints", () => {
 
     const response = await getCurrentUser(
       new Request(`${APP_ORIGIN}/api/me`, {
-        headers: { cookie: `nkb_session=${cookieValue}` },
+        headers: { cookie: `kp_session=${cookieValue}` },
       }),
       dependencies,
     );
@@ -328,10 +328,12 @@ describe("session endpoints", () => {
       dependencies,
     );
     expect(response.status).toBe(204);
-    expect(setCookies(response)).toHaveLength(2);
+    // 세션(새 이름 + 이름 변경 전 nkb_session)과 OAuth state 쿠키를 지운다.
+    expect(setCookies(response)).toHaveLength(3);
     expect(setCookies(response).join(";")).toContain(
-      "nkb_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+      "kp_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
     );
+    expect(setCookies(response).join(";")).toContain("nkb_session=; Path=/;");
   });
 });
 

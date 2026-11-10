@@ -35,7 +35,7 @@ apps/web (stateless Next.js)
 | 보관 문서 정렬, 칸반 표시 override, 구조 판별 캐시 | IndexedDB(schema v12, 이전 version은 비움) | 비신뢰 입력 |
 | 게시 중 상태와 실패 안내 | React 메모리 | 새로고침 시 소멸 |
 | 게시 완료 여부와 글 주소 | 사용자 GitHub repository(글 파일의 page ID 접미사) | 열 때마다 GitHub API에서 조회 |
-| 블로그 사이트 설정(이름·소개·링크) | 사용자 GitHub repository `.notion-kanban-blog/site.json` | 저장 시 서버 zod 검증, 빌드 시 template이 다시 검증 |
+| 블로그 사이트 설정(이름·소개·링크) | 사용자 GitHub repository `.kanban-press/site.json` | 저장 시 서버 zod 검증, 빌드 시 template이 다시 검증 |
 | 게시 전 프리뷰 DTO와 dialog 상태 | React 메모리 | 닫기·새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |
 | 배포 상태 | GitHub Actions/Pages | GitHub API에서 조회 |
@@ -111,7 +111,7 @@ publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한�
 
 프리뷰는 GitHub adapter를 생성하지 않고 repository를 조회·변경하지 않는다. 브라우저는
 프리뷰 결과를 React 메모리에만 두며 IndexedDB나 게시 상태를 변경하지 않는다.
-화면은 블로그 template과 같은 class와 `@notion-kanban-blog/publisher`의 `BLOG_CSS`로 그려
+화면은 블로그 template과 같은 class와 `@kanban-press/publisher`의 `BLOG_CSS`로 그려
 실제 글과 같은 heading·목록·표 구조를 보여준다. 블로그 안의 이동 링크는 href 없이 그린다.
 
 ### rollout 검증 경계
@@ -135,7 +135,7 @@ AEAD nonce는 매번 새로 생성한다. 복호화 실패, 알 수 없는 key, 
 현재 cookie codec은 AES-256-GCM을 사용하며 직렬화 형식은
 `v1.keyId.nonce.ciphertext.tag`다. `version`과 `keyId`는 AAD에 포함하고,
 시간 정보와 payload는 암호문 안에 둔다. 공개 package 진입점에는 타입만 노출하며
-구현은 Node 전용 `@notion-kanban-blog/auth/server`에서 import한다.
+구현은 Node 전용 `@kanban-press/auth/server`에서 import한다.
 
 OAuth state 쿠키와 장기 세션 쿠키는 이름·수명·용도를 분리한다. production에서는
 `Secure`를 강제한다. 연결 추가 전에 직렬화된 크기를 검사하고 정책 상한을 넘기지 않는다.

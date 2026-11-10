@@ -1,4 +1,4 @@
-# Notion Kanban Blog
+# Kanban Press
 
 각 사용자가 GitHub로 로그인하고 자신의 Notion 문서를 개인 칸반에서 관리해
 자신의 GitHub Pages 블로그에 게시하는 애플리케이션입니다.
@@ -37,7 +37,7 @@ mise exec -- pnpm dev
 Web 앱만 실행하려면:
 
 ```bash
-mise exec -- pnpm --filter @notion-kanban-blog/web dev
+mise exec -- pnpm --filter @kanban-press/web dev
 ```
 
 ## GitHub 로그인 설정
@@ -145,7 +145,7 @@ NOTION_API_VERSION
 `<login>.github.io` repository를 소유하고 `public_repo workflow` scope를 가져야 합니다.
 
 ```bash
-mise exec -- pnpm --filter @notion-kanban-blog/web test:smoke
+mise exec -- pnpm --filter @kanban-press/web test:smoke
 ```
 
 smoke는 Notion 원문 조회, 로컬 이미지 변환, GitHub repository readiness까지만 확인하며

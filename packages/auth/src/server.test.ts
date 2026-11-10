@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { entityId } from "@notion-kanban-blog/domain";
+import { entityId } from "@kanban-press/domain";
 import { describe, expect, it } from "vitest";
 
 import {

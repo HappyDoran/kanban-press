@@ -1,5 +1,5 @@
 {
-  "name": "@notion-kanban-blog/auth",
+  "name": "@kanban-press/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notion-kanban-blog/domain": "workspace:*",
+    "@kanban-press/domain": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

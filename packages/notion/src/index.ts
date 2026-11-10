@@ -1,7 +1,7 @@
 import type {
   NotionConnectionId,
   UserId,
-} from "@notion-kanban-blog/domain";
+} from "@kanban-press/domain";
 
 export interface NotionWorkspace {
   connectionId: NotionConnectionId;

@@ -57,7 +57,7 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
   const databases = await page.evaluate(async () =>
     (await indexedDB.databases()).map((database) => database.name),
   );
-  expect(databases).toContain("notion-kanban-blog.board.52277540");
+  expect(databases).toContain("kanban-press.board.52277540");
 
   await page.getByRole("button", { exact: true, name: "미리보기" }).click();
   await expect(page.getByRole("dialog")).toContainText("E2E 프리뷰 본문");
@@ -103,7 +103,7 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
 
   const storedVisibility = await page.evaluate(
     async ({ connectionId, pageId }) => {
-      const request = indexedDB.open("notion-kanban-blog.board.52277540");
+      const request = indexedDB.open("kanban-press.board.52277540");
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
@@ -143,13 +143,13 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
   );
   expect(isolatedDatabases).toEqual(
     expect.arrayContaining([
-      "notion-kanban-blog.board.52277540",
-      "notion-kanban-blog.board.90000001",
+      "kanban-press.board.52277540",
+      "kanban-press.board.90000001",
     ]),
   );
   const newOwnerVisibility = await page.evaluate(
     async ({ connectionId, pageId }) => {
-      const request = indexedDB.open("notion-kanban-blog.board.90000001");
+      const request = indexedDB.open("kanban-press.board.90000001");
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

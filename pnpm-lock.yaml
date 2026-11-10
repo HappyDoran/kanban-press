@@ -32,19 +32,19 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
-      '@notion-kanban-blog/auth':
+      '@kanban-press/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@notion-kanban-blog/domain':
+      '@kanban-press/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      '@notion-kanban-blog/github':
+      '@kanban-press/github':
         specifier: workspace:*
         version: link:../../packages/github
-      '@notion-kanban-blog/notion':
+      '@kanban-press/notion':
         specifier: workspace:*
         version: link:../../packages/notion
-      '@notion-kanban-blog/publisher':
+      '@kanban-press/publisher':
         specifier: workspace:*
         version: link:../../packages/publisher
       dexie:
@@ -90,7 +90,7 @@ importers:
 
   packages/auth:
     dependencies:
-      '@notion-kanban-blog/domain':
+      '@kanban-press/domain':
         specifier: workspace:*
         version: link:../domain
       zod:
@@ -112,13 +112,13 @@ importers:
 
   packages/github:
     dependencies:
-      '@notion-kanban-blog/domain':
+      '@kanban-press/domain':
         specifier: workspace:*
         version: link:../domain
 
   packages/notion:
     dependencies:
-      '@notion-kanban-blog/domain':
+      '@kanban-press/domain':
         specifier: workspace:*
         version: link:../domain
 

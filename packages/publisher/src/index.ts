@@ -123,7 +123,7 @@ jobs:
 dist
 .astro
 `,
-    ".notion-kanban-blog/managed.json": `${JSON.stringify(
+    ".kanban-press/managed.json": `${JSON.stringify(
       { publisher: "astro", templateVersion: 2 },
       null,
       2,
@@ -141,7 +141,7 @@ export default defineConfig({
     "package.json": `${JSON.stringify(
       {
         dependencies: { astro: ASTRO_VERSION },
-        name: "notion-kanban-blog-site",
+        name: "kanban-press-site",
         packageManager: "pnpm@11.15.0",
         private: true,
         scripts: { build: "astro build" },
@@ -301,7 +301,7 @@ export interface SiteSettings {
 }
 
 /**
- * 게시 앱이 저장한 사이트 설정(.notion-kanban-blog/site.json, R11). 빌드는 저장소 루트에서 실행된다.
+ * 게시 앱이 저장한 사이트 설정(.kanban-press/site.json, R11). 빌드는 저장소 루트에서 실행된다.
  * 파일이 없거나 값이 틀리면 그 항목만 기본값을 쓴다.
  */
 export const site: SiteSettings = readSiteSettings();
@@ -312,8 +312,11 @@ function readSiteSettings(): SiteSettings {
     links: [],
     title: siteOwner + ".log",
   };
-  const path = join(process.cwd(), ".notion-kanban-blog", "site.json");
-  if (!existsSync(path)) {
+  // 이름 변경 전 위치(.notion-kanban-blog/)도 새 파일이 없을 때 읽는다.
+  const path = [".kanban-press", ".notion-kanban-blog"]
+    .map((directory) => join(process.cwd(), directory, "site.json"))
+    .find((candidate) => existsSync(candidate));
+  if (path === undefined) {
     return fallback;
   }
   try {

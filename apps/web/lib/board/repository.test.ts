@@ -74,7 +74,7 @@ describe("BoardRepository", () => {
     await expect(second.list()).resolves.toMatchObject([
       { ownerGitHubUserId: OWNER_B, title: "사용자 B 문서" },
     ]);
-    expect(boardDatabaseName(OWNER_A)).toBe("notion-kanban-blog.board.583231");
+    expect(boardDatabaseName(OWNER_A)).toBe("kanban-press.board.583231");
     expect(() => new BoardRepository("octocat")).toThrow("numeric");
     first.close();
     second.close();
@@ -291,3 +291,53 @@ function boardRecord(overrides: Partial<BoardRecord> = {}): BoardRecord {
 function uniqueDatabaseName(owner: string): string {
   return `test.${owner}.${crypto.randomUUID()}`;
 }
+
+describe("legacy database import (project rename)", () => {
+  it("moves v12 records from the old database name into the new one and deletes the old database", async () => {
+    const legacyName = `legacy-${Math.random()}`;
+    const newName = `new-${Math.random()}`;
+    databases.add(legacyName);
+    databases.add(newName);
+    const seed = repository(OWNER_A, legacyName);
+    await seed.syncDrafts([source(), source({ providerPageId: SECOND_PAGE_ID, title: "둘째 문서" })]);
+    await seed.setVisibility(CONNECTION_ID, SECOND_PAGE_ID, false);
+    seed.close();
+
+    const migrated = new BoardRepository(OWNER_A, {
+      databaseName: newName,
+      dexie: DEXIE_OPTIONS,
+      legacyDatabaseName: legacyName,
+    });
+    const records = await migrated.list();
+    expect(records.map((record) => [record.title, record.isVisible])).toEqual([
+      ["테스트 문서", true],
+      ["둘째 문서", false],
+    ]);
+    migrated.close();
+
+    const reopened = new Dexie(legacyName, DEXIE_OPTIONS);
+    await expect(reopened.open()).rejects.toThrow();
+    reopened.close();
+  });
+
+  it("keeps existing records in the new database instead of overwriting them", async () => {
+    const legacyName = `legacy-${Math.random()}`;
+    const newName = `new-${Math.random()}`;
+    databases.add(legacyName);
+    databases.add(newName);
+    const old = repository(OWNER_A, legacyName);
+    await old.syncDrafts([source({ title: "옛 제목" })]);
+    old.close();
+    const current = repository(OWNER_A, newName);
+    await current.syncDrafts([source({ title: "새 제목" })]);
+    current.close();
+
+    const migrated = new BoardRepository(OWNER_A, {
+      databaseName: newName,
+      dexie: DEXIE_OPTIONS,
+      legacyDatabaseName: legacyName,
+    });
+    expect((await migrated.list()).map((record) => record.title)).toEqual(["새 제목"]);
+    migrated.close();
+  });
+});

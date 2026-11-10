@@ -1,9 +1,9 @@
 // R8 블로그 글 관리: 옛 글 정리, 블로그에서 내리기, 게시된 글 목록.
 import { randomBytes } from "node:crypto";
 
-import { createEncryptedCookieCodec, createSessionCookieCodec } from "@notion-kanban-blog/auth/server";
-import { entityId } from "@notion-kanban-blog/domain";
-import type { GitHubArtifact } from "@notion-kanban-blog/github";
+import { createEncryptedCookieCodec, createSessionCookieCodec } from "@kanban-press/auth/server";
+import { entityId } from "@kanban-press/domain";
+import type { GitHubArtifact } from "@kanban-press/github";
 import { describe, expect, it, vi } from "vitest";
 
 import type { NotionConnectionsPayload } from "../auth/notion";
@@ -87,6 +87,14 @@ describe("publish cleanup", () => {
     expect(html).toContain(`url=../notion-${SUFFIX}/`);
     expect(html).toContain(`href="https://octocat.github.io/posts/notion-${SUFFIX}/"`);
     expect(artifacts.map((artifact) => artifact.path)).toContain(`src/content/blog/notion-${SUFFIX}.md`);
+  });
+
+  it("deletes the old app marker folder file when publishing to a repository from before the rename", async () => {
+    const context = await fixture([".notion-kanban-blog/managed.json", ".notion-kanban-blog/site.json"]);
+    await publishNotionPage(request("/api/publish", context.cookie), context.dependencies);
+    const [, artifacts, , deletePaths] = context.commitArtifacts.mock.calls[0] as [unknown, GitHubArtifact[], string, string[]];
+    expect(deletePaths).toEqual([".notion-kanban-blog/managed.json"]);
+    expect(artifacts.map((artifact) => artifact.path)).toContain(".kanban-press/managed.json");
   });
 
   it("deletes nothing on a first publish", async () => {
@@ -281,7 +289,7 @@ async function fixture(contentPaths: string[]) {
   };
   return {
     commitArtifacts,
-    cookie: `nkb_session=${session}; nkb_notion_connections=${connections}`,
+    cookie: `kp_session=${session}; kp_notion_connections=${connections}`,
     dependencies,
     getPageContent,
     getRepositoryReadiness,

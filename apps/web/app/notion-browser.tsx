@@ -221,7 +221,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
 const SIDEBAR_DEFAULT = 288;
 const SIDEBAR_MIN = 220;
 const SIDEBAR_MAX = 520;
-const SIDEBAR_STORAGE_KEY = "nkb.sidebarWidth";
+const SIDEBAR_STORAGE_KEY = "kp.sidebarWidth";
 
 /** 문서 사이드바 너비(px). 이 브라우저에만 기억하고, 저장소를 못 쓰면 기본값으로 동작한다. */
 function useSidebarWidth() {

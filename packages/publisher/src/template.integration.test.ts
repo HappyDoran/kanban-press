@@ -551,11 +551,11 @@ describe("pinned posts and series (R10)", () => {
 });
 
 describe("site settings (R11)", () => {
-  it("uses .notion-kanban-blog/site.json for the site name, intro, links and RSS, ignoring invalid links", async () => {
+  it("uses .kanban-press/site.json for the site name, intro, links and RSS, ignoring invalid links", async () => {
     const { root } = await createFixture({ defaultBranch: "main", owner: "HappyDoran", repository: "HappyDoran.github.io" });
     await writeFixture(
       root,
-      ".notion-kanban-blog/site.json",
+      ".kanban-press/site.json",
       JSON.stringify({
         description: "도란의 <개발> 기록",
         links: [
@@ -577,6 +577,21 @@ describe("site settings (R11)", () => {
     expect(home).not.toContain("javascript:");
     expect(await read("posts/legacy-post/index.html")).toContain("<title>Legacy Post · 도란 블로그</title>");
     expect(await read("rss.xml")).toContain("<title>도란 블로그</title>");
+  });
+});
+
+describe("site settings in the folder used before the rename", () => {
+  it("reads .notion-kanban-blog/site.json when .kanban-press/site.json is absent", async () => {
+    const { root } = await createFixture({ defaultBranch: "main", owner: "HappyDoran", repository: "HappyDoran.github.io" });
+    await writeFixture(
+      root,
+      ".notion-kanban-blog/site.json",
+      JSON.stringify({ description: "옛 위치 소개", links: [], title: "옛 위치 블로그" }),
+    );
+    await build(root);
+    const home = await readFile(join(root, "dist", "index.html"), "utf8");
+    expect(home).toContain("<title>옛 위치 블로그</title>");
+    expect(home).toContain("옛 위치 소개");
   });
 });
 

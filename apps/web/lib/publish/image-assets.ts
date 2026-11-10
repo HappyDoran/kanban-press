@@ -6,7 +6,7 @@ import type {
   PublishArtifact,
   PublishBlock,
   PublishDocument,
-} from "@notion-kanban-blog/publisher";
+} from "@kanban-press/publisher";
 
 import type {
   PublishSourceBlock,
@@ -326,7 +326,7 @@ async function requestPinnedImage(
       {
         headers: {
           accept: "image/avif,image/webp,image/png,image/jpeg,image/gif",
-          "user-agent": "notion-kanban-blog-image-fetch/1",
+          "user-agent": "kanban-press-image-fetch/1",
         },
         lookup: (_hostname, _options, callback) => {
           callback(null, address.address, address.family);

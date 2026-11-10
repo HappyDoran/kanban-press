@@ -8,7 +8,7 @@ last_verified: 2026-08-09
 
 ## 1. 목적과 범위
 
-이 문서는 현재 `notion-kanban-blog`의 게시 vertical slice에 다음 기능을 추가하기 위한
+이 문서는 현재 `kanban-press`의 게시 vertical slice에 다음 기능을 추가하기 위한
 기술 설계와 실행 순서를 정의한다.
 
 1. 게시 전에 최신 Notion 원문과 게시 메타데이터를 확인하는 인앱 프리뷰
@@ -219,7 +219,7 @@ tag 배열도 각 원소를 같은 함수로 직렬화하며 문자열을 이어
 ### 6.2 template v2
 
 `PublisherManifest.templateVersion`을 `2`로 올리고 repository에
-`.notion-kanban-blog/template.json` artifact를 추가한다.
+`.kanban-press/template.json` artifact를 추가한다.
 
 ```json
 {

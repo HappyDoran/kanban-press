@@ -2,10 +2,10 @@
 // 게시는 요청마다 Notion 원문과 GitHub 권한을 다시 읽고, 저장소 준비 상태를 확인한 뒤 commit 하나로 올린다.
 import { createHash, randomUUID } from "node:crypto";
 
-import type { SessionCodec } from "@notion-kanban-blog/auth";
-import type { GitHubArtifact, GitHubRepositoryAdapter } from "@notion-kanban-blog/github";
-import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
-import { createAstroTemplateManifest, createMarkdownArtifact } from "@notion-kanban-blog/publisher";
+import type { SessionCodec } from "@kanban-press/auth";
+import type { GitHubArtifact, GitHubRepositoryAdapter } from "@kanban-press/github";
+import type { NotionContentAdapter } from "@kanban-press/notion";
+import { createAstroTemplateManifest, createMarkdownArtifact } from "@kanban-press/publisher";
 import { z } from "zod";
 
 import { createGitHubAuthDependencies } from "../auth/github";
@@ -15,7 +15,12 @@ import {
   type NotionAuthDependencies,
 } from "../auth/notion";
 import { errorResponse, readSession } from "../auth/session";
-import { GitHubPagesClient, GitHubPagesError, gitHubErrorResponse } from "../github/pages";
+import {
+  GitHubPagesClient,
+  GitHubPagesError,
+  gitHubErrorResponse,
+  LEGACY_MANAGED_MARKER_PATH,
+} from "../github/pages";
 import { NotionProviderError, NotionRestContentAdapter } from "../notion/content";
 
 import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
@@ -100,7 +105,11 @@ export async function publishNotionPage(request: Request, dependencies: PublishD
       .map((slug) => redirectPage(slug, document.slug, pageUrl));
     const artifacts = [...written, ...redirects].sort((left, right) => left.path.localeCompare(right.path));
     const writtenPaths = new Set(artifacts.map((artifact) => artifact.path));
-    const deletePaths = existing.paths.filter((path) => !writtenPaths.has(path));
+    // 옛 관리 표식은 이번 commit이 새 표식을 쓰므로 지운다(이름 변경 이전 저장소).
+    const deletePaths = [
+      ...existing.paths.filter((path) => !writtenPaths.has(path)),
+      ...readiness.contentPaths.filter((path) => path === LEGACY_MANAGED_MARKER_PATH),
+    ];
     const contentHash = artifactHash(artifacts);
     // 같은 내용을 다시 게시해도 commit이 생기도록 UUID를 붙인다. 제목 외 provider 값은 넣지 않는다.
     const message = `Publish ${page.title.slice(0, 150)} (${contentHash.slice(0, 12)}; ${randomUUID()})`;

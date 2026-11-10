@@ -1,5 +1,5 @@
 {
-  "name": "@notion-kanban-blog/notion",
+  "name": "@kanban-press/notion",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,6 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notion-kanban-blog/domain": "workspace:*"
+    "@kanban-press/domain": "workspace:*"
   }
 }

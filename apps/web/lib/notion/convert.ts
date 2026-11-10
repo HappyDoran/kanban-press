@@ -1,11 +1,11 @@
-// Notion API 응답 → provider 독립 모델(@notion-kanban-blog/notion) 순수 변환.
+// Notion API 응답 → provider 독립 모델(@kanban-press/notion) 순수 변환.
 // 네트워크 호출은 없다. 형식이 맞지 않는 응답은 조용히 보정하지 않고 invalid_response로 거절한다.
 import type {
   NotionContentBlock,
   NotionOutlineNode,
   NotionPageProperty,
   NotionRichText,
-} from "@notion-kanban-blog/notion";
+} from "@kanban-press/notion";
 import { z } from "zod";
 
 import { invalidResponse } from "./provider";
