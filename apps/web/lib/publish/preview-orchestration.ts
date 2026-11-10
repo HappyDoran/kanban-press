@@ -2,11 +2,8 @@ import type { SessionCodec } from "@notion-kanban-blog/auth";
 import type { NotionContentAdapter } from "@notion-kanban-blog/notion";
 import { z } from "zod";
 
-import {
-  createGitHubAuthDependencies,
-  readCookie,
-  SESSION_COOKIE,
-} from "../auth/github";
+import { createGitHubAuthDependencies } from "../auth/github";
+import { readSession } from "../auth/session";
 import {
   createNotionAuthDependencies,
   getOwnedNotionConnection,
@@ -112,11 +109,6 @@ export function createPreviewDependencies(
     notionAuth: createNotionAuthDependencies(environment),
     sessionCodec: githubAuth.sessionCodec,
   };
-}
-
-async function readSession(request: Request, codec: SessionCodec) {
-  const value = readCookie(request, SESSION_COOKIE);
-  return value === null ? null : codec.open(value);
 }
 
 async function safePreviewJson(request: Request): Promise<unknown> {

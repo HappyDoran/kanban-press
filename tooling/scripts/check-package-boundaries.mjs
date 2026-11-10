@@ -9,7 +9,6 @@ const expectedPackages = [
   "github",
   "notion",
   "publisher",
-  "validation",
 ];
 const allowedInternalDependencies = {
   auth: new Set(["domain"]),
@@ -17,7 +16,6 @@ const allowedInternalDependencies = {
   github: new Set(["domain"]),
   notion: new Set(["domain"]),
   publisher: new Set(["domain"]),
-  validation: new Set(),
 };
 
 async function readJson(filePath) {

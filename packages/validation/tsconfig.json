@@ -1,5 +1,0 @@
-{
-  "extends": "../../tooling/typescript/library.json",
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
-}

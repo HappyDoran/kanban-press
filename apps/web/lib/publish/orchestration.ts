@@ -14,12 +14,8 @@ import {
 } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
-import {
-  createGitHubAuthDependencies,
-  errorResponse,
-  readCookie,
-  SESSION_COOKIE,
-} from "../auth/github";
+import { createGitHubAuthDependencies } from "../auth/github";
+import { errorResponse, readSession } from "../auth/session";
 import {
   createNotionAuthDependencies,
   getOwnedNotionConnection,
@@ -226,11 +222,6 @@ export function artifactHash(artifacts: readonly GitHubArtifact[]): string {
     hash.update(artifact.bytes);
   }
   return hash.digest("hex");
-}
-
-async function readSession(request: Request, codec: SessionCodec) {
-  const value = readCookie(request, SESSION_COOKIE);
-  return value === null ? null : codec.open(value);
 }
 
 async function safeJson(request: Request): Promise<unknown> {

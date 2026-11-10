@@ -10,12 +10,8 @@ import type {
 import { createAstroTemplateManifest } from "@notion-kanban-blog/publisher";
 import { z } from "zod";
 
-import {
-  createGitHubAuthDependencies,
-  errorResponse,
-  readCookie,
-  SESSION_COOKIE,
-} from "../auth/github";
+import { createGitHubAuthDependencies } from "../auth/github";
+import { errorResponse, readSession } from "../auth/session";
 import {
   parseRetryAfter,
   providerRequest,
@@ -591,11 +587,7 @@ export async function getGitHubPagesRepository(
     createClient: (accessToken: string) => GitHubRepositoryAdapter;
   },
 ): Promise<Response> {
-  const sessionCookie = readCookie(request, SESSION_COOKIE);
-  const session =
-    sessionCookie === null
-      ? null
-      : await dependencies.sessionCodec.open(sessionCookie);
+  const session = await readSession(request, dependencies.sessionCodec);
   if (session === null) {
     return errorResponse(401, "authentication_required");
   }

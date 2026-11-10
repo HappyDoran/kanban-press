@@ -11,7 +11,8 @@ import { z } from "zod";
 import {
   finishGitHubLogin,
   getCurrentUser,
-  GitHubApiClient,
+  createGitHubOAuthClient,
+  GitHubAuthenticationError,
   logout,
   startGitHubLogin,
 } from "./github";
@@ -248,6 +249,26 @@ describe("GitHub login flow", () => {
     expect(body).not.toContain("secret");
     expect(setCookies(response).join(";")).toContain("Max-Age=0");
   });
+
+  it("reports a GitHub timeout as 504 without issuing a session", async () => {
+    const dependencies = createDependencies({
+      github: {
+        authenticate: vi
+          .fn()
+          .mockRejectedValue(new GitHubAuthenticationError("timeout")),
+      },
+    });
+    const { state, stateCookie } = await beginLogin(dependencies);
+
+    const response = await finishGitHubLogin(
+      callbackRequest(state, stateCookie),
+      dependencies,
+    );
+
+    expect(response.status).toBe(504);
+    await expect(response.json()).resolves.toEqual({ error: "github_timeout" });
+    expect(cookiePair(response, "nkb_session")).toBeNull();
+  });
 });
 
 describe("session endpoints", () => {
@@ -325,7 +346,7 @@ describe("GitHub API contract", () => {
         }),
       )
       .mockResolvedValueOnce(Response.json({ id: 583231, login: "octocat" }));
-    const client = new GitHubApiClient({
+    const client = createGitHubOAuthClient({
       apiVersion: "2026-03-10",
       clientId: "client-id",
       clientSecret: "client-secret",
@@ -354,6 +375,23 @@ describe("GitHub API contract", () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    ["token endpoint error", () => new Response("bad", { status: 401 })],
+    ["non-bearer token", () => Response.json({ access_token: "t", token_type: "mac" })],
+    ["non-JSON body", () => new Response("<html>", { status: 200 })],
+  ])("turns a %s into a redacted authentication error", async (_, response) => {
+    const client = createGitHubOAuthClient({
+      apiVersion: "2026-03-10",
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      fetch: vi.fn<typeof fetch>().mockResolvedValue(response()),
+    });
+
+    await expect(
+      client.authenticate("temporary-code", `${APP_ORIGIN}/auth/github/callback`),
+    ).rejects.toEqual(new GitHubAuthenticationError("unavailable"));
   });
 });
 

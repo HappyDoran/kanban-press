@@ -4,7 +4,7 @@ import {
   createNotionAuthDependencies,
   getOwnedNotionConnection,
 } from "../auth/notion";
-import { errorResponse } from "../auth/github";
+import { errorResponse } from "../auth/session";
 import {
   NotionProviderError,
   NotionRestContentAdapter,

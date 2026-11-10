@@ -22,9 +22,8 @@ apps/web
   ├─ packages/auth
   ├─ packages/notion
   ├─ packages/github
-  ├─ packages/publisher
-  └─ packages/validation
-          └─ packages/domain (validation 제외)
+  └─ packages/publisher
+          └─ packages/domain
 ```
 
 | workspace | 책임 | 허용하는 내부 의존 |
@@ -35,7 +34,6 @@ apps/web
 | `packages/notion` | workspace/page 조회 계약 | domain |
 | `packages/github` | OAuth repository 검증/commit 계약 | domain |
 | `packages/publisher` | GitHub Pages용 Astro template manifest와 Notion 문서의 결정적 artifact 생성 | domain |
-| `packages/validation` | 외부 입력 schema | 없음 |
 
 - package끼리 서로 adapter를 import하지 않는다. orchestration은 `apps/web`이 담당한다.
 - `packages/auth`, `notion`, `github`, `publisher`는 각 외부 경계를 캡슐화한다.

@@ -24,8 +24,8 @@ import {
   secureStringEqual,
   serializeCookie,
   serializeExpiredCookie,
-  SESSION_COOKIE,
-} from "./github";
+  readSession,
+} from "./session";
 
 import type { SessionCodec, UnixTimestamp } from "@notion-kanban-blog/auth";
 
@@ -538,11 +538,6 @@ export function createNotionAuthDependencies(
       parsePayload: (value) => notionStateSchema.parse(value),
     }),
   };
-}
-
-async function readSession(request: Request, codec: SessionCodec) {
-  const value = readCookie(request, SESSION_COOKIE);
-  return value === null ? null : codec.open(value);
 }
 
 async function readConnections(
