@@ -553,7 +553,7 @@ function safeActionsUrl(repository: GitHubRepository, candidate: string | undefi
 
 function providerError(response: Response, notFound: NotFoundCode): GitHubPagesError {
   if (response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")) {
-    return new GitHubPagesError("rate_limited", parseRetryAfter(response.headers));
+    return new GitHubPagesError("rate_limited", parseRetryAfter(response.headers) ?? rateLimitReset(response.headers));
   }
   if (response.status === 404) {
     return new GitHubPagesError(notFound);
@@ -567,4 +567,16 @@ async function parseBody<T>(response: Response, schema: z.ZodType<T>): Promise<T
     throw new GitHubPagesError("invalid_response");
   }
   return parsed.data;
+}
+
+/**
+ * 시간당 한도를 다 쓴 응답에는 `Retry-After`가 없고 `x-ratelimit-reset`(epoch 초)만 온다.
+ * 남은 초로 바꿔 `Retry-After`와 같은 0~3,600초 범위로 자른다.
+ */
+function rateLimitReset(headers: Headers): number | null {
+  const reset = Number.parseInt(headers.get("x-ratelimit-reset") ?? "", 10);
+  if (!Number.isSafeInteger(reset)) {
+    return null;
+  }
+  return Math.min(Math.max(reset - Math.floor(Date.now() / 1000), 0), 3_600);
 }
