@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { RetryAction, retryAtFromResponse } from "./retry-action";
+import { retryAtFromResponse } from "../lib/client/api";
+
+import { RetryAction } from "./retry-action";
 
 export interface RepositorySummary {
   defaultBranch: string;

@@ -4,7 +4,7 @@ import {
   parseActionsUrl,
   parsePublishStatus,
   publishErrorMessage,
-} from "./notion-browser";
+} from "./api";
 
 const actionsUrl =
   "https://github.com/octocat/octocat.github.io/actions/runs/123456789";

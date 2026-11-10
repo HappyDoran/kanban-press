@@ -1,10 +1,4 @@
-export interface ClientOutlineNode {
-  kind: "database" | "group" | "page" | "toggle";
-  nodeId: string;
-  parentNodeId: string | null;
-  providerId: string | null;
-  title: string;
-}
+import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
 
 export interface ClientPageReference {
   parentContainerId: string | null;
@@ -12,9 +6,9 @@ export interface ClientPageReference {
 }
 
 export function filterRenderableOutline(
-  outline: readonly ClientOutlineNode[],
+  outline: readonly NotionOutlineNode[],
   pages: readonly ClientPageReference[],
-): ClientOutlineNode[] {
+): NotionOutlineNode[] {
   const pageIds = new Set(pages.map((page) => page.providerPageId));
   const databaseIds = new Set(
     pages.flatMap((page) =>
@@ -34,7 +28,7 @@ export function filterRenderableOutline(
     if (!targetIsRenderable) {
       continue;
     }
-    let current: ClientOutlineNode | undefined = node;
+    let current: NotionOutlineNode | undefined = node;
     while (current !== undefined && !retained.has(current.nodeId)) {
       retained.add(current.nodeId);
       current =

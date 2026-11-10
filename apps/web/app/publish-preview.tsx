@@ -8,7 +8,9 @@ import {
   type PreviewRichText,
   type PublishPreviewResponse,
 } from "../lib/publish/preview";
-import { RetryAction, retryAtFromResponse } from "./retry-action";
+import { retryAtFromResponse } from "../lib/client/api";
+
+import { RetryAction } from "./retry-action";
 
 import type { ReactNode } from "react";
 

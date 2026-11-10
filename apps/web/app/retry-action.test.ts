@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { retryAtFromResponse, retrySecondsRemaining } from "./retry-action";
+import { retryAtFromResponse } from "../lib/client/api";
+
+import { retrySecondsRemaining } from "./retry-action";
 
 describe("provider retry timing", () => {
   it("accepts only bounded delta-seconds Retry-After values", () => {

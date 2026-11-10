@@ -2,16 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-export function retryAtFromResponse(
-  response: Response,
-  now = Date.now(),
-): number | null {
-  const seconds = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
-  return Number.isSafeInteger(seconds) && seconds >= 0 && seconds <= 3_600
-    ? now + seconds * 1_000
-    : null;
-}
-
 export function retrySecondsRemaining(retryAt: number | null, now: number): number {
   return retryAt === null ? 0 : Math.max(0, Math.ceil((retryAt - now) / 1_000));
 }
