@@ -17,6 +17,7 @@ import {
 import type { LogSink } from "../operations/structured-log";
 
 import {
+  callbackError,
   cookieKeysFromEnvironment,
   currentUnixTimestamp,
   errorResponse,
@@ -24,6 +25,7 @@ import {
   parseAppOrigin,
   readCookie,
   readSession,
+  redirectResponse,
   secureStringEqual,
   serializeCookie,
   serializeExpiredCookie,
@@ -85,7 +87,7 @@ export async function startGitHubLogin(
   if (requestUrl.origin !== config.appOrigin) {
     const canonical = new URL("/auth/github/start", config.appOrigin);
     canonical.searchParams.set("returnTo", returnTo);
-    return redirect(canonical, 307);
+    return redirectResponse(canonical, 307);
   }
 
   const issuedAt = now();
@@ -101,7 +103,7 @@ export async function startGitHubLogin(
   authorize.searchParams.set("scope", GITHUB_SCOPE);
   authorize.searchParams.set("state", nonce);
 
-  return redirect(authorize, 302, [
+  return redirectResponse(authorize, 302, [
     serializeCookie(STATE_COOKIE, stateCookie, {
       maxAge: STATE_TTL_SECONDS,
       secure: config.secureCookies,
@@ -158,7 +160,7 @@ export async function finishGitHubLogin(
     issuedAt,
     userId: entityId("GitHubUser", authenticated.identity.id),
   });
-  return redirect(new URL(state.payload.returnTo, config.appOrigin), 302, [
+  return redirectResponse(new URL(state.payload.returnTo, config.appOrigin), 302, [
     clearState,
     serializeCookie(SESSION_COOKIE, sessionCookie, {
       maxAge: SESSION_TTL_SECONDS,
@@ -338,18 +340,4 @@ function callbackUri(appOrigin: string): string {
 
 function isBoundedOAuthValue(value: string | null): value is string {
   return value !== null && value.length >= 1 && value.length <= 1024;
-}
-
-function redirect(location: URL, status: 302 | 307, cookies: string[] = []): Response {
-  const headers = new Headers({ "cache-control": "no-store", location: location.toString() });
-  for (const cookie of cookies) {
-    headers.append("set-cookie", cookie);
-  }
-  return new Response(null, { headers, status });
-}
-
-function callbackError(status: number, code: string, clearState: string): Response {
-  const response = errorResponse(status, code);
-  response.headers.append("set-cookie", clearState);
-  return response;
 }

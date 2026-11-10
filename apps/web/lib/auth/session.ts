@@ -128,3 +128,23 @@ export function errorResponse(
     { headers: { "cache-control": "no-store", ...extraHeaders }, status },
   );
 }
+
+/** `location`으로 보내는 no-store redirect. 필요한 `Set-Cookie`를 함께 붙인다. */
+export function redirectResponse(
+  location: URL,
+  status: 302 | 307,
+  cookies: readonly string[] = [],
+): Response {
+  const headers = new Headers({ "cache-control": "no-store", location: location.toString() });
+  for (const cookie of cookies) {
+    headers.append("set-cookie", cookie);
+  }
+  return new Response(null, { headers, status });
+}
+
+/** OAuth callback 실패 응답. 일회성 state 쿠키는 실패해도 반드시 지운다. */
+export function callbackError(status: number, code: string, clearState: string): Response {
+  const response = errorResponse(status, code);
+  response.headers.append("set-cookie", clearState);
+  return response;
+}
