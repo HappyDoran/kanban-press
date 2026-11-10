@@ -268,15 +268,17 @@ test("document titles can be searched in the sidebar", async ({ page }, testInfo
   const sidebar = page.getByRole("navigation", { name: "Notion 문서" });
   await expect(sidebar.getByText("E2E 게시 문서")).toBeVisible();
 
+  // 행의 "구조 확인 중…"도 status라서 검색 결과 문구만 골라 본다.
+  const searchStatus = sidebar.getByRole("status").filter({ hasText: /^(문서 \d+개|일치하는 문서가 없습니다\.)$/ });
   await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("없는 제목");
-  await expect(sidebar.getByRole("status")).toHaveText("일치하는 문서가 없습니다.");
+  await expect(searchStatus).toHaveText("일치하는 문서가 없습니다.");
   await expect(sidebar.getByText("E2E 게시 문서")).toHaveCount(0);
 
   await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("e2e 게시");
-  await expect(sidebar.getByRole("status")).toHaveText("문서 1개");
+  await expect(searchStatus).toHaveText("문서 1개");
   await expect(sidebar.getByText("E2E 게시 문서")).toBeVisible();
   await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).press("Escape");
-  await expect(sidebar.getByRole("status")).toHaveCount(0);
+  await expect(searchStatus).toHaveCount(0);
 });
 
 test("cards can be published with a button on narrow screens", async ({ page }, testInfo) => {
