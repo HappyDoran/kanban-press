@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countManuscriptPages,
   createMarkdownArtifact,
   type PublishBlock,
   type PublishDocument,
@@ -100,6 +101,7 @@ describe("createMarkdownArtifact", () => {
         'tags: ["Notion", "Publishing"]',
         'publishedAt: "2026-07-19T01:00:00.000Z"',
         'updatedAt: "2026-07-19T02:00:00.000Z"',
+        "manuscriptPages: 1",
         "---",
         "",
         "안전한 본문",
@@ -383,5 +385,31 @@ describe("createMarkdownArtifact", () => {
         blocks: [nested],
       }),
     ).toThrow("Document block depth exceeds the safe limit");
+  });
+});
+
+describe("countManuscriptPages", () => {
+  const paragraph = (text: string): PublishBlock => ({ kind: "paragraph", richText: [{ text }] });
+
+  it("counts written characters as 200-cell manuscript pages, rounding the last page up", () => {
+    expect(countManuscriptPages([])).toBe(0);
+    expect(countManuscriptPages([paragraph("가")])).toBe(1);
+    expect(countManuscriptPages([paragraph("가".repeat(200))])).toBe(1);
+    expect(countManuscriptPages([paragraph("가".repeat(201))])).toBe(2);
+    // 공백은 한 칸, 줄바꿈은 세지 않는다. 이모지는 한 칸이다.
+    expect(countManuscriptPages([paragraph(`${"a b".repeat(66)}\n\n😀😀`)])).toBe(1);
+    expect(countManuscriptPages([paragraph(`${"a b".repeat(66)}😀😀😀`)])).toBe(2);
+  });
+
+  it("includes nested, table, toggle, and caption text but skips code and equations", () => {
+    const blocks: PublishBlock[] = [
+      { kind: "code", code: "x".repeat(1_000), language: "ts" },
+      { expression: "y".repeat(1_000), kind: "equation" },
+      { children: [paragraph("가".repeat(50))], kind: "toggle", summary: [{ text: "가".repeat(50) }] },
+      { hasColumnHeader: false, hasRowHeader: false, kind: "table", rows: [[[{ text: "가".repeat(50) }]]] },
+      { caption: [{ text: "가".repeat(51) }], kind: "linkCard", url: "https://example.com" },
+    ];
+    expect(countManuscriptPages(blocks)).toBe(2);
+    expect(countManuscriptPages(blocks.slice(0, 2))).toBe(0);
   });
 });

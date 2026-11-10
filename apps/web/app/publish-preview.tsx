@@ -2,7 +2,7 @@
 
 // 게시 전 프리뷰(디자인 기획 6.1–6.3). 블로그 template과 같은 class·CSS(BLOG_CSS)로 그려서
 // 실제 글 상세·홈과 같은 구조를 보여준다. 블로그 안의 이동 링크는 프리뷰 밖으로 나가지 않도록 href 없이 둔다.
-import { BLOG_CSS } from "@kanban-press/publisher";
+import { BLOG_CSS, countManuscriptPages } from "@kanban-press/publisher";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { ApiError, fetchPublishPreview } from "../lib/client/api";
@@ -194,7 +194,7 @@ export function PublishPreviewContent({
         </div>
         <div className="site-main">
           {view === "post" ? (
-            <PreviewPost preview={preview} />
+            <PreviewPost preview={preview} siteOwner={siteOwner} />
           ) : (
             <PreviewHome preview={preview} siteOwner={siteOwner} />
           )}
@@ -205,8 +205,10 @@ export function PublishPreviewContent({
 }
 
 /** 블로그 `src/pages/posts/[...slug].astro`와 같은 구조. */
-function PreviewPost({ preview }: { preview: PublishPreviewResponse }) {
+function PreviewPost({ preview, siteOwner }: { preview: PublishPreviewResponse; siteOwner: string }) {
   const { document } = preview;
+  const manuscriptPages = countManuscriptPages(document.blocks);
+  const revised = document.updatedAt.slice(0, 10) !== document.publishedAt.slice(0, 10);
   const sections = document.blocks.filter((block) => block.kind === "heading" && block.level === 2);
   const withToc = sections.length >= 3;
   return (
@@ -235,11 +237,12 @@ function PreviewPost({ preview }: { preview: PublishPreviewResponse }) {
             <span>
               게시 <time dateTime={document.publishedAt}>{formatDate(document.publishedAt)}</time>
             </span>
-            {document.updatedAt.slice(0, 10) !== document.publishedAt.slice(0, 10) ? (
+            {revised ? (
               <span>
                 수정 <time dateTime={document.updatedAt}>{formatDate(document.updatedAt)}</time>
               </span>
             ) : null}
+            {manuscriptPages > 0 ? <span>200자 원고지 {manuscriptPages}매</span> : null}
           </div>
           <Tags tags={document.tags} />
         </header>
@@ -271,6 +274,44 @@ function PreviewPost({ preview }: { preview: PublishPreviewResponse }) {
           <div className="post-body previewBody">
             <Blocks blocks={document.blocks} />
           </div>
+          <p className="post-end">(끝)</p>
+          <footer className="post-colophon">
+            <h2>판권</h2>
+            <dl>
+              <div>
+                <dt>쓴 사람</dt>
+                <dd>{siteOwner}</dd>
+              </div>
+              <div>
+                <dt>초판</dt>
+                <dd>
+                  <time dateTime={document.publishedAt}>{formatDate(document.publishedAt)}</time>
+                </dd>
+              </div>
+              {revised ? (
+                <div>
+                  <dt>고침</dt>
+                  <dd>
+                    <time dateTime={document.updatedAt}>{formatDate(document.updatedAt)}</time>
+                  </dd>
+                </div>
+              ) : null}
+              {manuscriptPages > 0 ? (
+                <div>
+                  <dt>분량</dt>
+                  <dd>200자 원고지 {manuscriptPages}매</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt>원고·조판</dt>
+                <dd>Notion · Kanban Press</dd>
+              </div>
+              <div>
+                <dt>찍은 곳</dt>
+                <dd>GitHub Pages</dd>
+              </div>
+            </dl>
+          </footer>
         </div>
       </article>
     </>

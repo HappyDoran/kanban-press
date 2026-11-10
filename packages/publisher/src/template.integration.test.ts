@@ -41,6 +41,7 @@ title: Version Two
 description: Strict v2 content
 publishedAt: 2026-07-19T01:00:00.000Z
 updatedAt: 2026-07-19T02:00:00.000Z
+manuscriptPages: 3
 category: Engineering
 categorySlug: engineering-a1b2c3d4
 tags:
@@ -193,6 +194,9 @@ describe("Astro template build", () => {
       expect(compatibilityHtml).toContain('data-category="미분류"');
       expect(compatibilityHtml).toContain('data-category-slug="uncategorized"');
       expect(compatibilityHtml).toContain('data-schema-version="1"');
+      // 분량 정보가 없는 옛 글도 판권은 그리되 분량 줄은 뺀다.
+      expect(legacyHtml).toContain('<p class="post-end">(끝)</p>');
+      expect(legacyHtml).not.toContain("원고지");
       expect(compatibilityHtml).toContain("legacy-post:");
 
       if ("version-two.md" in posts) {
@@ -214,6 +218,13 @@ describe("Astro template build", () => {
         expect(v2Html).toContain('href="#start"');
         expect(v2Html).toMatch(/<img[^>]+src="[^"]+_astro\/image-001\.[^"]+\.png"/);
         expect(v2Html).toContain('aria-label="현재 위치"');
+        // 교정쇄 × 원고지: 메타·판권의 원고지 매수, (끝), 판권(디자인 기획 2.4).
+        expect(v2Html).toContain("<span>200자 원고지 3매</span>");
+        expect(v2Html).toContain('<p class="post-end">(끝)</p>');
+        expect(v2Html).toMatch(/<footer class="post-colophon"[^>]*>\s*<h2 id="colophon-title">판권<\/h2>/);
+        expect(v2Html).toContain("<dt>분량</dt><dd>200자 원고지 3매</dd>");
+        expect(v2Html).toContain("<dt>쓴 사람</dt><dd>HappyDoran</dd>");
+        expect(v2Html).toContain("fonts.googleapis.com/css2?family=Hahmlet:wght@700&display=swap");
         expect(categoriesHtml).toContain(
           `${expectedBase}categories/engineering-a1b2c3d4/`,
         );

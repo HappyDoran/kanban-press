@@ -7,6 +7,7 @@ export {
 } from "./markdown.js";
 export { BLOG_CSS } from "./blog-css.js";
 export { DESIGN_TOKENS_CSS } from "./design-tokens.js";
+export { countManuscriptPages } from "./manuscript.js";
 
 import { BLOG_CSS } from "./blog-css.js";
 import { DESIGN_TOKENS_CSS } from "./design-tokens.js";
@@ -189,6 +190,7 @@ const v2 = z
       .min(1)
       .max(120)
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    manuscriptPages: z.number().int().positive().optional(),
     pinned: z.boolean().default(false),
     schemaVersion: z.literal(2),
     series: z.string().trim().min(1).max(80).optional(),
@@ -538,9 +540,14 @@ const section = pathname === base
     <meta property="og:locale" content="ko_KR" />
     <meta name="twitter:card" content="summary" />
     <link rel="alternate" type="application/rss+xml" title={siteName} href={pathFor("rss.xml")} />
+    <!-- 제목 글꼴(디자인 기획 10.2, 결정 D5). 받지 못해도 시스템 명조로 읽힌다. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@700&display=swap" />
     <style is:global>
 ${DESIGN_TOKENS_CSS}
       :root {
+        --font-title: "Hahmlet", "Noto Serif KR", "AppleMyungjo", "Batang", serif;
         --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
         color: var(--color-text-primary);
@@ -756,7 +763,7 @@ const { categories, category } = Astro.props;
 import { getCollection, render } from "astro:content";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, formatDate, isDifferentDay, pathFor, seriesFor, sortPosts, tagSlug } from "../../lib/blog";
+import { base, formatDate, isDifferentDay, pathFor, seriesFor, siteOwner, sortPosts, tagSlug } from "../../lib/blog";
 
 export async function getStaticPaths() {
   const posts = sortPosts(await getCollection("blog"));
@@ -792,6 +799,7 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
         {isDifferentDay(post.data.publishedAt, post.data.updatedAt) && (
           <span>수정 <time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time></span>
         )}
+        {post.data.manuscriptPages !== undefined && <span>200자 원고지 {post.data.manuscriptPages}매</span>}
       </div>
       {post.data.tags.length > 0 && (
         <ul class="tag-list" aria-label="태그">
@@ -823,6 +831,20 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
         </nav>
       )}
       <div class="post-body"><Content /></div>
+      <p class="post-end">(끝)</p>
+      <footer class="post-colophon" aria-labelledby="colophon-title">
+        <h2 id="colophon-title">판권</h2>
+        <dl>
+          <div><dt>쓴 사람</dt><dd>{siteOwner}</dd></div>
+          <div><dt>초판</dt><dd><time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time></dd></div>
+          {isDifferentDay(post.data.publishedAt, post.data.updatedAt) && (
+            <div><dt>고침</dt><dd><time datetime={post.data.updatedAt.toISOString()}>{formatDate(post.data.updatedAt)}</time></dd></div>
+          )}
+          {post.data.manuscriptPages !== undefined && <div><dt>분량</dt><dd>200자 원고지 {post.data.manuscriptPages}매</dd></div>}
+          <div><dt>원고·조판</dt><dd>Notion · Kanban Press</dd></div>
+          <div><dt>찍은 곳</dt><dd>GitHub Pages</dd></div>
+        </dl>
+      </footer>
       {(previousPost !== undefined || nextPost !== undefined) && (
         <nav class="post-navigation" aria-label={series === undefined ? "같은 카테고리의 이전 및 다음 글" : "같은 시리즈의 이전 및 다음 글"}>
           <div>{previousPost && <a href={pathFor("posts/" + previousPost.id + "/")}><small>← 이전 글</small>{previousPost.data.title}</a>}</div>

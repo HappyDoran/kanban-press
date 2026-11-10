@@ -321,8 +321,10 @@ user/project site의 base path를 반영하며 핵심 탐색은 client JavaScrip
 블로그 shell은 GitHub owner를 개인 브랜드로 사용하고 홈·전체 글·주제·GitHub의 네 가지
 탐색만 제공한다. 홈은 블로그 소개, 전체 글·주제 수, 최신 글을 우선순위대로 보여준다.
 글 상세는 45rem 읽기 폭을 유지하며 목차가 있는 글은 mobile에서 본문 앞에, 넓은 화면에서
-본문 옆 sticky 탐색으로 배치한다. 외부 font나 client JavaScript 없이 320px, keyboard,
-reduced-motion과 고대비 환경에서도 핵심 탐색과 읽기가 가능해야 한다.
+본문 옆 sticky 탐색으로 배치한다. 제목 글꼴(Hahmlet)만 Google Fonts에서 받으며(결정 D5), 이 글꼴이나
+client JavaScript 없이도 320px, keyboard, reduced-motion과 고대비 환경에서 핵심 탐색과 읽기가 가능해야 한다.
+글 끝에는 “(끝)”과 판권(쓴 사람·초판·고침·분량·원고·찍은 곳)을 두고, 분량은 게시할 때 본문 글자 수로 센
+200자 원고지 매수(`manuscriptPages`, 값이 없으면 생략)다.
 로컬 image artifact는 Astro passthrough image service로 원본 byte를 유지한 채 build
 asset으로 복사해 Sharp나 추가 native dependency를 요구하지 않는다.
 생성 repository에는

@@ -265,12 +265,13 @@ A 작업대형의 회색 바탕·흰 카드·파랑 하나는 흔한 SaaS templa
 2. 카테고리 링크(있을 때)
 3. h1 제목
 4. 설명
-5. 게시일과 수정일: 날짜가 다를 때만 수정일 노출
+5. 게시일과 수정일(날짜가 다를 때만 수정일 노출), 200자 원고지 매수(있을 때)
 6. 태그 목록
 7. 선택적 목차: h2가 3개 이상일 때 생성. 64rem 미만은 본문 위, 이상은 본문 왼쪽에 고정(2.3절)
 8. 본문
-9. 같은 카테고리 기준 이전/다음 글; 카테고리 없으면 전체 글 기준
-10. `홈으로` 링크
+9. “(끝)”과 판권(`PostColophon`, 11절)
+10. 같은 카테고리 기준 이전/다음 글; 카테고리 없으면 전체 글 기준
+11. `홈으로` 링크
 
 본문 규칙:
 
@@ -349,7 +350,7 @@ CSS는 mobile-first로 구현하고 콘텐츠에 따라 자연스럽게 흐르�
 
 | 토큰 | 값 |
 |---|---|
-| `--font-title` | 앱: `Hahmlet`(`next/font`) 600·700. 칸반 h1, 카드 제목, 앱 이름, dialog 제목. 블로그 제목 글꼴은 미결 결정 D5 |
+| `--font-title` | 앱: `Hahmlet`(`next/font`) 600·700. 칸반 h1, 카드 제목, 앱 이름. 블로그: Google Fonts `Hahmlet` 700 한 굵기(결정 D5), 실패하면 `"Noto Serif KR", "AppleMyungjo", "Batang", serif`. 사이트 이름, 페이지·글 h1, 글 카드 제목, 본문 h2·h3, 판권 제목 |
 | `--font-sans` | 앱: `Noto Sans KR`(`next/font`), 블로그: `system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif`(외부 글꼴 요청 없음) |
 | `--font-mono` | 앱: `JetBrains Mono`(`next/font`), 블로그: `ui-monospace, SFMono-Regular, Menlo, monospace` |
 | `--text-xs/sm/base/lg` | `0.75 / 0.875 / 1 / 1.125rem` (앱 본문 0.875rem, 블로그 본문 1rem) |

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { PublishArtifact } from "./index.js";
+import { countManuscriptPages } from "./manuscript.js";
 
 const MAX_BLOCK_DEPTH = 20;
 const encoder = new TextEncoder();
@@ -219,6 +220,7 @@ export function createMarkdownArtifact(
 ): PublishArtifact {
   const document = publishDocumentSchema.parse(input) as PublishDocument;
   const body = renderBlocks(document.blocks, 0, document.slug);
+  const manuscriptPages = countManuscriptPages(document.blocks);
   const frontmatter = [
     "---",
     `schemaVersion: ${document.schemaVersion}`,
@@ -229,6 +231,8 @@ export function createMarkdownArtifact(
     `tags: [${document.tags.map(frontmatterString).join(", ")}]`,
     `publishedAt: ${frontmatterString(document.publishedAt)}`,
     `updatedAt: ${frontmatterString(document.updatedAt)}`,
+    // 판권의 분량(디자인 기획 2.4). 본문 글자가 없으면 쓰지 않는다.
+    ...(manuscriptPages > 0 ? [`manuscriptPages: ${manuscriptPages}`] : []),
     // R10 필드는 값이 있을 때만 쓴다. 없으면 이전과 같은 Markdown이 나온다.
     ...(document.pinned === true ? ["pinned: true"] : []),
     ...(document.series === undefined
