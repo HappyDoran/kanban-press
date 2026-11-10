@@ -1,1188 +1,244 @@
+// Notion 연결 token 하나로 page tree, page outline, 게시 본문을 읽는 adapter.
+// HTTP는 provider.ts, 응답 변환은 convert.ts가 맡고 이 파일은 무엇을 어떤 순서로 읽을지만 정한다.
 import type {
-  NotionContentBlock,
   NotionContentAdapter,
+  NotionContentBlock,
   NotionOutlineNode,
   NotionPageContent,
-  NotionPageProperty,
   NotionPageSummary,
-  NotionRichText,
 } from "@notion-kanban-blog/notion";
 import { z } from "zod";
 
 import {
-  providerRequest,
-  ProviderTransportError,
-} from "../operations/provider-request";
-import type { LogSink } from "../operations/structured-log";
+  childSourceId,
+  isOutlineLeaf,
+  navigationBearingNodes,
+  type NotionBlock,
+  pageIconUrl,
+  pageTitle,
+  parseBlock,
+  publishingProperties,
+  toContentBlocks,
+  toOutlineNode,
+} from "./convert";
+import {
+  invalidResponse,
+  listAll,
+  notionJson,
+  type NotionRequestOptions,
+} from "./provider";
 
-const NOTION_SEARCH_URL = "https://api.notion.com/v1/search";
-const NOTION_BLOCKS_URL = "https://api.notion.com/v1/blocks";
-const NOTION_PAGES_URL = "https://api.notion.com/v1/pages";
-const PAGE_SIZE = 100;
+// 기존 import 경로(`../notion/content`)를 쓰는 route와 테스트를 위해 다시 내보낸다.
+export { NotionProviderError } from "./provider";
+
+// 한 번의 요청이 provider를 무한히 순회하지 않도록 하는 상한.
 const MAX_PAGES = 10_000;
-const MAX_OUTLINE_BLOCKS = 5_000;
-const MAX_OUTLINE_DEPTH = 20;
-const MAX_NOTION_ARRAY_ITEMS = 100;
-const MAX_NOTION_TEXT_LENGTH = 2_000;
-const MAX_PUBLISHING_PROPERTIES_BYTES = 500_000;
+const MAX_BLOCKS = 5_000;
+const MAX_DEPTH = 20;
 
-const publishingPropertyTypes = {
-  "Blog Category": "select",
-  "Blog Description": "rich_text",
-  "Blog Published At": "date",
-  "Blog Tags": "multi_select",
-} as const;
-type PublishingPropertyName = keyof typeof publishingPropertyTypes;
-const publishingPropertyNames = Object.keys(
-  publishingPropertyTypes,
-) as PublishingPropertyName[];
-const textEncoder = new TextEncoder();
-
-const richTextSchema = z
-  .object({
-    annotations: z
-      .object({
-        bold: z.boolean().optional(),
-        code: z.boolean().optional(),
-        italic: z.boolean().optional(),
-        strikethrough: z.boolean().optional(),
-      })
-      .passthrough()
-      .optional(),
-    href: z.string().max(4_096).nullable().optional(),
-    plain_text: z.string(),
-  })
-  .passthrough();
-
-const propertyRichTextSchema = richTextSchema.extend({
-  plain_text: z.string().max(MAX_NOTION_TEXT_LENGTH),
-});
-
-const propertyEnvelopeSchema = z
-  .object({
-    id: z.string().min(1).max(255),
-    type: z.string().min(1).max(255),
-  })
-  .passthrough();
-const selectPropertySchema = propertyEnvelopeSchema.extend({
-  select: z
-    .object({ name: z.string().max(MAX_NOTION_TEXT_LENGTH) })
-    .passthrough()
-    .nullable(),
-  type: z.literal("select"),
-});
-const multiSelectPropertySchema = propertyEnvelopeSchema.extend({
-  multi_select: z
-    .array(
-      z
-        .object({ name: z.string().max(MAX_NOTION_TEXT_LENGTH) })
-        .passthrough(),
-    )
-    .max(MAX_NOTION_ARRAY_ITEMS),
-  type: z.literal("multi_select"),
-});
-const richTextPropertySchema = propertyEnvelopeSchema.extend({
-  rich_text: z.array(propertyRichTextSchema).max(MAX_NOTION_ARRAY_ITEMS),
-  type: z.literal("rich_text"),
-});
-const datePropertySchema = propertyEnvelopeSchema.extend({
-  date: z
-    .object({ start: z.string().min(1).max(MAX_NOTION_TEXT_LENGTH) })
-    .passthrough()
-    .nullable(),
-  type: z.literal("date"),
-});
-
-const titlePropertySchema = z
-  .object({
-    title: z.array(richTextSchema),
-    type: z.literal("title"),
-  })
-  .passthrough();
-
-const pageSchema = z
-  .object({
-    icon: z.unknown().nullable().optional(),
-    id: z.string().min(1).max(255),
-    in_trash: z.boolean().optional(),
-    last_edited_time: z.iso.datetime({ offset: true }),
-    object: z.literal("page"),
-    parent: z
-      .object({
-        block_id: z.string().min(1).max(255).optional(),
-        data_source_id: z.string().min(1).max(255).optional(),
-        database_id: z.string().min(1).max(255).optional(),
-        page_id: z.string().min(1).max(255).optional(),
-        type: z.string(),
-      })
-      .passthrough(),
-    properties: z.record(z.string(), z.unknown()),
-  })
-  .passthrough();
-const dataSourceSchema = z
-  .object({
-    database_parent: z
-      .object({
-        page_id: z.string().min(1).max(255).optional(),
-        type: z.string(),
-      })
-      .passthrough(),
-    id: z.string().min(1).max(255),
-    object: z.literal("data_source"),
-  })
-  .passthrough();
-const retrievedPageSchema = pageSchema.extend({
-  created_time: z.iso.datetime({ offset: true }),
-});
-
-const searchResponseSchema = z
-  .object({
-    has_more: z.boolean(),
-    next_cursor: z.string().min(1).nullable(),
-    results: z.array(z.unknown()),
-  })
-  .passthrough();
-const blockSchema = z
-  .object({
-    child_database: z
-      .object({ title: z.string() })
-      .passthrough()
-      .optional(),
-    child_page: z
-      .object({ title: z.string() })
-      .passthrough()
-      .optional(),
-    has_children: z.boolean(),
-    id: z.string().min(1).max(255),
-    link_to_page: z
-      .object({
-        database_id: z.string().min(1).max(255).optional(),
-        page_id: z.string().min(1).max(255).optional(),
-        type: z.string(),
-      })
-      .passthrough()
-      .optional(),
-    object: z.literal("block"),
-    synced_block: z
-      .object({
-        synced_from: z
-          .object({
-            block_id: z.string().min(1).max(255).optional(),
-            type: z.string(),
-          })
-          .passthrough()
-          .nullable(),
-      })
-      .passthrough()
-      .optional(),
-    toggle: z
-      .object({ rich_text: z.array(richTextSchema) })
-      .passthrough()
-      .optional(),
+const pageSchema = z.object({
+  icon: z.unknown().nullable().optional(),
+  id: z.string().min(1).max(255),
+  in_trash: z.boolean().optional(),
+  last_edited_time: z.iso.datetime({ offset: true }),
+  object: z.literal("page"),
+  parent: z.object({
+    block_id: z.string().min(1).max(255).optional(),
+    data_source_id: z.string().min(1).max(255).optional(),
+    database_id: z.string().min(1).max(255).optional(),
+    page_id: z.string().min(1).max(255).optional(),
     type: z.string(),
-  })
-  .passthrough();
+  }),
+  properties: z.record(z.string(), z.unknown()),
+});
 
-interface NotionRestContentAdapterOptions {
-  accessToken: string;
-  apiVersion: string;
-  fetch?: typeof fetch;
-  log?: LogSink;
-  timeoutMs?: number;
-}
-
-interface DiscoveredPage extends NotionPageSummary {
-  parentDataSourceId: string | null;
-}
-
-type NotionProviderErrorCode =
-  | "access_denied"
-  | "invalid_response"
-  | "rate_limited"
-  | "timeout"
-  | "unavailable";
-
-export class NotionProviderError extends Error {
-  override readonly name = "NotionProviderError";
-
-  constructor(
-    readonly code: NotionProviderErrorCode,
-    readonly retryAfterSeconds: number | null = null,
-  ) {
-    super(`Notion provider request failed: ${code}`);
-  }
-}
+const dataSourceSchema = z.object({
+  database_parent: z.object({
+    page_id: z.string().min(1).max(255).optional(),
+    type: z.string(),
+  }),
+  id: z.string().min(1).max(255),
+  object: z.literal("data_source"),
+});
 
 export class NotionRestContentAdapter implements NotionContentAdapter {
-  readonly #accessToken: string;
-  readonly #apiVersion: string;
-  readonly #fetch: typeof fetch;
-  readonly #log: LogSink | undefined;
-  readonly #timeoutMs: number | undefined;
+  readonly #options: NotionRequestOptions;
 
-  constructor(options: NotionRestContentAdapterOptions) {
-    this.#accessToken = options.accessToken;
-    this.#apiVersion = options.apiVersion;
-    this.#fetch = options.fetch ?? fetch;
-    this.#log = options.log;
-    this.#timeoutMs = options.timeoutMs;
+  constructor(options: NotionRequestOptions) {
+    this.#options = options;
   }
 
+  /**
+   * 연결에 공유된 모든 page를 평평한 목록으로 돌려준다.
+   * data source(database) 행 page는 database가 놓인 page 아래로 붙이고,
+   * 부모가 보이지 않는 page는 root(`parentPageId: null`)로 올린다.
+   */
   async listPageTree(): Promise<readonly NotionPageSummary[]> {
-    const pages = await this.#listAllPages();
-    const parentDataSourceIds = new Set(
-      pages.flatMap((page) =>
-        page.parentDataSourceId === null
-          ? []
-          : [page.parentDataSourceId],
-      ),
-    );
-    const dataSourceParents =
-      parentDataSourceIds.size === 0
-        ? new Map<string, string>()
-        : await this.#listDataSourceParents();
-    const resolvedPages = pages.map((page) => ({
-      ...page,
-      parentPageId:
-        page.parentPageId ??
-        (page.parentDataSourceId === null
-          ? null
-          : (dataSourceParents.get(page.parentDataSourceId) ?? null)),
-    }));
-    const visibleIds = new Set(pages.map((page) => page.providerPageId));
-    const parentIds = new Set(
-      resolvedPages.flatMap((page) =>
-        page.parentPageId === null ? [] : [page.parentPageId],
-      ),
-    );
-
-    return resolvedPages.map((page) => {
-      const parentPageId =
-        page.parentPageId !== null &&
-        visibleIds.has(page.parentPageId)
-          ? page.parentPageId
-          : null;
-      return {
-        hasChildren: parentIds.has(page.providerPageId),
-        iconUrl: page.iconUrl,
-        lastEditedAt: page.lastEditedAt,
-        parentContainerId: page.parentContainerId,
-        parentPageId,
-        providerPageId: page.providerPageId,
-        title: page.title,
-      };
-    });
-  }
-
-  async listPageOutline(
-    pageId: string,
-  ): Promise<readonly NotionOutlineNode[]> {
-    const nodes: NotionOutlineNode[] = [];
-    const visitedBlocks = new Set<string>();
-    let traversedBlockCount = 0;
-
-    const visit = async (
-      blockId: string,
-      parentNodeId: string | null,
-      depth: number,
-    ): Promise<void> => {
-      if (depth > MAX_OUTLINE_DEPTH) {
-        throw new NotionProviderError("invalid_response");
-      }
-      if (visitedBlocks.has(blockId)) {
-        return;
-      }
-      visitedBlocks.add(blockId);
-      for (const result of await this.#listBlockChildren(blockId)) {
-        traversedBlockCount += 1;
-        if (traversedBlockCount > MAX_OUTLINE_BLOCKS) {
-          throw new NotionProviderError("invalid_response");
-        }
-        const parsed = blockSchema.safeParse(result);
-        if (!parsed.success) {
-          throw new NotionProviderError("invalid_response");
-        }
-        const block = parsed.data;
-        if (block.type === "child_page" && block.child_page !== undefined) {
-          nodes.push({
-            kind: "page",
-            nodeId: block.id,
-            parentNodeId,
-            providerId: block.id,
-            title: block.child_page.title.trim() || "제목 없음",
-          });
-          continue;
-        }
-        if (
-          block.type === "child_database" &&
-          block.child_database !== undefined
-        ) {
-          nodes.push({
-            kind: "database",
-            nodeId: block.id,
-            parentNodeId,
-            providerId: block.id,
-            title: block.child_database.title.trim() || "제목 없음",
-          });
-          continue;
-        }
-        if (block.type === "link_to_page") {
-          const link = block.link_to_page;
-          if (link === undefined) {
-            throw new NotionProviderError("invalid_response");
-          }
-          if (link.type === "page_id" && link.page_id !== undefined) {
-            nodes.push({
-              kind: "page",
-              nodeId: block.id,
-              parentNodeId,
-              providerId: link.page_id,
-              title: "연결된 페이지",
-            });
-            continue;
-          }
-          if (
-            link.type === "database_id" &&
-            link.database_id !== undefined
-          ) {
-            nodes.push({
-              kind: "database",
-              nodeId: block.id,
-              parentNodeId,
-              providerId: link.database_id,
-              title: "연결된 데이터베이스",
-            });
-            continue;
-          }
-          throw new NotionProviderError("invalid_response");
-        }
-        const navigationKind = blockNavigationKind(block);
-        const navigationTitle = blockNavigationTitle(block);
-        const hasNavigationNode =
-          navigationKind !== null && navigationTitle !== null;
-        const nextParentNodeId = hasNavigationNode
-          ? block.id
-          : parentNodeId;
-        if (hasNavigationNode) {
-          nodes.push({
-            kind: navigationKind,
-            nodeId: block.id,
-            parentNodeId,
-            providerId: null,
-            title: navigationTitle,
-          });
-        }
-        if (block.has_children) {
-          await visit(block.id, nextParentNodeId, depth + 1);
-          continue;
-        }
-        if (
-          block.type === "synced_block" &&
-          block.synced_block?.synced_from?.type === "block_id" &&
-          block.synced_block.synced_from.block_id !== undefined
-        ) {
-          await visit(
-            block.synced_block.synced_from.block_id,
-            nextParentNodeId,
-            depth + 1,
-          );
-        }
-      }
-    };
-
-    await visit(pageId, null, 0);
-    return navigationBearingNodes(nodes);
-  }
-
-  async getPageContent(pageId: string): Promise<NotionPageContent> {
-    const response = await this.#request(
-      `${NOTION_PAGES_URL}/${encodeURIComponent(pageId)}`,
-      {
-        headers: this.#headers(),
-        method: "GET",
-      },
-      "content.page",
-    );
-    if (!response.ok) {
-      throw providerError(response);
-    }
-    const page = retrievedPageSchema.safeParse(await safeJson(response));
-    if (!page.success || page.data.in_trash === true) {
-      throw new NotionProviderError("invalid_response");
-    }
-    const publishingProperties = normalizePublishingProperties(
-      page.data.properties,
-    );
-
-    const blocks: NotionContentBlock[] = [];
-    const visited = new Set<string>();
-    let traversed = 0;
-    const visit = async (
-      blockId: string,
-      depth: number,
-    ): Promise<NotionContentBlock[]> => {
-      if (depth > MAX_OUTLINE_DEPTH || visited.has(blockId)) {
-        if (depth > MAX_OUTLINE_DEPTH) {
-          throw new NotionProviderError("invalid_response");
-        }
-        return [];
-      }
-      visited.add(blockId);
-      const converted: NotionContentBlock[] = [];
-      for (const raw of await this.#listBlockChildren(blockId)) {
-        traversed += 1;
-        if (traversed > MAX_OUTLINE_BLOCKS) {
-          throw new NotionProviderError("invalid_response");
-        }
-        const parsed = blockSchema.safeParse(raw);
-        if (!parsed.success) {
-          throw new NotionProviderError("invalid_response");
-        }
-        const block = parsed.data;
-        let children: NotionContentBlock[] = [];
-        if (
-          block.has_children &&
-          block.type !== "child_page" &&
-          block.type !== "child_database"
-        ) {
-          children = await visit(block.id, depth + 1);
-        } else if (
-          block.type === "synced_block" &&
-          block.synced_block?.synced_from?.type === "block_id" &&
-          block.synced_block.synced_from.block_id !== undefined
-        ) {
-          children = await visit(
-            block.synced_block.synced_from.block_id,
-            depth + 1,
-          );
-        }
-        converted.push(...publishableBlocks(block, children));
-      }
-      return converted;
-    };
-    blocks.push(...(await visit(page.data.id, 0)));
-
-    return {
-      blocks,
-      createdAt: new Date(page.data.created_time),
-      lastEditedAt: new Date(page.data.last_edited_time),
-      providerPageId: page.data.id,
-      publishingProperties,
-      title: pageTitle(page.data.properties),
-    };
-  }
-
-  async #listAllPages(): Promise<DiscoveredPage[]> {
-    const pages = new Map<string, DiscoveredPage>();
-    for (const result of await this.#searchAll("page")) {
-      if (isNonPageResult(result)) {
+    const byId = new Map<string, z.infer<typeof pageSchema>>();
+    for (const result of await this.#search("page")) {
+      // search가 page가 아닌 object를 섞어 보내면 건너뛴다.
+      if (typeof result === "object" && result !== null && "object" in result && result.object !== "page") {
         continue;
       }
       const page = pageSchema.safeParse(result);
       if (!page.success) {
-        throw new NotionProviderError("invalid_response");
+        throw invalidResponse();
       }
-      if (page.data.in_trash === true) {
-        continue;
+      if (page.data.in_trash !== true) {
+        byId.set(page.data.id, page.data);
       }
-      pages.set(page.data.id, toDiscoveredPage(page.data));
     }
+    const pages = [...byId.values()];
 
-    return [...pages.values()];
+    const dataSourceParents = pages.some(
+      (page) => page.parent.type === "data_source_id" && page.parent.data_source_id !== undefined,
+    )
+      ? await this.#dataSourceParents()
+      : new Map<string, string>();
+    const parentOf = (page: (typeof pages)[number]): string | null =>
+      page.parent.type === "page_id"
+        ? (page.parent.page_id ?? null)
+        : page.parent.type === "data_source_id"
+          ? (dataSourceParents.get(page.parent.data_source_id ?? "") ?? null)
+          : null;
+
+    const visibleIds = new Set(pages.map((page) => page.id));
+    const parentIds = new Set(pages.map(parentOf));
+    return pages.map((page) => {
+      const parentPageId = parentOf(page);
+      return {
+        hasChildren: parentIds.has(page.id),
+        iconUrl: pageIconUrl(page.icon),
+        lastEditedAt: new Date(page.last_edited_time),
+        parentContainerId:
+          page.parent.type === "data_source_id"
+            ? (page.parent.database_id ?? null)
+            : page.parent.type === "block_id"
+              ? (page.parent.block_id ?? null)
+              : null,
+        parentPageId: parentPageId !== null && visibleIds.has(parentPageId) ? parentPageId : null,
+        providerPageId: page.id,
+        title: pageTitle(page.properties),
+      };
+    });
   }
 
-  async #listDataSourceParents(): Promise<Map<string, string>> {
+  /** page 아래의 탐색용 구조(하위 page·database와 그것을 묶는 토글·그룹)만 돌려준다. */
+  async listPageOutline(pageId: string): Promise<readonly NotionOutlineNode[]> {
+    const nodes: NotionOutlineNode[] = [];
+    const childrenOf = this.#blockWalker();
+    const visit = async (blockId: string, parentNodeId: string | null, depth: number) => {
+      for (const block of await childrenOf(blockId, depth)) {
+        const node = toOutlineNode(block, parentNodeId);
+        if (node !== null) {
+          nodes.push(node);
+        }
+        const source = isOutlineLeaf(block) ? null : childSourceId(block);
+        if (source !== null) {
+          await visit(source, node?.nodeId ?? parentNodeId, depth + 1);
+        }
+      }
+    };
+    await visit(pageId, null, 0);
+    return navigationBearingNodes(nodes);
+  }
+
+  /** 게시 직전에 최신 page metadata와 본문 블록 전체를 읽는다. 휴지통 page는 거절한다. */
+  async getPageContent(pageId: string): Promise<NotionPageContent> {
+    const page = pageSchema
+      .extend({ created_time: z.iso.datetime({ offset: true }) })
+      .safeParse(
+        await notionJson(
+          this.#options,
+          `https://api.notion.com/v1/pages/${encodeURIComponent(pageId)}`,
+          "content.page",
+        ),
+      );
+    if (!page.success || page.data.in_trash === true) {
+      throw invalidResponse();
+    }
+    const properties = publishingProperties(page.data.properties);
+
+    const childrenOf = this.#blockWalker();
+    const visit = async (blockId: string, depth: number): Promise<NotionContentBlock[]> => {
+      const converted: NotionContentBlock[] = [];
+      for (const block of await childrenOf(blockId, depth)) {
+        const source = childSourceId(block);
+        const children = source === null ? [] : await visit(source, depth + 1);
+        converted.push(...toContentBlocks(block, children));
+      }
+      return converted;
+    };
+
+    return {
+      blocks: await visit(page.data.id, 0),
+      createdAt: new Date(page.data.created_time),
+      lastEditedAt: new Date(page.data.last_edited_time),
+      providerPageId: page.data.id,
+      publishingProperties: properties,
+      title: pageTitle(page.data.properties),
+    };
+  }
+
+  /**
+   * 한 번의 순회 안에서 블록 자식을 읽는 함수. 깊이·전체 블록 수 상한을 넘으면 거절하고,
+   * 이미 읽은 블록(synced block 순환)은 빈 목록으로 끊는다.
+   */
+  #blockWalker(): (blockId: string, depth: number) => Promise<NotionBlock[]> {
+    const visited = new Set<string>();
+    let total = 0;
+    return async (blockId, depth) => {
+      if (depth > MAX_DEPTH) {
+        throw invalidResponse();
+      }
+      if (visited.has(blockId)) {
+        return [];
+      }
+      visited.add(blockId);
+      const children = await listAll((cursor) => {
+        const url = new URL(
+          `https://api.notion.com/v1/blocks/${encodeURIComponent(blockId)}/children`,
+        );
+        url.searchParams.set("page_size", "100");
+        if (cursor !== null) {
+          url.searchParams.set("start_cursor", cursor);
+        }
+        return notionJson(this.#options, url, "content.blocks");
+      }, MAX_BLOCKS);
+      total += children.length;
+      if (total > MAX_BLOCKS) {
+        throw invalidResponse();
+      }
+      return children.map(parseBlock);
+    };
+  }
+
+  /** data source ID → 그 database가 놓인 page ID. */
+  async #dataSourceParents(): Promise<Map<string, string>> {
     const parents = new Map<string, string>();
-    for (const result of await this.#searchAll("data_source")) {
+    for (const result of await this.#search("data_source")) {
       const dataSource = dataSourceSchema.safeParse(result);
       if (!dataSource.success) {
-        throw new NotionProviderError("invalid_response");
+        throw invalidResponse();
       }
-      if (
-        dataSource.data.database_parent.type === "page_id" &&
-        dataSource.data.database_parent.page_id !== undefined
-      ) {
-        parents.set(
-          dataSource.data.id,
-          dataSource.data.database_parent.page_id,
-        );
+      const parent = dataSource.data.database_parent;
+      if (parent.type === "page_id" && parent.page_id !== undefined) {
+        parents.set(dataSource.data.id, parent.page_id);
       }
     }
     return parents;
   }
 
-  async #searchAll(
-    object: "data_source" | "page",
-  ): Promise<unknown[]> {
-    const results: unknown[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | null = null;
-    do {
-      if (cursor !== null && seenCursors.has(cursor)) {
-        throw new NotionProviderError("invalid_response");
-      }
-      if (cursor !== null) {
-        seenCursors.add(cursor);
-      }
-      const body: Record<string, unknown> = {
-        filter: { property: "object", value: object },
-        page_size: PAGE_SIZE,
-        sort: { direction: "descending", timestamp: "last_edited_time" },
-      };
-      if (cursor !== null) {
-        body.start_cursor = cursor;
-      }
-      const response = await this.#request(NOTION_SEARCH_URL, {
-        body: JSON.stringify(body),
-        headers: {
-          ...this.#headers(),
-          "content-type": "application/json",
-        },
-        method: "POST",
-      }, "content.search");
-      if (!response.ok) {
-        throw providerError(response);
-      }
-      const parsed = searchResponseSchema.safeParse(await safeJson(response));
-      if (!parsed.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      results.push(...parsed.data.results);
-      if (results.length > MAX_PAGES) {
-        throw new NotionProviderError("invalid_response");
-      }
-      if (parsed.data.has_more && parsed.data.next_cursor === null) {
-        throw new NotionProviderError("invalid_response");
-      }
-      cursor = parsed.data.has_more ? parsed.data.next_cursor : null;
-    } while (cursor !== null);
-    return results;
-  }
-
-  async #listBlockChildren(blockId: string): Promise<unknown[]> {
-    const results: unknown[] = [];
-    const seenCursors = new Set<string>();
-    let cursor: string | null = null;
-    do {
-      if (cursor !== null && seenCursors.has(cursor)) {
-        throw new NotionProviderError("invalid_response");
-      }
-      if (cursor !== null) {
-        seenCursors.add(cursor);
-      }
-      const url = new URL(
-        `${NOTION_BLOCKS_URL}/${encodeURIComponent(blockId)}/children`,
-      );
-      url.searchParams.set("page_size", String(PAGE_SIZE));
-      if (cursor !== null) {
-        url.searchParams.set("start_cursor", cursor);
-      }
-      const response = await this.#request(url, {
-        headers: this.#headers(),
-        method: "GET",
-      }, "content.blocks");
-      if (!response.ok) {
-        throw providerError(response);
-      }
-      const parsed = searchResponseSchema.safeParse(await safeJson(response));
-      if (!parsed.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      results.push(...parsed.data.results);
-      if (results.length > MAX_OUTLINE_BLOCKS) {
-        throw new NotionProviderError("invalid_response");
-      }
-      if (parsed.data.has_more && parsed.data.next_cursor === null) {
-        throw new NotionProviderError("invalid_response");
-      }
-      cursor = parsed.data.has_more ? parsed.data.next_cursor : null;
-    } while (cursor !== null);
-    return results;
-  }
-
-  #headers(): Record<string, string> {
-    return {
-      accept: "application/json",
-      authorization: `Bearer ${this.#accessToken}`,
-      "notion-version": this.#apiVersion,
-    };
-  }
-
-  async #request(
-    input: RequestInfo | URL,
-    init: RequestInit,
-    operation: string,
-  ): Promise<Response> {
-    try {
-      return await providerRequest({
-        fetch: this.#fetch,
-        init,
-        input,
-        log: this.#log,
-        operation,
-        provider: "notion",
-        timeoutMs: this.#timeoutMs,
-      });
-    } catch (error) {
-      if (error instanceof ProviderTransportError) {
-        throw new NotionProviderError(error.code);
-      }
-      throw error;
-    }
-  }
-}
-
-type ParsedBlock = z.infer<typeof blockSchema>;
-
-function normalizePublishingProperties(
-  properties: Record<string, unknown>,
-): Readonly<Record<string, NotionPageProperty>> {
-  const reservedEntries = publishingPropertyNames.flatMap((name) =>
-    Object.hasOwn(properties, name) ? [[name, properties[name]] as const] : [],
-  );
-  if (
-    textEncoder.encode(JSON.stringify(Object.fromEntries(reservedEntries)))
-      .byteLength > MAX_PUBLISHING_PROPERTIES_BYTES
-  ) {
-    throw new NotionProviderError("invalid_response");
-  }
-
-  return Object.fromEntries(
-    reservedEntries.map(([name, value]) => [
-      name,
-      normalizePublishingProperty(value, publishingPropertyTypes[name]),
-    ]),
-  );
-}
-
-function normalizePublishingProperty(
-  value: unknown,
-  expectedType: (typeof publishingPropertyTypes)[PublishingPropertyName],
-): NotionPageProperty {
-  const envelope = propertyEnvelopeSchema.safeParse(value);
-  if (!envelope.success) {
-    throw new NotionProviderError("invalid_response");
-  }
-
-  let normalized: Exclude<
-    NotionPageProperty,
-    { kind: "unsupported" }
-  >;
-  switch (envelope.data.type) {
-    case "select": {
-      const property = selectPropertySchema.safeParse(value);
-      if (!property.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      normalized = {
-        kind: "select",
-        name: property.data.select?.name ?? null,
-      };
-      break;
-    }
-    case "multi_select": {
-      const property = multiSelectPropertySchema.safeParse(value);
-      if (!property.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      normalized = {
-        kind: "multi_select",
-        names: property.data.multi_select.map((option) => option.name),
-      };
-      break;
-    }
-    case "rich_text": {
-      const property = richTextPropertySchema.safeParse(value);
-      if (!property.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      normalized = {
-        kind: "rich_text",
-        plainText: property.data.rich_text
-          .map((part) => part.plain_text)
-          .join(""),
-      };
-      break;
-    }
-    case "date": {
-      const property = datePropertySchema.safeParse(value);
-      if (!property.success) {
-        throw new NotionProviderError("invalid_response");
-      }
-      normalized = {
-        kind: "date",
-        start: property.data.date?.start ?? null,
-      };
-      break;
-    }
-    default:
-      if (!Object.hasOwn(envelope.data, envelope.data.type)) {
-        throw new NotionProviderError("invalid_response");
-      }
-      return {
-        kind: "unsupported",
-        providerType: envelope.data.type,
-      };
-  }
-
-  return normalized.kind === expectedType
-    ? normalized
-    : {
-        kind: "unsupported",
-        providerType: envelope.data.type,
-      };
-}
-
-function publishableBlocks(
-  block: ParsedBlock,
-  children: readonly NotionContentBlock[],
-): NotionContentBlock[] {
-  const value = blockTypeValue(block);
-  switch (block.type) {
-    case "paragraph":
-      return withChildren(
-        { kind: "paragraph", richText: blockRichText(value) },
-        children,
-      );
-    case "heading_1":
-    case "heading_2":
-    case "heading_3":
-      return withChildren(
-        {
-          kind: "heading",
-          level: Number(block.type.at(-1)) as 1 | 2 | 3,
-          richText: blockRichText(value),
-        },
-        children,
-      );
-    case "quote":
-      return withChildren(
-        { kind: "quote", richText: blockRichText(value) },
-        children,
-      );
-    case "code":
-      return [
-        {
-          code: blockRichText(value).map((part) => part.text).join(""),
-          kind: "code",
-          language:
-            typeof value?.language === "string" ? value.language : "text",
-        },
-      ];
-    case "image": {
-      const url = providerFileUrl(value);
-      if (url === null) {
-        throw new NotionProviderError("invalid_response");
-      }
-      return [
-        {
-          caption: blockRichText(value, "caption"),
-          kind: "image",
-          url,
-        },
-      ];
-    }
-    case "toggle":
-      return [
-        {
-          children: [...children],
-          kind: "toggle",
-          summary: blockRichText(value),
-        },
-      ];
-    case "divider":
-      return [{ kind: "divider" }];
-    case "equation": {
-      if (typeof value?.expression !== "string") {
-        throw new NotionProviderError("invalid_response");
-      }
-      return [{ expression: value.expression, kind: "equation" }];
-    }
-    case "bulleted_list_item":
-    case "numbered_list_item":
-      return [
-        {
-          children: [...children],
-          kind: "listItem",
-          richText: blockRichText(value),
-          style:
-            block.type === "bulleted_list_item" ? "bulleted" : "numbered",
-        },
-      ];
-    case "to_do":
-      return [
-        {
-          checked: value?.checked === true,
-          children: [...children],
-          kind: "toDo",
-          richText: blockRichText(value),
-        },
-      ];
-    case "callout":
-      return [
-        {
-          children: [...children],
-          icon: calloutIcon(value),
-          kind: "callout",
-          richText: blockRichText(value),
-        },
-      ];
-    case "table":
-      return [
-        {
-          hasColumnHeader: value?.has_column_header === true,
-          hasRowHeader: value?.has_row_header === true,
-          kind: "table",
-          rows: children.flatMap((child) =>
-            child.kind === "tableRow" ? [child.cells] : [],
-          ),
-        },
-      ];
-    case "table_row":
-      return [{ cells: tableCells(value), kind: "tableRow" }];
-    case "bookmark":
-    case "embed":
-    case "link_preview": {
-      const url = typeof value?.url === "string" ? value.url : null;
-      if (url === null) {
-        return [...children];
-      }
-      const caption = blockRichText(value, "caption");
-      return [
-        {
-          caption: caption.length > 0 ? caption : [defaultRichText(url, url)],
-          kind: "linkCard",
-          url,
-        },
-        ...children,
-      ];
-    }
-    case "audio":
-    case "file":
-    case "pdf":
-    case "video":
-      return [
-        {
-          caption: blockRichText(value, "caption"),
-          kind: "media",
-          mediaType: block.type,
-          url: externalMediaUrl(value),
-        },
-        ...children,
-      ];
-    case "child_page":
-    case "child_database":
-      return [];
-    default:
-      return [...children];
-  }
-}
-
-function externalMediaUrl(value: Record<string, unknown> | null): string | null {
-  if (
-    value === null ||
-    value.type !== "external" ||
-    typeof value.external !== "object" ||
-    value.external === null ||
-    !("url" in value.external) ||
-    typeof value.external.url !== "string"
-  ) {
-    return null;
-  }
-  return value.external.url;
-}
-
-function calloutIcon(value: Record<string, unknown> | null): string | null {
-  const icon = value?.icon;
-  if (
-    typeof icon !== "object" ||
-    icon === null ||
-    !("type" in icon) ||
-    icon.type !== "emoji" ||
-    !("emoji" in icon) ||
-    typeof icon.emoji !== "string"
-  ) {
-    return null;
-  }
-  const emoji = icon.emoji.trim();
-  return emoji.length > 0 && emoji.length <= 16 ? emoji : null;
-}
-
-function tableCells(value: Record<string, unknown> | null): NotionRichText[][] {
-  if (value === null || !Array.isArray(value.cells)) {
-    throw new NotionProviderError("invalid_response");
-  }
-  const cells = z.array(z.array(richTextSchema).max(1_000)).max(100).safeParse(
-    value.cells,
-  );
-  if (!cells.success) {
-    throw new NotionProviderError("invalid_response");
-  }
-  return cells.data.map((cell) =>
-    cell.map((part) => ({
-      bold: part.annotations?.bold ?? false,
-      code: part.annotations?.code ?? false,
-      href: part.href ?? null,
-      italic: part.annotations?.italic ?? false,
-      strikethrough: part.annotations?.strikethrough ?? false,
-      text: part.plain_text,
-    })),
-  );
-}
-
-function withChildren(
-  block: NotionContentBlock,
-  children: readonly NotionContentBlock[],
-): NotionContentBlock[] {
-  return [block, ...children];
-}
-
-function blockRichText(
-  value: Record<string, unknown> | null,
-  key = "rich_text",
-): NotionRichText[] {
-  if (value === null || !Array.isArray(value[key])) {
-    return [];
-  }
-  const parsed = z.array(richTextSchema).safeParse(value[key]);
-  if (!parsed.success) {
-    throw new NotionProviderError("invalid_response");
-  }
-  return parsed.data.map((part) => ({
-    bold: part.annotations?.bold ?? false,
-    code: part.annotations?.code ?? false,
-    href: part.href ?? null,
-    italic: part.annotations?.italic ?? false,
-    strikethrough: part.annotations?.strikethrough ?? false,
-    text: part.plain_text,
-  }));
-}
-
-function defaultRichText(text: string, href: string | null): NotionRichText {
-  return {
-    bold: false,
-    code: false,
-    href,
-    italic: false,
-    strikethrough: false,
-    text,
-  };
-}
-
-function providerFileUrl(value: Record<string, unknown> | null): string | null {
-  if (value === null) {
-    return null;
-  }
-  for (const key of ["external", "file", "file_upload"]) {
-    const candidate = value[key];
-    if (typeof candidate !== "object" || candidate === null) {
-      continue;
-    }
-    const url = (candidate as Record<string, unknown>).url;
-    if (typeof url === "string") {
-      return url;
-    }
-  }
-  return null;
-}
-
-const GROUP_BLOCK_TYPES = new Set([
-  "bulleted_list_item",
-  "callout",
-  "numbered_list_item",
-  "paragraph",
-  "quote",
-  "template",
-  "to_do",
-]);
-const HEADING_BLOCK_TYPES = new Set([
-  "heading_1",
-  "heading_2",
-  "heading_3",
-  "heading_4",
-]);
-
-function blockNavigationKind(
-  block: ParsedBlock,
-): "group" | "toggle" | null {
-  if (block.type === "toggle" && block.toggle !== undefined) {
-    return "toggle";
-  }
-  const value = blockTypeValue(block);
-  if (
-    HEADING_BLOCK_TYPES.has(block.type) &&
-    value?.is_toggleable === true
-  ) {
-    return "toggle";
-  }
-  if (
-    GROUP_BLOCK_TYPES.has(block.type) &&
-    richTextTitle(value) !== null
-  ) {
-    return "group";
-  }
-  return null;
-}
-
-function blockNavigationTitle(block: ParsedBlock): string | null {
-  if (block.type === "toggle" && block.toggle !== undefined) {
-    return (
-      block.toggle.rich_text
-        .map((part) => part.plain_text)
-        .join("")
-        .trim() || "제목 없는 토글"
+  #search(object: "data_source" | "page"): Promise<unknown[]> {
+    return listAll(
+      (cursor) =>
+        notionJson(this.#options, "https://api.notion.com/v1/search", "content.search", {
+          filter: { property: "object", value: object },
+          page_size: 100,
+          sort: { direction: "descending", timestamp: "last_edited_time" },
+          ...(cursor === null ? {} : { start_cursor: cursor }),
+        }),
+      MAX_PAGES,
     );
-  }
-  const title = richTextTitle(blockTypeValue(block));
-  if (HEADING_BLOCK_TYPES.has(block.type)) {
-    return title ?? "제목 없는 토글";
-  }
-  return title;
-}
-
-function blockTypeValue(
-  block: ParsedBlock,
-): Record<string, unknown> | null {
-  const value = (block as Record<string, unknown>)[block.type];
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function richTextTitle(value: Record<string, unknown> | null): string | null {
-  if (value === null || !Array.isArray(value.rich_text)) {
-    return null;
-  }
-  const parsed = z.array(richTextSchema).safeParse(value.rich_text);
-  if (!parsed.success) {
-    throw new NotionProviderError("invalid_response");
-  }
-  const title = parsed.data
-    .map((part) => part.plain_text)
-    .join("")
-    .trim();
-  return title || null;
-}
-
-function navigationBearingNodes(
-  nodes: readonly NotionOutlineNode[],
-): NotionOutlineNode[] {
-  const nodesById = new Map(nodes.map((node) => [node.nodeId, node]));
-  const retained = new Set<string>();
-  for (const node of nodes) {
-    if (node.kind !== "database" && node.kind !== "page") {
-      continue;
-    }
-    let current: NotionOutlineNode | undefined = node;
-    while (current !== undefined && !retained.has(current.nodeId)) {
-      retained.add(current.nodeId);
-      current =
-        current.parentNodeId === null
-          ? undefined
-          : nodesById.get(current.parentNodeId);
-    }
-  }
-  return nodes.filter((node) => retained.has(node.nodeId));
-}
-
-function toDiscoveredPage(
-  page: z.infer<typeof pageSchema>,
-): DiscoveredPage {
-  const parentPageId =
-    page.parent.type === "page_id" ? (page.parent.page_id ?? null) : null;
-  const parentDataSourceId =
-    page.parent.type === "data_source_id"
-      ? (page.parent.data_source_id ?? null)
-      : null;
-  return {
-    hasChildren: false,
-    iconUrl: iconUrl(page.icon),
-    lastEditedAt: new Date(page.last_edited_time),
-    parentContainerId:
-      page.parent.type === "data_source_id"
-        ? (page.parent.database_id ?? null)
-        : page.parent.type === "block_id"
-          ? (page.parent.block_id ?? null)
-          : null,
-    parentDataSourceId,
-    parentPageId,
-    providerPageId: page.id,
-    title: pageTitle(page.properties),
-  };
-}
-
-function pageTitle(properties: Record<string, unknown>): string {
-  for (const property of Object.values(properties)) {
-    const title = titlePropertySchema.safeParse(property);
-    if (title.success) {
-      return (
-        title.data.title.map((part) => part.plain_text).join("").trim() ||
-        "제목 없음"
-      );
-    }
-  }
-  return "제목 없음";
-}
-
-function iconUrl(icon: unknown): string | null {
-  if (typeof icon !== "object" || icon === null) {
-    return null;
-  }
-  const value = icon as Record<string, unknown>;
-  for (const key of ["external", "file", "file_upload", "custom_emoji"]) {
-    const candidate = value[key];
-    if (typeof candidate !== "object" || candidate === null) {
-      continue;
-    }
-    const url = (candidate as Record<string, unknown>).url;
-    if (typeof url === "string" && isHttpUrl(url)) {
-      return url;
-    }
-  }
-  return null;
-}
-
-function isHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
-function isNonPageResult(value: unknown): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "object" in value &&
-    (value as { object?: unknown }).object !== "page"
-  );
-}
-
-function providerError(response: Response): NotionProviderError {
-  if (response.status === 401 || response.status === 403) {
-    return new NotionProviderError("access_denied");
-  }
-  if (response.status === 429) {
-    const retryAfter = Number.parseInt(
-      response.headers.get("retry-after") ?? "",
-      10,
-    );
-    return new NotionProviderError(
-      "rate_limited",
-      Number.isSafeInteger(retryAfter) && retryAfter >= 0
-        ? Math.min(retryAfter, 3_600)
-        : null,
-    );
-  }
-  return new NotionProviderError("unavailable");
-}
-
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
   }
 }
