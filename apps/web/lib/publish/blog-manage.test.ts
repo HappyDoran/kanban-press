@@ -17,8 +17,8 @@ const ORIGIN = "http://localhost:3000";
 const USER_ID = "583231";
 const CONNECTION_ID = "3c90c3cc-0d44-4b50-8888-8dd25736052a";
 const PAGE_ID = "9188c6a5-7381-452f-b3dc-d4865aa89bdf";
-const SUFFIX = "9188c6a57381";
-const OTHER = "src/content/blog/other-post-aaaaaaaaaaaa.md";
+const SUFFIX = "9188c6a57381452fb3dcd4865aa89bdf";
+const OTHER = "src/content/blog/other-post-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md";
 const LEGACY = "src/content/blog/legacy-post.md";
 
 describe("blog-files", () => {
@@ -28,7 +28,7 @@ describe("blog-files", () => {
     `public/posts/older-title-${SUFFIX}/index.html`,
     `src/content/blog/notion-${SUFFIX}.md`,
     OTHER,
-    "src/assets/blog/other-post-aaaaaaaaaaaa/image-001.png",
+    "src/assets/blog/other-post-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/image-001.png",
     LEGACY,
   ];
 
@@ -40,8 +40,25 @@ describe("blog-files", () => {
     expect(publishedPosts(paths)).toEqual([
       { slug: `old-title-${SUFFIX}`, suffix: SUFFIX },
       { slug: `notion-${SUFFIX}`, suffix: SUFFIX },
-      { slug: "other-post-aaaaaaaaaaaa", suffix: "aaaaaaaaaaaa" },
+      { slug: "other-post-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", suffix: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     ]);
+  });
+
+  it("keeps pages whose IDs share a prefix apart and ignores old 12-character suffix files", () => {
+    // 같은 워크스페이스에서 비슷한 시기에 만든 page는 ID 앞부분이 같다(실제로 앞 12자가 겹쳐 서로 덮어썼다).
+    const first = "3770d0f7-5cd6-81d0-ac5e-f2850e68dfb0";
+    const second = "3770d0f7-5cd6-8133-9b1a-0c4e7d2a5f61";
+    const firstSuffix = pageIdSuffix(first);
+    const secondSuffix = pageIdSuffix(second);
+    expect(firstSuffix).not.toBe(secondSuffix);
+
+    const repository = [
+      `src/content/blog/react-props-state-${firstSuffix}.md`,
+      `src/content/blog/react-strict-mode-${secondSuffix}.md`,
+      "src/content/blog/url-3770d0f75cd6.md",
+    ];
+    expect(pageFiles(repository, secondSuffix).paths).toEqual([repository[1]]);
+    expect(publishedPosts(repository).map((post) => post.suffix)).toEqual([firstSuffix, secondSuffix]);
   });
 
   it("writes a redirect page that works without JavaScript and escapes the URL", () => {
