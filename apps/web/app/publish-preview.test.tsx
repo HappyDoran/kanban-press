@@ -74,3 +74,16 @@ describe("previewErrorMessage", () => {
     expect(previewErrorMessage("preview_unavailable")).toContain("다시 시도");
   });
 });
+
+describe("PublishPreviewContent R10", () => {
+  it("shows the series of the post and passes pinned through the DTO", () => {
+    const preview = createPublishPreviewResponse(
+      { ...document, pinned: true, series: { name: "Astro 입문", slug: "astro-1a2b3c4d" }, seriesOrder: 2 },
+      "2026-08-10T00:00:00.000Z",
+    );
+    expect(preview.document).toMatchObject({ pinned: true, seriesOrder: 2 });
+    const html = renderToStaticMarkup(createElement(PublishPreviewContent, { preview }));
+    expect(html).toContain("시리즈 · Astro 입문");
+    expect(html).toContain("순서 2");
+  });
+});

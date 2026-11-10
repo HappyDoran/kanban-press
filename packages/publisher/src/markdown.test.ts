@@ -108,6 +108,24 @@ describe("createMarkdownArtifact", () => {
     );
   });
 
+  it("writes pinned and series fields only when present (R10)", () => {
+    const markdown = decoder.decode(
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [],
+        pinned: true,
+        series: { name: "Astro 입문", slug: "astro-1a2b3c4d" },
+        seriesOrder: 2,
+      }).bytes,
+    );
+    expect(markdown).toContain('updatedAt: "2026-07-19T02:00:00.000Z"\npinned: true\nseries: "Astro 입문"\nseriesSlug: "astro-1a2b3c4d"\nseriesOrder: 2\n---');
+    const plain = decoder.decode(createMarkdownArtifact({ ...baseDocument, blocks: [] }).bytes);
+    expect(plain).not.toMatch(/pinned|series/);
+    expect(() =>
+      createMarkdownArtifact({ ...baseDocument, blocks: [], seriesOrder: Number.POSITIVE_INFINITY }),
+    ).toThrow();
+  });
+
   it("JSON-escapes frontmatter and escapes dangerous body content", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,

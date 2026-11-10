@@ -33,7 +33,7 @@ MVP 범위가 아니다.
 
 - R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원(구현 완료)
 - R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph(구현 완료)
-- R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서
+- R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서(구현 완료)
 - R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정
 
 ## 3. 식별자와 저장 계약
@@ -336,6 +336,7 @@ orchestration이 최신 Notion page를 조회한 뒤 제목, 설명, 게시/수�
 | `Blog Tags` | `multi_select` | 중복 제거한 최대 10개 tag | `[]` |
 | `Blog Description` | `rich_text` | annotation을 제거한 plain text | 첫 paragraph/quote/heading, 없으면 title |
 | `Blog Published At` | `date` | range start | Notion `created_time` |
+| `Blog Pinned`·`Blog Series`·`Blog Order` | `checkbox`·`select`·`number` | §5.1 R10 | 고정 안 함·시리즈 없음·순서 없음 |
 
 category는 trim 후 1~80자, tag는 각각 1~40자, description은 0~1,000자다.
 속성이 존재하지만 타입, 값, 개수 또는 날짜가 계약에 맞지 않으면 fallback하지 않고
@@ -534,9 +535,15 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 | `Blog Series` | `select` | 연재 묶음 이름 | 시리즈 없음 |
 | `Blog Order` | `number` | 시리즈 안 순서(작을수록 앞) | 게시일 순 |
 
-- 고정 글은 홈 상단에 게시일 역순으로 보인다. 시리즈 글 상세는 시리즈 안 이전·다음과 전체 목록을
-  보여주고 `/series/<slug>/`를 만든다. 형식이 맞지 않는 값은 §5 게시의 다른 예약 속성처럼
-  `422 invalid_blog_metadata`로 실패한다. 프리뷰도 같은 값을 보여준다.
+- 고정 글은 홈의 `고정 글` 절(최신 글 위)에 게시일 역순으로 보이고 최신 글 목록에서는 빠진다.
+- 시리즈 이름이 비어 있으면 시리즈가 없는 글이다. 시리즈 slug는 카테고리 slug 규칙을 쓴다. 시리즈 안 순서는
+  `Blog Order` 오름차순, 순서가 없으면 뒤로, 같으면 게시일이 이른 글이 앞이다. `Blog Order`는 시리즈가 있을 때만
+  쓰고 절댓값 1,000,000 이하여야 한다.
+- 시리즈 글 상세는 본문 위에 시리즈 목록(현재 글 `aria-current`, `n/전체`)을 두고, 이전·다음 글을 카테고리 대신
+  시리즈 순서로 고른다. `/series/`와 `/series/<slug>/`를 만들고 sitemap과 footer에 넣는다.
+- Markdown frontmatter에는 값이 있을 때만 `pinned`, `series`, `seriesSlug`, `seriesOrder`를 쓴다. 형식이 맞지
+  않는 값은 §5 게시의 다른 예약 속성처럼 `422 invalid_blog_metadata`로 실패한다. 프리뷰 DTO도 같은 값을 갖고
+  화면에 시리즈와 순서를 보여준다.
 - 완료 조건: 속성이 없는 기존 글과 v1 글이 그대로 build된다. 고정·시리즈 fixture의 순서가 결정적이다.
 
 ### R11 블로그 주소·사이트 설정

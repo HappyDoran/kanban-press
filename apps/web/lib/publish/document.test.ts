@@ -10,6 +10,7 @@ import {
   deriveBlogMetadata,
   InvalidBlogMetadataError,
 } from "./document";
+import { publishingProperties } from "../notion/convert";
 
 const PAGE_ID = "9188c6a5-7381-452f-b3dc-d4865aa89bdf";
 
@@ -95,7 +96,10 @@ describe("shared publish document assembly", () => {
     ).toEqual({
       category: { name: "미분류", slug: "uncategorized" },
       description: "첫 제목",
+      pinned: false,
       publishedAt: "2026-07-18T09:00:00.000Z",
+      series: null,
+      seriesOrder: null,
       tags: [],
     });
 
@@ -184,5 +188,59 @@ describe("shared publish document assembly", () => {
     } catch (error) {
       expect(error).toMatchObject({ code: "invalid_blog_metadata" });
     }
+  });
+});
+
+describe("pinned and series metadata (R10)", () => {
+  it("reads checkbox, select and number properties from Notion", () => {
+    expect(
+      publishingProperties({
+        "Blog Order": { id: "o", number: 2, type: "number" },
+        "Blog Pinned": { checkbox: true, id: "p", type: "checkbox" },
+        "Blog Series": { id: "s", select: { color: "blue", id: "x", name: "Astro 입문" }, type: "select" },
+      }),
+    ).toEqual({
+      "Blog Order": { kind: "number", value: 2 },
+      "Blog Pinned": { checked: true, kind: "checkbox" },
+      "Blog Series": { kind: "select", name: "Astro 입문" },
+    });
+  });
+
+  it("adds pinned, series and order to the document only when set", () => {
+    const document = buildPublishDocument(
+      page({
+        "Blog Order": { kind: "number", value: 2 },
+        "Blog Pinned": { checked: true, kind: "checkbox" },
+        "Blog Series": { kind: "select", name: " Astro 입문 " },
+      }),
+    );
+    expect(document).toMatchObject({
+      pinned: true,
+      series: { name: "Astro 입문", slug: categorySlug("Astro 입문") },
+      seriesOrder: 2,
+    });
+
+    const plain = buildPublishDocument(
+      page({
+        "Blog Order": { kind: "number", value: 3 },
+        "Blog Pinned": { checked: false, kind: "checkbox" },
+        "Blog Series": { kind: "select", name: null },
+      }),
+    );
+    expect(plain).not.toHaveProperty("pinned");
+    expect(plain).not.toHaveProperty("series");
+    expect(plain).not.toHaveProperty("seriesOrder");
+  });
+
+  it.each([
+    ["Blog Pinned", { kind: "unsupported", providerType: "rich_text" }],
+    ["Blog Series", { kind: "multi_select", names: ["A"] }],
+    ["Blog Series", { kind: "select", name: "가".repeat(81) }],
+    ["Blog Order", { kind: "unsupported", providerType: "formula" }],
+    ["Blog Order", { kind: "number", value: 2_000_000 }],
+  ])("rejects an invalid %s value", (property, value) => {
+    expect(() => deriveBlogMetadata(page({ [property]: value }))).toThrowError(
+      new InvalidBlogMetadataError(property as "Blog Order"),
+    );
   });
 });

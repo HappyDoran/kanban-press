@@ -499,6 +499,57 @@ describe("discovery routes (R9)", () => {
   });
 });
 
+describe("pinned posts and series (R10)", () => {
+  it("pins posts above the latest list and orders series by Blog Order then date", async () => {
+    const { root } = await createFixture({ defaultBranch: "main", owner: "HappyDoran", repository: "HappyDoran.github.io" });
+    const series = { name: "Astro 입문", slug: "astro-1a2b3c4d" };
+    const post = (slug: string, title: string, publishedAt: string, extra: object) =>
+      createMarkdownArtifact({
+        blocks: [{ kind: "paragraph", richText: [{ text: "본문" }] }],
+        category: { name: "개발", slug: "category-a5ac2b72" },
+        description: "",
+        publishedAt,
+        schemaVersion: 2,
+        slug,
+        tags: [],
+        title,
+        updatedAt: publishedAt,
+        ...extra,
+      });
+    for (const artifact of [
+      post("part-two-222222222222", "2편", "2026-11-01T00:00:00.000Z", { series, seriesOrder: 2 }),
+      post("part-one-111111111111", "1편", "2026-11-05T00:00:00.000Z", { series, seriesOrder: 1 }),
+      post("extra-333333333333", "번외", "2026-10-01T00:00:00.000Z", { series }),
+      post("pinned-444444444444", "고정 공지", "2026-09-01T00:00:00.000Z", { pinned: true }),
+    ]) {
+      await writeFixture(root, artifact.path, artifact.bytes);
+    }
+    await writeFixture(root, "src/content/blog/legacy-post.md", legacyPost);
+    await build(root);
+    const read = (path: string) => readFile(join(root, "dist", path), "utf8");
+
+    const home = await read("index.html");
+    const pinnedSection = home.slice(home.indexOf("고정 글"), home.indexOf("최신 글"));
+    expect(pinnedSection).toContain("고정 공지");
+    expect(home.slice(home.indexOf("최신 글"))).not.toContain("고정 공지");
+
+    const seriesPage = await read("series/astro-1a2b3c4d/index.html");
+    const order = ["1편", "2편", "번외"].map((title) => seriesPage.indexOf(">" + title + "<"));
+    expect(order.every((index) => index > 0)).toBe(true);
+    expect(order).toEqual([...order].sort((left, right) => left - right));
+    expect(await read("series/index.html")).toContain("Astro 입문");
+
+    const partTwo = await read("posts/part-two-222222222222/index.html");
+    expect(partTwo).toContain('<span aria-current="page">2편</span>');
+    expect(partTwo).toContain("2/3");
+    expect(partTwo).toContain('aria-label="같은 시리즈의 이전 및 다음 글"');
+    expect(partTwo).toMatch(/href="\/posts\/part-one-111111111111\/"><small>← 이전 글<\/small>1편/);
+    expect(partTwo).toMatch(/href="\/posts\/extra-333333333333\/"><small>다음 글 →<\/small>번외/);
+    expect(await read("posts/legacy-post/index.html")).not.toContain("series-nav");
+    expect(await read("sitemap.xml")).toContain("/series/astro-1a2b3c4d/</loc>");
+  });
+});
+
 async function createFixture(target: {
   defaultBranch: string;
   owner: string;

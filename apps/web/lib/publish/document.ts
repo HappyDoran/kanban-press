@@ -25,7 +25,10 @@ const publishingDateSchema = z.iso.datetime({ offset: true });
 type PublishingPropertyName =
   | "Blog Category"
   | "Blog Description"
+  | "Blog Order"
+  | "Blog Pinned"
   | "Blog Published At"
+  | "Blog Series"
   | "Blog Tags";
 type BlogMetadataField =
   | PublishingPropertyName
@@ -35,7 +38,10 @@ type BlogMetadataField =
 export interface BlogMetadata {
   category: { name: string; slug: string };
   description: string;
+  pinned: boolean;
   publishedAt: string;
+  series: { name: string; slug: string } | null;
+  seriesOrder: number | null;
   tags: string[];
 }
 
@@ -74,7 +80,44 @@ export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
       page.createdAt,
     ),
     tags: tags(properties?.["Blog Tags"]),
+    ...seriesAndOrder(properties?.["Blog Series"], properties?.["Blog Order"]),
+    pinned: pinned(properties?.["Blog Pinned"]),
   };
+}
+
+/** `Blog Pinned` checkbox. 없으면 고정하지 않는다. */
+function pinned(property: NotionPageProperty | undefined): boolean {
+  if (property === undefined) {
+    return false;
+  }
+  if (property.kind !== "checkbox") {
+    throw new InvalidBlogMetadataError("Blog Pinned");
+  }
+  return property.checked;
+}
+
+/** `Blog Series` select(비어 있으면 시리즈 없음)와 `Blog Order` number. 순서는 시리즈가 있을 때만 쓴다. */
+function seriesAndOrder(
+  seriesProperty: NotionPageProperty | undefined,
+  orderProperty: NotionPageProperty | undefined,
+): Pick<BlogMetadata, "series" | "seriesOrder"> {
+  if (seriesProperty !== undefined && seriesProperty.kind !== "select") {
+    throw new InvalidBlogMetadataError("Blog Series");
+  }
+  if (orderProperty !== undefined && orderProperty.kind !== "number") {
+    throw new InvalidBlogMetadataError("Blog Order");
+  }
+  const name = seriesProperty?.name?.trim() ?? "";
+  if (name.length > MAX_CATEGORY_LENGTH) {
+    throw new InvalidBlogMetadataError("Blog Series");
+  }
+  const order = orderProperty?.value ?? null;
+  if (order !== null && Math.abs(order) > 1_000_000) {
+    throw new InvalidBlogMetadataError("Blog Order");
+  }
+  return name === ""
+    ? { series: null, seriesOrder: null }
+    : { series: { name, slug: categorySlug(name) }, seriesOrder: order };
 }
 
 export function buildPublishDocument(
@@ -96,6 +139,9 @@ export function buildPublishDocument(
     tags: metadata.tags,
     title,
     updatedAt: validDate(page.lastEditedAt, "last_edited_time"),
+    ...(metadata.pinned ? { pinned: true as const } : {}),
+    ...(metadata.series === null ? {} : { series: metadata.series }),
+    ...(metadata.seriesOrder === null ? {} : { seriesOrder: metadata.seriesOrder }),
   };
 }
 

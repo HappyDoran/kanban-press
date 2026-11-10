@@ -389,7 +389,10 @@ export function pageIconUrl(icon: unknown): string | null {
 const PUBLISHING_PROPERTY_TYPES = {
   "Blog Category": "select",
   "Blog Description": "rich_text",
+  "Blog Order": "number",
+  "Blog Pinned": "checkbox",
   "Blog Published At": "date",
+  "Blog Series": "select",
   "Blog Tags": "multi_select",
 } as const;
 
@@ -401,6 +404,10 @@ const nameSchema = z.object({ name: z.string().max(MAX_PROPERTY_TEXT_LENGTH) });
 
 // Notion 속성 형식별 파서. 알려진 형식인데 값이 틀리면 거절한다.
 const PROPERTY_PARSERS: Record<string, (value: unknown) => NotionPageProperty | null> = {
+  checkbox: (value) => {
+    const parsed = z.object({ checkbox: z.boolean() }).safeParse(value);
+    return parsed.success ? { kind: "checkbox", checked: parsed.data.checkbox } : null;
+  },
   date: (value) => {
     const parsed = z
       .object({ date: z.object({ start: z.string().min(1).max(MAX_PROPERTY_TEXT_LENGTH) }).nullable() })
@@ -414,6 +421,10 @@ const PROPERTY_PARSERS: Record<string, (value: unknown) => NotionPageProperty | 
     return parsed.success
       ? { kind: "multi_select", names: parsed.data.multi_select.map((option) => option.name) }
       : null;
+  },
+  number: (value) => {
+    const parsed = z.object({ number: z.number().finite().nullable() }).safeParse(value);
+    return parsed.success ? { kind: "number", value: parsed.data.number } : null;
   },
   rich_text: (value) => {
     const parsed = z

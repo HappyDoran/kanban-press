@@ -190,7 +190,11 @@ const previewDocumentSchema = z
       })
       .strict(),
     description: z.string().max(1_000),
+    // R10. 값이 있을 때만 온다.
+    pinned: z.literal(true).optional(),
     publishedAt: isoDateSchema,
+    series: z.object({ name: z.string().trim().min(1).max(80), slug: slugSchema }).strict().optional(),
+    seriesOrder: z.number().finite().optional(),
     slug: slugSchema,
     tags: z.array(z.string().trim().min(1).max(40)).max(10),
     title: z.string().trim().min(1).max(2_000),
@@ -235,6 +239,9 @@ export function createPublishPreviewResponse(
       tags: document.tags,
       title: document.title,
       updatedAt: document.updatedAt,
+      ...(document.pinned === true ? { pinned: true } : {}),
+      ...(document.series === undefined ? {} : { series: document.series }),
+      ...(document.seriesOrder === undefined ? {} : { seriesOrder: document.seriesOrder }),
     },
     previewSchemaVersion: 1,
     sourceLastEditedAt,

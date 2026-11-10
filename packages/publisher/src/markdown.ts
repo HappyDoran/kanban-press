@@ -182,8 +182,11 @@ const publishDocumentSchema = z
     blocks: z.array(blockSchema).max(5_000),
     category: categorySchema,
     description: z.string().max(1_000),
+    pinned: z.literal(true).optional(),
     publishedAt: isoDateSchema,
     schemaVersion: z.literal(2),
+    series: categorySchema.optional(),
+    seriesOrder: z.number().finite().min(-1_000_000).max(1_000_000).optional(),
     slug: slugSchema,
     tags: tagsSchema,
     title: z.string().trim().min(1).max(2_000),
@@ -198,8 +201,13 @@ export interface PublishDocument {
     slug: string;
   };
   description: string;
+  /** 홈 상단 고정(R10). 고정할 때만 둔다. */
+  pinned?: true;
   publishedAt: string;
   schemaVersion: 2;
+  /** 연재 묶음(R10)과 그 안의 순서. 순서는 시리즈가 있을 때만 의미가 있다. */
+  series?: { name: string; slug: string };
+  seriesOrder?: number;
   slug: string;
   tags: string[];
   title: string;
@@ -221,6 +229,15 @@ export function createMarkdownArtifact(
     `tags: [${document.tags.map(frontmatterString).join(", ")}]`,
     `publishedAt: ${frontmatterString(document.publishedAt)}`,
     `updatedAt: ${frontmatterString(document.updatedAt)}`,
+    // R10 필드는 값이 있을 때만 쓴다. 없으면 이전과 같은 Markdown이 나온다.
+    ...(document.pinned === true ? ["pinned: true"] : []),
+    ...(document.series === undefined
+      ? []
+      : [
+          `series: ${frontmatterString(document.series.name)}`,
+          `seriesSlug: ${frontmatterString(document.series.slug)}`,
+          ...(document.seriesOrder === undefined ? [] : [`seriesOrder: ${document.seriesOrder}`]),
+        ]),
     "---",
   ].join("\n");
   const markdown = `${frontmatter}\n\n${body}`.trimEnd() + "\n";

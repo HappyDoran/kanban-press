@@ -84,6 +84,8 @@ export type NotionContentBlock =
     };
 
 export type NotionPageProperty =
+  | { kind: "checkbox"; checked: boolean }
+  | { kind: "number"; value: number | null }
   | { kind: "rich_text"; plainText: string }
   | { kind: "select"; name: string | null }
   | { kind: "multi_select"; names: readonly string[] }

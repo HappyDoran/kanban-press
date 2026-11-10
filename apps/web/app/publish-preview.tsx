@@ -258,6 +258,15 @@ function PreviewPost({ preview }: { preview: PublishPreviewResponse }) {
           </div>
         ) : null}
         <div className="article-main">
+          {document.series === undefined ? null : (
+            <div className="series-nav">
+              <h2>시리즈 · {document.series.name}</h2>
+              <p className="muted">
+                {document.seriesOrder === undefined ? "순서 없음(게시일 순)" : `순서 ${document.seriesOrder}`} · 같은 시리즈의
+                다른 글은 게시된 블로그에서 함께 보입니다.
+              </p>
+            </div>
+          )}
           {/* previewBody: E2E가 프리뷰 본문을 찾는 이름 */}
           <div className="post-body previewBody">
             <Blocks blocks={document.blocks} />
@@ -279,7 +288,7 @@ function PreviewHome({ preview, siteOwner }: { preview: PublishPreviewResponse; 
       </section>
       <section>
         <div className="section-heading">
-          <h2>최신 글</h2>
+          <h2>{document.pinned === true ? "고정 글" : "최신 글"}</h2>
         </div>
         <div className="post-grid">
           <article className="post-card">
