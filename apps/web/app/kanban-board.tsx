@@ -53,12 +53,6 @@ const COLUMN_LABELS: Readonly<Record<BoardColumn, string>> = {
   stored: "보관 중",
 };
 
-const COLUMN_MARKS: Readonly<Record<BoardColumn, string>> = {
-  published: "●",
-  publishing: "◐",
-  stored: "○",
-};
-
 interface KanbanBoardProps {
   connectionNames: Readonly<Record<string, string>>;
   onMove: (
@@ -170,30 +164,13 @@ export function KanbanBoard({
   }
 
   return (
-    <section aria-labelledby="kanban-title" className="kanbanSection">
-      <div className="kanbanHeading">
-        <div>
-          <p className="eyebrow">Personal board</p>
-          <h2 id="kanban-title">내 게시 칸반</h2>
-        </div>
-        <p>
-          카드를 게시 중으로 옮기면 게시가 시작됩니다. ×를 누르면 Notion 원문은
-          유지한 채 칸반에서만 숨깁니다.
-        </p>
-      </div>
-
+    <>
       {notice ? (
-        <p className="kanbanNotice" role="status">
+        <p className="notice danger" role="status">
           {notice}
         </p>
       ) : null}
-
-      {records.length === 0 ? (
-        <div className="emptyBoard">
-          위 문서 목록에서 게시할 페이지를 표시해 주세요.
-        </div>
-      ) : (
-        <DndContext
+      <DndContext
           accessibility={{
             announcements: {
               onDragCancel: () => "카드 이동을 취소했습니다.",
@@ -253,8 +230,7 @@ export function KanbanBoard({
             )}
           </DragOverlay>
         </DndContext>
-      )}
-    </section>
+    </>
   );
 }
 
@@ -295,11 +271,8 @@ function KanbanColumn({
       ref={setNodeRef}
     >
       <header>
-        <span aria-hidden="true" className="columnMark">
-          {COLUMN_MARKS[column]}
-        </span>
-        <h3>{COLUMN_LABELS[column]}</h3>
-        <span>{records.length}</span>
+        <h2>{COLUMN_LABELS[column]}</h2>
+        <span aria-hidden="true">{records.length}</span>
       </header>
       <SortableContext
         items={records.map(recordId)}
@@ -321,14 +294,12 @@ function KanbanColumn({
               record={record}
             />
           ))}
-          {records.length === 0 ? (
-            <p className="emptyColumn">
-              {column === "stored"
-                ? "표시할 문서가 없습니다"
-                : column === "publishing"
-                  ? "게시할 카드를 여기에 놓으세요"
-                  : "현재 없음"}
-            </p>
+          {column === "publishing" ? <p className="dropZone">여기에 놓으면 게시</p> : null}
+          {column === "stored" && records.length === 0 ? (
+            <p className="emptyColumn">왼쪽 문서 목록에서 추가하세요</p>
+          ) : null}
+          {column === "published" ? (
+            <p className="columnHint">완료 표시는 새로고침하면 사라집니다.</p>
           ) : null}
         </div>
       </SortableContext>
@@ -436,9 +407,7 @@ export function BoardCard({
     >
       <div className="boardCardTopline">
         <span>{connectionName}</span>
-        {!overlay ? (
-          <div className="boardCardControls">
-            {draggable ? (
+        {!overlay && draggable ? (
               <button
                 {...dragAttributes}
                 {...dragListeners}
@@ -447,47 +416,14 @@ export function BoardCard({
                 ref={dragRef}
                 type="button"
               >
-                <span aria-hidden="true">↕</span>
+                <span aria-hidden="true">⠿</span>
               </button>
-            ) : null}
-            {record.column === "stored" && onPreview !== undefined ? (
-              <button
-                className="previewCardButton"
-                disabled={disabled}
-                onClick={() => onPreview(record)}
-                onKeyDown={(event) => event.stopPropagation()}
-                onPointerDown={(event) => event.stopPropagation()}
-                type="button"
-              >
-                미리보기
-              </button>
-            ) : null}
-            <button
-              aria-label={`${record.title} 칸반에서 제거`}
-              className="removeCardButton"
-              disabled={disabled}
-              onKeyDown={(event) => event.stopPropagation()}
-              onClick={() => {
-                if (onRemove !== undefined) {
-                  void onRemove(record);
-                }
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-              title="칸반에서 제거"
-              type="button"
-            >
-              ×
-            </button>
-          </div>
         ) : null}
       </div>
-      <h4>{record.title}</h4>
-      <p>원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
+      <h3>{record.title}</h3>
+      <p className="cardMeta">원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
       {!overlay && record.column === "publishing" ? (
-        <p className="publishStatus" role="status">
-          <span aria-hidden="true" className="pulseDot">
-            ◐
-          </span>
+        <div className="publishStatus" role="status">
           <span>
             GitHub Pages 배포 중
             {record.publishStartedAt === null ? null : (
@@ -497,25 +433,12 @@ export function BoardCard({
               </>
             )}
           </span>
-        </p>
+          <span aria-hidden="true" className="progress" />
+        </div>
       ) : null}
-      {!overlay && record.publishActionsUrl !== null ? (
+      {!overlay && record.column === "published" && record.publishedUrl !== null ? (
         <a
-          className="actionsLink"
-          href={record.publishActionsUrl}
-          onKeyDown={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          rel="noreferrer"
-          target="_blank"
-        >
-          GitHub Actions 로그 보기
-        </a>
-      ) : null}
-      {!overlay &&
-      record.column === "published" &&
-      record.publishedUrl !== null ? (
-        <a
-          className="publishedLink"
+          className="cardLink"
           href={record.publishedUrl}
           onKeyDown={(event) => event.stopPropagation()}
           onPointerDown={(event) => event.stopPropagation()}
@@ -523,6 +446,18 @@ export function BoardCard({
           target="_blank"
         >
           게시된 글 보기
+        </a>
+      ) : null}
+      {!overlay && record.publishActionsUrl !== null ? (
+        <a
+          className="cardLink"
+          href={record.publishActionsUrl}
+          onKeyDown={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub Actions 로그 보기
         </a>
       ) : null}
       {!overlay && publishFailure ? (
@@ -536,6 +471,38 @@ export function BoardCard({
             />
           )}
         </div>
+      ) : null}
+      {!overlay ? (
+          <div className="cardActions">
+            {record.column === "stored" && onPreview !== undefined ? (
+              <button
+                className="buttonSecondary small"
+                disabled={disabled}
+                onClick={() => onPreview(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                미리보기
+              </button>
+            ) : null}
+            <button
+              aria-label={`${record.title} 칸반에서 제거`}
+              className="iconButton"
+              disabled={disabled}
+              onKeyDown={(event) => event.stopPropagation()}
+              onClick={() => {
+                if (onRemove !== undefined) {
+                  void onRemove(record);
+                }
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              title="칸반에서 제거"
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
       ) : null}
     </article>
   );

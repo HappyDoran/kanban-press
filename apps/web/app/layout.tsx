@@ -1,39 +1,31 @@
-import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
 
 import "./globals.css";
 
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-const display = Gowun_Batang({
+// A 작업대형 글꼴(디자인 기획 10.2). serif 글꼴은 쓰지 않는다.
+const sans = IBM_Plex_Sans_KR({
   subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "700"],
+  variable: "--font-plex-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
-const body = IBM_Plex_Sans_KR({
+const mono = IBM_Plex_Mono({
   subsets: ["latin"],
-  variable: "--font-body",
-  weight: ["400", "500", "700"],
+  variable: "--font-plex-mono",
+  weight: ["400", "500"],
 });
 
 export const metadata: Metadata = {
-  description:
-    "Notion 문서를 칸반으로 관리하고 GitHub Pages 블로그에 게시하는 서비스",
+  description: "Notion 문서를 칸반으로 관리하고 GitHub Pages 블로그에 게시하는 서비스",
   title: "Notion Kanban Blog",
 };
 
-type RootLayoutProps = Readonly<{
-  children: ReactNode;
-}>;
-
-export default function RootLayout({ children }: RootLayoutProps) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html
-      className={`${display.variable} ${body.variable}`}
-      lang="ko"
-      suppressHydrationWarning
-    >
+    <html className={`${sans.variable} ${mono.variable}`} lang="ko" suppressHydrationWarning>
       <body>{children}</body>
     </html>
   );

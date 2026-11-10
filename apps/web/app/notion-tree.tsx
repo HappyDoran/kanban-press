@@ -21,7 +21,6 @@ interface TreeContextValue {
   childPagesByParent: ReadonlyMap<string, PageSummary[]>;
   connectionId: string;
   onInspectStructure: (page: PageSummary) => Promise<NotionOutlineNode[]>;
-  onPreview: (page: PageSummary) => void;
   onToggleVisibility: (page: PageSummary) => Promise<void>;
   pagesById: ReadonlyMap<string, PageSummary>;
   pendingKeys: ReadonlySet<string>;
@@ -41,7 +40,6 @@ function useTree(): TreeContextValue {
 export function NotionTree({
   connectionId,
   onInspectStructure,
-  onPreview,
   onToggleVisibility,
   pages,
   pendingKeys,
@@ -69,7 +67,6 @@ export function NotionTree({
         childPagesByParent,
         connectionId,
         onInspectStructure,
-        onPreview,
         onToggleVisibility,
         pagesById,
         pendingKeys,
@@ -170,44 +167,37 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
           <PageIcon isContainer={isContainer} page={page} />
           <span className="pageTitle">{page.title}</span>
         </button>
-        <div className="pageActions">
-          <time dateTime={page.lastEditedAt}>{formatEditedAt(page.lastEditedAt)}</time>
+        {/* 행마다 상태 하나만: 칸반(표시 중, 누르면 숨김) · 추가 · 폴더 · 판별 중 · 구조 다시 확인 */}
+        <span className="pageAction">
           {primaryAction === "loading" ? (
-            <span aria-live="polite" className="draftButton added pageActionStatus" role="status">
-              {pending ? "저장 중" : "판별 중"}
+            <span aria-live="polite" className="rowStatus" role="status">
+              {pending ? "저장 중" : "구조 확인 중…"}
             </span>
           ) : null}
           {primaryAction === "retry" ? (
             <button
               aria-label={`${page.title} 구조 다시 확인`}
-              className="draftButton"
+              className="rowButton"
               onClick={() => void loadOutline()}
               type="button"
             >
               구조 다시 확인
             </button>
           ) : null}
+          {primaryAction === "none" ? <span className="rowStatus">폴더</span> : null}
           {primaryAction === "visibility" ? (
-            <>
-              <button
-                aria-label={`${page.title} 게시 전 미리보기`}
-                className="previewTreeButton"
-                onClick={() => tree.onPreview(page)}
-                type="button"
-              >
-                미리보기
-              </button>
-              <button
-                aria-label={`${page.title}을 칸반에서 ${visible ? "숨기기" : "표시하기"}`}
-                className={visible ? "draftButton added" : "draftButton"}
-                onClick={() => void tree.onToggleVisibility(page)}
-                type="button"
-              >
-                {visible ? "숨기기" : "표시하기"}
-              </button>
-            </>
+            <button
+              aria-label={`${page.title}을 칸반에서 ${visible ? "숨기기" : "표시하기"}`}
+              aria-pressed={visible}
+              className={visible ? "rowButton onBoard" : "rowButton"}
+              onClick={() => void tree.onToggleVisibility(page)}
+              title={`원문 수정 ${formatEditedAt(page.lastEditedAt)}`}
+              type="button"
+            >
+              {visible ? "칸반" : "추가"}
+            </button>
           ) : null}
-        </div>
+        </span>
       </div>
       {hasChildren && expanded ? (
         <ul>

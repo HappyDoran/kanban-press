@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import {
+  PagesSummary,
   parseRepositoryTarget,
   RepositoryReadinessStatus,
   type RepositoryTarget,
@@ -55,8 +56,22 @@ describe("RepositoryReadinessStatus", () => {
     );
 
     expect(html).toContain("기본 branch · main");
-    expect(html).toContain("게시 준비 완료");
     expect(html).toContain("관리하는 경로 2개");
+  });
+
+  it("summarizes readiness in one line with text, not color alone", () => {
+    const summary = (state: Parameters<typeof PagesSummary>[0]["state"], target: RepositoryTarget | null) =>
+      renderToStaticMarkup(
+        <PagesSummary repositoryName="octocat.github.io" state={state} target={target} />,
+      );
+
+    expect(summary("ready", readyTarget)).toContain("게시 준비 완료");
+    expect(summary("ready", readyTarget)).toContain("statusDot ok");
+    expect(
+      summary("ready", { ...readyTarget, readiness: { ...readyTarget.readiness, state: "pages_setup_required" } }),
+    ).toContain("Pages 설정 필요");
+    expect(summary("missing", null)).toContain("저장소 없음");
+    expect(summary("scope", null)).toContain("권한 필요");
   });
 
   it("offers an accessible Pages settings link and retry action", () => {

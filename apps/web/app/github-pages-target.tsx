@@ -23,10 +23,14 @@ export interface RepositoryTarget {
   repository: RepositorySummary;
 }
 
-type TargetState = "error" | "loading" | "missing" | "ready" | "scope";
+export type TargetState = "error" | "loading" | "missing" | "ready" | "scope";
 const CONFLICT_PATH_LIMIT = 5;
 
-export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
+/**
+ * 상단 바의 게시 대상 상태(디자인 기획 6.4). 한 줄 요약을 누르면 저장소 정보나 복구 안내를 펼친다.
+ * 문제가 있는 상태에서는 처음부터 펼쳐 둔다.
+ */
+export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
   const [state, setState] = useState<TargetState>("loading");
   const [target, setTarget] = useState<RepositoryTarget | null>(null);
   const [retryAt, setRetryAt] = useState<number | null>(null);
@@ -47,8 +51,7 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
         }
         if (
           response.status === 403 &&
-          providerError(payload).replace(/^github_/, "") ===
-            "oauth_scope_missing"
+          providerError(payload).replace(/^github_/, "") === "oauth_scope_missing"
         ) {
           setState("scope");
           return;
@@ -76,19 +79,14 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
     setState("loading");
     setReloadKey((value) => value + 1);
   };
+  const healthy = state === "loading" || target?.readiness.state === "ready";
 
   return (
-    <section aria-labelledby="github-pages-title" className="pagesTarget">
-      <div>
-        <p className="eyebrow">Publish destination</p>
-        <h2 id="github-pages-title">GitHub Pages</h2>
-        <p className="sectionDescription">
-          게시 대상은 현재 계정의 공개 `{repositoryName}` repository로
-          고정됩니다.
-        </p>
-      </div>
-      <div className="pagesTargetStatus">
-        {state === "loading" ? <span role="status">Repository 확인 중…</span> : null}
+    <details className="pagesStatus" open={!healthy}>
+      <summary>
+        <PagesSummary repositoryName={repositoryName} state={state} target={target} />
+      </summary>
+      <div className="pagesStatusBody">
         {state === "ready" && target !== null ? (
           <RepositoryReadinessStatus onRetry={retry} target={target} />
         ) : null}
@@ -106,25 +104,55 @@ export function GitHubPagesTarget({ githubLogin }: { githubLogin: string }) {
         ) : null}
         {state === "scope" ? (
           <div className="pagesRecovery" role="alert">
-            <span>
-              Repository와 GitHub Actions workflow 쓰기 권한을 다시 승인해
-              주세요.
-            </span>
+            <span>Repository와 GitHub Actions workflow 쓰기 권한을 다시 승인해 주세요.</span>
             <a href="/auth/github/start?returnTo=%2F">GitHub 권한 다시 승인</a>
           </div>
         ) : null}
         {state === "error" ? (
           <div className="pagesRecovery" role="alert">
             <span>Repository 상태를 확인하지 못했습니다.</span>
-            <RetryAction
-              label="다시 확인"
-              onRetry={retry}
-              retryAt={retryAt}
-            />
+            <RetryAction label="다시 확인" onRetry={retry} retryAt={retryAt} />
           </div>
         ) : null}
+        {state === "loading" ? <span>게시 대상은 현재 계정의 공개 `{repositoryName}`로 고정됩니다.</span> : null}
       </div>
-    </section>
+    </details>
+  );
+}
+
+const SUMMARY_LABELS: Readonly<Record<RepositoryReadiness["state"], string>> = {
+  pages_setup_required: "Pages 설정 필요",
+  ready: "게시 준비 완료",
+  repository_not_managed: "기존 파일 충돌",
+};
+
+/** 요약 한 줄: 점(상태 색)과 문구를 함께 써서 색에만 의존하지 않는다. */
+export function PagesSummary({
+  repositoryName,
+  state,
+  target,
+}: {
+  repositoryName: string;
+  state: TargetState;
+  target: RepositoryTarget | null;
+}) {
+  const label =
+    state === "ready" && target !== null
+      ? SUMMARY_LABELS[target.readiness.state]
+      : state === "loading"
+        ? "확인 중…"
+        : state === "missing"
+          ? "저장소 없음"
+          : state === "scope"
+            ? "권한 필요"
+            : "확인 실패";
+  const tone = label === "게시 준비 완료" ? "ok" : state === "loading" ? "pending" : "problem";
+  return (
+    <>
+      <span aria-hidden="true" className={`statusDot ${tone}`} />
+      <span className="pagesRepository">{repositoryName}</span>
+      <span>{label}</span>
+    </>
   );
 }
 
@@ -145,13 +173,10 @@ export function RepositoryReadinessStatus({
 
   if (readiness.state === "ready") {
     return (
-      <div className="pagesReadiness ready">
+      <div className="pagesReadiness">
         <strong>{repository.fullName}</strong>
         <span>기본 branch · {repository.defaultBranch}</span>
-        <span className="readinessLabel">● 게시 준비 완료</span>
-        <span>
-          앱이 관리하는 경로 {readiness.managedPaths.length}개만 갱신합니다.
-        </span>
+        <span>앱이 관리하는 경로 {readiness.managedPaths.length}개만 갱신합니다.</span>
       </div>
     );
   }

@@ -1,925 +1,780 @@
-/* ── 토큰: 편집실(proof room) 시스템 ─────────────────────────── */
+/* A 작업대형 토큰 — 값과 이름은 docs/planning/BLOG_EXPERIENCE_DESIGN.md 10절이 정본이다. */
 :root {
   color-scheme: light;
 
-  /* 지면 */
-  --paper: #f6f6f1;
-  --card: #ffffff;
-  --ink: #1c2230;
-  --graphite: #5b6270;
-  --rule: #d8d9cf;
-  --rule-soft: color-mix(in srgb, var(--rule) 65%, transparent);
+  --color-bg-canvas: #f6f7f9;
+  --color-bg-surface: #ffffff;
+  --color-bg-column: #eceff4;
+  --color-bg-selected: #eef2fb;
+  --color-text-primary: #1c2230;
+  --color-text-secondary: #5b6475;
+  --color-border: #e3e6ec;
+  --color-border-strong: #d5dae3;
+  --color-accent: #2453c7;
+  --color-accent-hover: #1a3d96;
+  --color-focus: #2453c7;
+  --color-success: #1a7a43;
+  --color-danger: #b42318;
+  --color-warning-bg: #fff4d6;
 
-  /* 브랜드 · 상태 */
-  --indigo: #34509e;
-  --indigo-soft: color-mix(in srgb, var(--indigo) 8%, transparent);
-  --amber: #96690f;
-  --amber-soft: color-mix(in srgb, #b7791f 12%, transparent);
-  --green: #2e7d4f;
-  --green-soft: color-mix(in srgb, var(--green) 10%, transparent);
-  --proof-red: #b0402a;
-  --proof-red-soft: color-mix(in srgb, var(--proof-red) 9%, transparent);
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, Menlo, monospace;
 
-  /* 타이포 */
-  --font-title: var(--font-display), "Gowun Batang", Georgia, serif;
-  --font-ui: var(--font-body), "IBM Plex Sans KR", "Apple SD Gothic Neo",
-    sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-
-  /* 형태 */
-  --radius-s: 0.3rem;
-  --radius-m: 0.55rem;
-  --shadow-card: 0 1px 2px rgba(28, 34, 48, 0.05);
-  --shadow-lift: 0 0.8rem 2rem rgba(28, 34, 48, 0.16);
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-column: 10px;
+  --shadow-dialog: 0 16px 48px rgb(28 34 48 / 18%);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 html {
-  background: var(--paper);
+  background: var(--color-bg-canvas);
 }
 
 body {
   margin: 0;
-  color: var(--ink);
-  background: var(--paper);
-  font-family: var(--font-ui);
-}
-
-a {
-  color: inherit;
-}
-
-:focus-visible {
-  outline: 2px solid var(--indigo);
-  outline-offset: 2px;
-}
-
-main {
-  width: min(100% - 2rem, 76rem);
   min-height: 100vh;
-  margin: 0 auto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 h1,
 h2,
 h3,
 p {
-  text-wrap: pretty;
+  margin: 0;
 }
 
-/* ── 내비게이션 ──────────────────────────────────────────────── */
-.navigation {
-  display: flex;
+a {
+  color: var(--color-accent);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* ── 버튼 ───────────────────────────────────────────────────── */
+.buttonPrimary,
+.buttonSecondary,
+.buttonQuiet,
+.statusPanel button,
+.pagesRecovery button,
+.pagesTargetActions button,
+.publishError button {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 4.75rem;
-  border-bottom: 1px solid var(--rule);
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.buttonPrimary {
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border-color: var(--color-text-primary);
+  background: var(--color-text-primary);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.buttonPrimary:hover {
+  color: #ffffff;
+  background: #000000;
+}
+
+.buttonQuiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.buttonSecondary:hover,
+.buttonQuiet:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+.buttonSecondary.small {
+  min-height: 2.75rem;
+  font-size: 0.75rem;
+}
+
+.iconButton {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.iconButton:hover {
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+}
+
+/* ── 상단 바 ────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
 }
 
 .brand {
   display: inline-flex;
-  gap: 0.7rem;
+  flex-grow: 1;
   align-items: center;
-  font-size: 0.9rem;
-  font-weight: 700;
+  gap: 0.625rem;
+  color: var(--color-text-primary);
+  font-weight: 600;
   text-decoration: none;
-  letter-spacing: -0.01em;
 }
 
 .brandMark {
   display: grid;
-  width: 1.9rem;
-  height: 1.9rem;
-  color: #fff;
-  background: var(--indigo);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  border-radius: var(--radius-s);
+  width: 1.75rem;
+  height: 1.75rem;
   place-items: center;
-}
-
-.navigationActions {
-  display: flex;
-  gap: 0.6rem;
-  align-items: center;
-}
-
-.sessionChip {
-  padding: 0.4rem 0.7rem;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
-}
-
-.loginLink,
-.notionLink,
-.quietLink {
-  padding: 0.5rem 0.85rem;
-  font-size: 0.78rem;
+  border-radius: var(--radius-control);
+  background: var(--color-text-primary);
+  color: #ffffff;
+  font-size: 0.8125rem;
   font-weight: 700;
-  text-decoration: none;
-  border-radius: var(--radius-s);
 }
 
-.loginLink {
-  color: #fff;
-  background: var(--ink);
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
 }
 
-.notionLink {
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--rule);
-}
-
-.quietLink {
-  color: var(--graphite);
-  font-weight: 500;
-}
-
-/* ── 히어로 + 발행 궤도(rail) ────────────────────────────────── */
-.hero {
-  padding: clamp(4rem, 10vw, 8rem) 0 clamp(3rem, 7vw, 5rem);
-}
-
-.eyebrow {
-  margin: 0 0 1.1rem;
-  color: var(--indigo);
+.accountLogin {
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  font-size: 0.75rem;
 }
 
-h1 {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: clamp(2.6rem, 7vw, 5.4rem);
-  font-weight: 400;
-  line-height: 1.18;
-  letter-spacing: -0.02em;
+/* 게시 대상 상태: 접힌 한 줄, 문제가 있으면 펼쳐진 채 시작한다. */
+.pagesStatus {
+  position: relative;
 }
 
-.lede {
-  max-width: 38rem;
-  margin: 2rem 0 0;
-  color: var(--graphite);
-  font-size: clamp(1rem, 2vw, 1.15rem);
-  line-height: 1.8;
-}
-
-.heroActions {
+.pagesStatus > summary {
   display: flex;
-  gap: 0.8rem;
   align-items: center;
-  margin-top: 2.25rem;
-}
-
-.heroCta {
-  padding: 0.75rem 1.3rem;
-  color: #fff;
-  background: var(--ink);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-decoration: none;
-  border-radius: var(--radius-s);
-}
-
-.rail {
-  display: flex;
-  margin-top: clamp(2.5rem, 6vw, 4rem);
-  align-items: center;
-  gap: 0.9rem;
-  color: var(--graphite);
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   font-family: var(--font-mono);
-  font-size: 0.74rem;
-}
-
-.railStop {
-  display: flex;
-  gap: 0.45rem;
-  align-items: center;
-}
-
-.railLine {
-  flex: 0 1 5rem;
-  border-top: 1px solid var(--rule);
-}
-
-.railDot {
-  color: var(--indigo);
-  font-size: 0.85rem;
-}
-
-/* ── 섹션 공통 ──────────────────────────────────────────────── */
-.workflow {
-  padding: 3rem 0 5rem;
-  border-top: 1px solid var(--rule);
-}
-
-.notionBrowser {
-  padding: 3.5rem 0;
-}
-
-.notionBrowser .sectionHeading > div {
-  max-width: 38rem;
-}
-
-.sectionHeading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 2.25rem;
-}
-
-.sectionHeading .eyebrow {
-  margin: 0;
-}
-
-h2 {
-  margin: 0;
-  font-family: var(--font-title);
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.sectionDescription {
-  margin: 0.6rem 0 0;
-  color: var(--graphite);
-  font-size: 0.85rem;
-}
-
-h3 {
-  margin: 0 0 0.75rem;
-  font-size: 1.05rem;
-}
-
-.workflowGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  padding: 0;
-  margin: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
   list-style: none;
 }
 
-.workflowGrid li {
-  padding: 1.5rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
+.pagesStatus > summary::-webkit-details-marker {
+  display: none;
 }
 
-.stepMark {
-  display: block;
-  margin-bottom: 2.75rem;
-  color: var(--indigo);
+.pagesRepository {
+  color: var(--color-text-secondary);
+}
+
+.statusDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-text-secondary);
+}
+
+.statusDot.ok {
+  background: var(--color-success);
+}
+
+.statusDot.problem {
+  background: var(--color-danger);
+}
+
+.pagesStatusBody {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 0.375rem);
+  right: 0;
+  display: grid;
+  gap: 0.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: 0.875rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+  box-shadow: var(--shadow-dialog);
+}
+
+.pagesReadiness,
+.pagesRecovery {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.pagesReadiness strong {
   font-family: var(--font-mono);
+}
+
+.pagesReadiness.warning,
+.pagesReadiness.danger,
+.pagesRecovery {
+  padding: 0.625rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+}
+
+.pagesTargetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.conflictingPaths {
+  margin: 0;
+  padding-left: 1.125rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+/* ── 로그인 전 소개 ─────────────────────────────────────────── */
+.intro {
+  display: grid;
+  justify-items: start;
+  gap: 1.25rem;
+  max-width: 45rem;
+  margin: 0 auto;
+  padding: clamp(2.5rem, 8vw, 5rem) 1.25rem;
+}
+
+.intro h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.2;
+}
+
+.introLede {
+  color: var(--color-text-secondary);
   font-size: 1rem;
 }
 
-.workflowGrid p {
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.88rem;
-  line-height: 1.7;
-}
-
-/* ── 상태 패널 ──────────────────────────────────────────────── */
-.statusPanel {
-  display: flex;
-  min-height: 11rem;
-  padding: 1.5rem;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 1rem;
-  text-align: center;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-}
-
-.statusPanel.compact {
-  min-height: 9rem;
-  margin: 1rem;
-}
-
-.statusPanel p {
-  max-width: 36rem;
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-.statusPanel a,
-.statusPanel button {
-  padding: 0.6rem 0.95rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-/* ── 문서 탐색기 ────────────────────────────────────────────── */
-.documentExplorer {
+.introSteps {
   display: grid;
-  min-height: 30rem;
-  grid-template-columns: minmax(12rem, 17rem) 1fr;
-  overflow: hidden;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
+  justify-self: stretch;
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+  padding: 1.25rem 0 0 1.25rem;
+  border-top: 1px solid var(--color-border);
 }
 
-.workspaceList {
-  padding: 1rem;
-  background: color-mix(in srgb, var(--paper) 55%, var(--card));
-  border-right: 1px solid var(--rule);
+.introSteps li {
+  padding-left: 0.25rem;
 }
 
-.workspaceListHeading,
-.pagePanelHeading {
+.introSteps strong,
+.introSteps span {
+  display: block;
+}
+
+.introSteps span {
+  color: var(--color-text-secondary);
+}
+
+/* ── 작업대: 문서 사이드바 + 칸반 ───────────────────────────── */
+.workbench {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  min-height: calc(100vh - 3.5rem);
+}
+
+.sidebar {
+  display: flex;
+  flex: 1 1 16.25rem;
+  flex-direction: column;
+  max-width: 18.75rem;
+  min-width: 0;
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-surface);
+}
+
+.sidebarToggle {
+  display: none;
+}
+
+.sidebarBody {
+  display: grid;
+  align-content: start;
+  gap: 0.875rem;
+}
+
+.sidebarHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
-.workspaceListHeading {
-  padding: 0.45rem 0.5rem 1rem;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.workspaceListHeading a {
-  color: var(--indigo);
-  font-family: var(--font-ui);
-  font-size: 0.74rem;
-  font-weight: 700;
+.sidebarHeading a {
+  font-weight: 600;
   text-decoration: none;
-  text-transform: none;
-  letter-spacing: normal;
+}
+
+.workspaceList {
+  display: grid;
+  gap: 0.25rem;
 }
 
 .workspaceButton {
   display: flex;
-  width: 100%;
-  padding: 0.7rem 0.75rem;
   align-items: center;
-  gap: 0.7rem;
-  color: var(--ink);
-  background: transparent;
-  font: inherit;
-  font-size: 0.84rem;
-  text-align: left;
+  gap: 0.5rem;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.5rem;
   border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
+  border-radius: var(--radius-control);
+  background: transparent;
+  text-align: left;
 }
 
-.workspaceButton:hover {
-  background: var(--indigo-soft);
+.workspaceButton:hover,
+.workspaceButton[aria-pressed="true"] {
+  background: var(--color-bg-selected);
 }
 
 .workspaceButton[aria-pressed="true"] {
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--rule);
+  font-weight: 600;
 }
 
 .workspaceIcon,
 .documentIcon {
   display: inline-grid;
-  flex: 0 0 auto;
-  overflow: hidden;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
   place-items: center;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
 }
 
 .workspaceIcon {
-  width: 1.8rem;
-  height: 1.8rem;
-  background: var(--paper);
-  font-size: 0.78rem;
-  font-weight: 700;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
+  border: 1px solid var(--color-border-strong);
+  font-weight: 600;
 }
 
 .workspaceIcon.image,
 .documentIcon.image {
+  border: 0;
   background-position: center;
-  background-repeat: no-repeat;
   background-size: cover;
 }
 
-.pagePanel {
-  min-width: 0;
+.treeSkeleton {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  color: var(--color-text-secondary);
 }
 
-.pagePanelHeading {
-  min-height: 4.4rem;
-  padding: 0.85rem 1.25rem;
-  border-bottom: 1px solid var(--rule);
+.treeSkeleton span {
+  height: 0.875rem;
+  border-radius: 4px;
+  background: var(--color-bg-column);
 }
 
-.pagePanelHeading > div {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.panelLabel {
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.66rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.pagePanelHeading strong {
-  font-size: 0.95rem;
-}
-
-.pageCount {
-  padding: 0.35rem 0.55rem;
-  color: var(--graphite);
-  background: var(--paper);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
-}
-
-.pageMetrics,
-.pageActions {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-}
-
-.pageActions {
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.boardNotice {
-  padding: 0.7rem 1.25rem;
-  margin: 0;
-  color: var(--proof-red);
-  background: var(--proof-red-soft);
-  font-size: 0.78rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
-}
-
-/* ── 페이지 트리 ────────────────────────────────────────────── */
 .pageTree,
 .pageTree ul {
-  padding: 0;
+  display: grid;
+  gap: 0.125rem;
   margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.pageTree {
-  padding: 0.8rem;
-  max-height: 22rem;
-  overflow-y: auto;
-}
-
 .pageTree ul {
-  margin-left: 1.45rem;
-  border-left: 1px solid var(--rule-soft);
+  padding-left: 0.875rem;
 }
 
 .pageRow {
   display: flex;
-  min-width: 0;
-  min-height: 2.7rem;
-  padding: 0.25rem 0.55rem;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-radius: var(--radius-s);
+  gap: 0.25rem;
+  border-radius: var(--radius-control);
 }
 
 .pageRow:hover {
-  background: var(--indigo-soft);
+  background: var(--color-bg-canvas);
 }
 
 .pageToggle {
   display: flex;
-  min-width: 0;
-  padding: 0;
+  flex: 1;
   align-items: center;
-  gap: 0.6rem;
-  color: var(--ink);
-  background: transparent;
-  font: inherit;
+  gap: 0.375rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.25rem 0.375rem;
   border: 0;
-  cursor: pointer;
+  background: transparent;
+  text-align: left;
 }
 
 .pageToggle:disabled {
   cursor: default;
+  opacity: 1;
 }
 
 .pageToggle > span:first-child {
-  width: 0.8rem;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-}
-
-.documentIcon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--indigo);
-  font-size: 0.8rem;
+  width: 0.75rem;
+  flex: none;
+  color: var(--color-text-secondary);
+  text-align: center;
 }
 
 .pageTitle {
-  overflow: hidden;
-  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.pageAction {
+  flex: none;
+}
+
+.rowStatus {
+  padding: 0 0.375rem;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
+}
+
+.rowButton {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: var(--color-bg-surface);
+  font-size: 0.6875rem;
   font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.pageRow time {
-  flex: 0 0 auto;
-  color: var(--graphite);
+.rowButton.onBoard {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.boardNotice {
+  padding: 0.25rem 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.boardMain {
+  display: flex;
+  flex: 999 1 35rem;
+  flex-direction: column;
+  gap: 1.125rem;
+  min-width: 0;
+  padding: 1.5rem 1.75rem;
+}
+
+.boardHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.boardHeading > div {
+  display: grid;
+  flex-grow: 1;
+  gap: 0.25rem;
+}
+
+.boardHeading h1 {
+  font-size: 1.375rem;
+}
+
+.boardHeading p,
+.boardCounts {
+  color: var(--color-text-secondary);
+}
+
+.boardCounts {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-}
-
-.draftButton {
-  min-width: 4.6rem;
-  padding: 0.42rem 0.6rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.draftButton.added {
-  color: var(--graphite);
-  background: var(--card);
-  border: 1px solid var(--rule);
-}
-
-.draftButton:disabled {
-  cursor: default;
-  opacity: 0.7;
-}
-
-.previewTreeButton {
-  min-width: 4.6rem;
-  padding: 0.42rem 0.6rem;
-  color: var(--indigo);
-  background: var(--indigo-soft);
-  font: inherit;
-  font-size: 0.7rem;
-  font-weight: 700;
-  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.pageActionStatus {
-  display: inline-grid;
-  place-items: center;
+  font-size: 0.75rem;
 }
 
 /* ── 칸반 ───────────────────────────────────────────────────── */
-.kanbanSection {
-  padding: 4rem 0 1rem;
-  margin-top: 4rem;
-  border-top: 1px solid var(--rule);
-}
-
-.documentExplorer .kanbanSection {
-  padding: 2rem 1rem 1rem;
-  margin-top: 0;
-}
-
-.kanbanHeading {
-  display: flex;
-  margin-bottom: 1.5rem;
-  align-items: end;
-  justify-content: space-between;
-  gap: 2rem;
-}
-
-.kanbanHeading .eyebrow {
-  margin-bottom: 0.65rem;
-}
-
-.kanbanHeading > p {
-  max-width: 31rem;
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.82rem;
-  line-height: 1.6;
-}
-
-.kanbanNotice {
-  padding: 0.75rem 1rem;
-  margin: 0 0 1rem;
-  color: var(--proof-red);
-  background: var(--proof-red-soft);
-  font-size: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
-  border-radius: var(--radius-s);
-}
-
-.emptyBoard {
-  display: grid;
-  min-height: 11rem;
-  padding: 1.5rem;
-  color: var(--graphite);
-  background: var(--card);
-  font-size: 0.88rem;
-  text-align: center;
-  border: 1px dashed var(--rule);
-  border-radius: var(--radius-m);
-  place-items: center;
-}
-
 .kanbanBoard {
   display: grid;
-  padding: 0 0 1rem;
-  grid-template-columns: repeat(3, minmax(14.5rem, 1fr));
-  gap: 0.8rem;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.75rem), 1fr));
+  gap: 0.875rem;
+  align-items: start;
 }
 
 .kanbanColumn {
-  min-height: 24rem;
+  display: grid;
+  gap: 0.625rem;
+  min-height: 12rem;
   padding: 0.75rem;
-  background: color-mix(in srgb, var(--paper) 60%, var(--card));
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
+  border: 2px solid transparent;
+  border-radius: var(--radius-column);
+  background: var(--color-bg-column);
+  transition: border-color 120ms var(--ease);
 }
 
 .kanbanColumn.over {
-  background: var(--indigo-soft);
-  border-color: color-mix(in srgb, var(--indigo) 55%, var(--rule));
+  border-color: var(--color-accent);
 }
 
 .kanbanColumn > header {
   display: flex;
-  min-height: 2.6rem;
-  padding: 0.2rem 0.25rem 0.75rem;
-  align-items: center;
-  gap: 0.5rem;
+  justify-content: space-between;
 }
 
-.columnMark {
-  color: var(--indigo);
+.kanbanColumn h2 {
+  font-size: 0.8125rem;
+}
+
+.kanbanColumn > header span {
+  color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.85rem;
-}
-
-.kanbanColumn > header h3 {
-  margin: 0;
-  font-size: 0.82rem;
-  letter-spacing: -0.01em;
-}
-
-.kanbanColumn > header span:last-child {
-  display: grid;
-  min-width: 1.5rem;
-  height: 1.5rem;
-  padding: 0 0.35rem;
-  margin-left: auto;
-  color: var(--graphite);
-  background: var(--card);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
-  place-items: center;
+  font-size: 0.75rem;
 }
 
 .kanbanCards {
-  min-height: 19.5rem;
-}
-
-.sortableCard {
-  margin-bottom: 0.6rem;
+  display: grid;
+  gap: 0.625rem;
 }
 
 .sortableCard.dragging {
-  opacity: 0.25;
+  opacity: 0.4;
 }
 
 .boardCard {
-  padding: 0.85rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
-  box-shadow: var(--shadow-card);
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
 }
 
 .boardCard.overlay {
-  width: 14.5rem;
-  box-shadow: var(--shadow-lift);
-  transform: rotate(1.5deg);
-}
-
-.boardCard.draggable {
-  cursor: grab;
-  touch-action: none;
-}
-
-.boardCard.draggable:active {
-  cursor: grabbing;
+  box-shadow: var(--shadow-dialog);
 }
 
 .boardCardTopline {
   display: flex;
-  min-height: 1.5rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.6875rem;
 }
 
 .boardCardTopline > span {
   overflow: hidden;
-  color: var(--indigo);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.boardCard h4 {
-  margin: 0.7rem 0 0.45rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.boardCard > p {
-  margin: 0;
-  color: var(--graphite);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-}
-
-.publishedLink,
-.actionsLink {
-  display: block;
-  width: 100%;
-  padding: 0.55rem 0.7rem;
-  margin-top: 0.8rem;
-  color: #fff;
-  background: var(--green);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.actionsLink {
-  color: var(--indigo);
-  background: var(--indigo-soft);
-  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
-}
-
-.boardCardControls {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-
 .dragHandleButton {
-  display: grid;
-  width: 1.65rem;
-  height: 1.65rem;
-  padding: 0;
-  color: var(--graphite);
-  background: transparent;
-  font: inherit;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin: -0.5rem -0.5rem -0.5rem 0;
   border: 0;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text-secondary);
   cursor: grab;
-  place-items: center;
+  font-size: 1rem;
+  touch-action: none;
+}
+
+.dragHandleButton:hover {
+  background: var(--color-bg-canvas);
 }
 
 .dragHandleButton:active {
   cursor: grabbing;
 }
 
-.removeCardButton {
-  display: grid;
-  width: 1.65rem;
-  height: 1.65rem;
-  color: var(--graphite);
-  background: transparent;
-  font: inherit;
-  font-size: 1rem;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-  place-items: center;
+.boardCard h3 {
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
-.removeCardButton:hover {
-  color: var(--proof-red);
-  background: var(--paper);
+.cardMeta {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
 }
 
-.removeCardButton:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
-.previewCardButton {
-  min-height: 1.65rem;
-  padding: 0.2rem 0.45rem;
-  color: var(--indigo);
-  background: var(--indigo-soft);
-  font: inherit;
-  font-size: 0.64rem;
-  font-weight: 700;
-  border: 1px solid color-mix(in srgb, var(--indigo) 22%, transparent);
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-.previewCardButton:disabled {
-  opacity: 0.5;
-  cursor: wait;
-}
-
-.boardCard > .publishStatus {
+.cardActions {
   display: flex;
-  padding: 0.5rem 0.6rem;
-  margin-top: 0.8rem;
   align-items: center;
-  gap: 0.45rem;
-  color: var(--amber);
-  background: var(--amber-soft);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  border-radius: var(--radius-s);
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
-.pulseDot {
-  animation: pulse 1.6s ease-in-out infinite;
+.cardActions .iconButton {
+  margin-left: auto;
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
+.cardLink {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.publishStatus {
+  display: grid;
+  gap: 0.375rem;
+  color: var(--color-accent);
+  font-size: 0.75rem;
+}
+
+.progress {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--color-bg-selected);
+}
+
+.progress::after {
+  position: absolute;
+  inset: 0 60% 0 0;
+  border-radius: 2px;
+  background: var(--color-accent);
+  animation: progress 1.4s var(--ease) infinite;
+  content: "";
+}
+
+@keyframes progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(250%);
   }
 }
 
-.boardCard > .publishError {
-  margin-top: 0.65rem;
-  color: var(--proof-red);
-  font-family: var(--font-ui);
-  font-size: 0.72rem;
-  line-height: 1.5;
+.publishError {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+  font-size: 0.75rem;
 }
 
+.publishError p {
+  color: var(--color-danger);
+}
+
+.dropZone,
 .emptyColumn {
-  display: grid;
-  min-height: 7rem;
-  margin: 0;
-  color: var(--graphite);
-  font-size: 0.7rem;
+  padding: 1.125rem 0.75rem;
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
   text-align: center;
-  border: 1px dashed var(--rule-soft);
-  border-radius: var(--radius-s);
-  place-items: center;
+}
+
+.columnHint {
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+}
+
+/* ── 상태 안내 ──────────────────────────────────────────────── */
+.statusPanel {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  max-width: 45rem;
+  margin: 2rem auto;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-bg-surface);
+}
+
+.statusPanel.compact {
+  margin: 0;
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.notice {
+  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+}
+
+.notice.danger {
+  color: var(--color-danger);
+}
+
+/* 프리뷰 dialog 머리말의 작은 구분 문구 */
+.eyebrow {
+  margin: 0;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* ── 게시 전 프리뷰 ─────────────────────────────────────────── */
@@ -929,11 +784,11 @@ h3 {
   max-height: 92dvh;
   padding: 0;
   overflow: auto;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-lift);
+  color: var(--color-text-primary);
+  background: var(--color-bg-canvas);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dialog);
 }
 
 .previewDialog::backdrop {
@@ -949,8 +804,8 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
-  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--color-bg-canvas) 94%, transparent);
+  border-bottom: 1px solid var(--color-border-strong);
   backdrop-filter: blur(0.8rem);
 }
 
@@ -967,13 +822,13 @@ h3 {
 .previewSegmented button {
   min-height: 2.6rem;
   padding: 0.45rem 0.75rem;
-  color: var(--ink);
-  background: var(--card);
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
   font: inherit;
   font-size: 0.74rem;
   font-weight: 700;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-s);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   cursor: pointer;
 }
 
@@ -981,15 +836,15 @@ h3 {
 .previewPublishHint {
   padding: 0.85rem 1.5rem;
   margin: 0;
-  color: var(--graphite);
-  background: var(--indigo-soft);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-selected);
   font-size: 0.78rem;
   line-height: 1.6;
 }
 
 .previewPublishHint {
-  background: var(--card);
-  border-top: 1px solid var(--rule);
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border-strong);
 }
 
 .previewLoading,
@@ -1000,16 +855,16 @@ h3 {
   align-content: center;
   justify-items: center;
   gap: 0.8rem;
-  color: var(--graphite);
+  color: var(--color-text-secondary);
   text-align: center;
 }
 
 .previewSkeleton {
   width: min(100%, 32rem);
   height: 12rem;
-  background: linear-gradient(100deg, var(--rule-soft) 20%, var(--card) 45%, var(--rule-soft) 70%);
+  background: linear-gradient(100deg, var(--color-border) 20%, var(--color-bg-surface) 45%, var(--color-border) 70%);
   background-size: 200% 100%;
-  border-radius: var(--radius-m);
+  border-radius: var(--radius-card);
   animation: previewShimmer 1.6s linear infinite;
 }
 
@@ -1020,7 +875,7 @@ h3 {
 }
 
 .previewError strong {
-  color: var(--proof-red);
+  color: var(--color-danger);
   font-size: 1rem;
 }
 
@@ -1037,11 +892,11 @@ h3 {
 .previewWarnings {
   padding: 0.9rem 1rem;
   margin-bottom: 1rem;
-  color: var(--amber);
-  background: var(--amber-soft);
+  color: var(--color-text-primary);
+  background: var(--color-warning-bg);
   font-size: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
-  border-radius: var(--radius-s);
+  border: 1px solid color-mix(in srgb, var(--color-text-primary) 25%, transparent);
+  border-radius: var(--radius-control);
 }
 
 .previewWarnings ul {
@@ -1065,13 +920,13 @@ h3 {
 
 .previewSegmented button[aria-pressed="true"] {
   color: #fff;
-  background: var(--indigo);
-  border-color: var(--indigo);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .previewFreshness {
   margin: 0.9rem 0;
-  color: var(--graphite);
+  color: var(--color-text-secondary);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   text-align: center;
@@ -1084,8 +939,8 @@ h3 {
   color: #211f1b;
   background: #f7f4ee;
   font-family: Inter, Pretendard, system-ui, sans-serif;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
   transition: max-width 200ms ease;
 }
 
@@ -1156,7 +1011,7 @@ h3 {
   padding: 0.55rem 0.7rem;
   background: #efe9de;
   font-family: var(--font-mono);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
 }
 
 .previewBody {
@@ -1215,7 +1070,7 @@ h3 {
   padding: 1rem;
   overflow-x: auto;
   background: #efe9de;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
 }
 
 .previewBody blockquote {
@@ -1227,7 +1082,7 @@ h3 {
 .previewBody details {
   padding: 0.75rem 1rem;
   border: 1px solid #d9d2c6;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
 }
 
 .previewBody summary {
@@ -1242,7 +1097,7 @@ h3 {
   padding: 1rem;
   margin-block: 1rem;
   background: #efe9de;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
 }
 
 .previewCallout p {
@@ -1301,7 +1156,7 @@ h3 {
   overflow-x: auto;
   background: #f7f4ee;
   border: 1px solid #d9d2c6;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
   text-align: center;
 }
 
@@ -1313,7 +1168,7 @@ h3 {
   color: #211f1b;
   background: #fffcf7;
   border: 1px solid #d9d2c6;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
   text-decoration: none !important;
 }
 
@@ -1340,7 +1195,7 @@ h3 {
   background: #efe9de;
   text-align: center;
   border: 1px dashed #9b9285;
-  border-radius: var(--radius-s);
+  border-radius: var(--radius-control);
   place-items: center;
 }
 
@@ -1377,167 +1232,69 @@ h3 {
   font-size: 1.25rem;
 }
 
-/* ── 게시 대상 ──────────────────────────────────────────────── */
-.pagesTarget {
-  display: grid;
-  padding: 2rem;
-  margin-top: 2rem;
-  align-items: center;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, auto);
-  gap: 2rem;
-  background: var(--card);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-m);
-  box-shadow: var(--shadow-card);
-}
 
-.pagesTarget .eyebrow {
-  margin-bottom: 0.65rem;
-}
-
-.pagesTargetStatus {
-  display: flex;
-  min-width: 16rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-  color: var(--graphite);
-  font-size: 0.78rem;
-}
-
-.pagesReadiness,
-.pagesRecovery {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
-}
-
-.pagesReadiness.warning,
-.pagesReadiness.danger,
-.pagesRecovery {
-  padding: 0.85rem;
-  border-radius: var(--radius-s);
-}
-
-.pagesReadiness.warning {
-  color: var(--amber);
-  background: var(--amber-soft);
-  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
-}
-
-.pagesReadiness.danger,
-.pagesRecovery {
-  color: var(--proof-red);
-  background: var(--proof-red-soft);
-  border: 1px solid color-mix(in srgb, var(--proof-red) 25%, transparent);
-}
-
-.readinessLabel {
-  color: var(--green);
-  font-weight: 700;
-}
-
-.pagesTargetActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.conflictingPaths {
-  width: 100%;
-  padding: 0.55rem 0.65rem;
-  margin: 0;
-  color: var(--ink);
-  background: color-mix(in srgb, var(--card) 75%, transparent);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  line-height: 1.6;
-  list-style-position: inside;
-  border-radius: var(--radius-s);
-}
-
-.pagesTargetStatus strong {
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-}
-
-.pagesTargetStatus a,
-.pagesTargetStatus button {
-  padding: 0.52rem 0.75rem;
-  color: #fff;
-  background: var(--ink);
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-decoration: none;
-  border: 0;
-  border-radius: var(--radius-s);
-  cursor: pointer;
-}
-
-/* ── 반응형 ─────────────────────────────────────────────────── */
-@media (max-width: 48rem) {
-  main {
-    width: min(100% - 1.25rem, 76rem);
+/* ── 반응형(디자인 기획 6.4) ────────────────────────────────── */
+@media (max-width: 56.1875rem) {
+  .workbench {
+    align-content: flex-start;
   }
 
-  .sessionChip {
-    display: none;
-  }
-
-  .lede {
-    margin-left: 0;
-  }
-
-  .rail {
-    gap: 0.5rem;
-    font-size: 0.66rem;
-  }
-
-  .sectionHeading {
-    display: block;
-  }
-
-  .sectionHeading .eyebrow {
-    margin-bottom: 0.8rem;
-  }
-
-  .workflowGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .stepMark {
-    margin-bottom: 1.5rem;
-  }
-
-  .documentExplorer {
-    grid-template-columns: 1fr;
-  }
-
-  .workspaceList {
+  .sidebar {
+    max-width: none;
+    flex-basis: 100%;
     border-right: 0;
-    border-bottom: 1px solid var(--rule);
+    border-bottom: 1px solid var(--color-border);
   }
 
-  .pageRow time {
+  .boardMain {
+    padding: 1.25rem 1rem;
+  }
+}
+
+/* 600–899px: 문서 목록은 기본으로 접고 토글로 연다. */
+@media (min-width: 37.5rem) and (max-width: 56.1875rem) {
+  .sidebarToggle {
+    display: block;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-control);
+    background: var(--color-bg-surface);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .sidebar:not([data-open]) .sidebarBody {
     display: none;
   }
 
-  .kanbanHeading {
-    display: block;
+  .sidebar[data-open] .sidebarBody {
+    margin-top: 0.75rem;
+  }
+}
+
+@media (max-width: 37.4375rem) {
+  .topbar {
+    padding: 0.75rem 1rem;
   }
 
-  .kanbanHeading > p {
-    margin-top: 1rem;
+  .pagesStatus {
+    order: 3;
+    flex-basis: 100%;
   }
 
-  .pagesTarget {
-    grid-template-columns: 1fr;
+  .pagesStatusBody {
+    right: auto;
+    left: 0;
   }
 
+  .accountLogin {
+    display: none;
+  }
+}
+
+/* 프리뷰 dialog는 태블릿 폭부터 전체 화면으로 연다. */
+@media (max-width: 48rem) {
   .previewDialog {
     width: 100vw;
     height: 100dvh;
@@ -1565,7 +1322,7 @@ h3 {
   *::before,
   *::after {
     animation: none !important;
+    transition: none !important;
     scroll-behavior: auto !important;
   }
-
 }
