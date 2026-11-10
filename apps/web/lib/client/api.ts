@@ -4,6 +4,7 @@ import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
 import { z } from "zod";
 
 import { parsePublishPreviewResponse, type PublishPreviewResponse } from "../publish/preview";
+import { type SiteSettings, siteSettingsSchema } from "../publish/site-settings";
 
 
 /** 실패한 API 호출. `code`는 서버 오류 code, `retryAt`은 429 등에서 다시 시도해도 되는 시각. */
@@ -145,6 +146,22 @@ export async function requestUnpublish(connectionId: string, providerPageId: str
   await readJson(response);
 }
 
+/** 블로그 사이트 설정. 저장된 적이 없으면 `stored: false`와 기본값. */
+export async function fetchSiteSettings(signal?: AbortSignal): Promise<{ settings: SiteSettings; stored: boolean }> {
+  const response = await fetch("/api/blog/settings", { cache: "no-store", ...(signal === undefined ? {} : { signal }) });
+  return parse(z.object({ settings: siteSettingsSchema, stored: z.boolean() }), await readJson(response));
+}
+
+/** 사이트 설정 저장. 블로그 저장소에 설정 파일 하나를 commit한다. */
+export async function saveSiteSettings(settings: SiteSettings): Promise<void> {
+  const response = await fetch("/api/blog/settings", {
+    body: JSON.stringify(settings),
+    headers: { "content-type": "application/json" },
+    method: "PUT",
+  });
+  await readJson(response);
+}
+
 /** 게시 전 프리뷰. 서버 응답을 zod로 다시 검증한다. */
 export async function fetchPublishPreview(
   connectionId: string,
@@ -256,6 +273,7 @@ const PUBLISH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   repository_owner_mismatch: "현재 계정이 소유하고 쓸 수 있는 GitHub Pages 저장소인지 확인해 주세요.",
   repository_write_denied: "현재 계정이 소유하고 쓸 수 있는 GitHub Pages 저장소인지 확인해 주세요.",
   blog_post_not_found: "블로그에 이 글이 없습니다. 이미 내려졌을 수 있습니다.",
+  invalid_site_settings: "입력값을 확인해 주세요. 이름은 1~40자, 소개는 200자 이하, 링크는 https 주소만 쓸 수 있습니다.",
   timeout: "Provider 응답 시간이 초과되었습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.",
 };
 

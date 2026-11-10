@@ -203,6 +203,42 @@ test("mobile board fits 320px and remains keyboard operable", async ({ page }) =
   await expectNoSeriousAccessibilityViolations(page);
 });
 
+test("blog settings are edited in a dialog and saved as one request", async ({ page }) => {
+  await installAppRoutes(page, () => "52277540", () => undefined);
+  let saved: unknown = null;
+  await page.route("**/api/blog/settings", (route) => {
+    if (route.request().method() === "PUT") {
+      saved = route.request().postDataJSON();
+      return route.fulfill({ json: { commitSha: "d".repeat(40), settings: saved } });
+    }
+    return route.fulfill({
+      json: {
+        settings: { description: "기본 소개", links: [], title: "HappyDoran.log" },
+        stored: false,
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByText("게시 준비 완료").click();
+  await page.getByRole("button", { name: "블로그 설정" }).click();
+  const dialog = page.getByRole("dialog", { name: "블로그 설정" });
+  await expect(dialog.getByLabel("블로그 이름")).toHaveValue("HappyDoran.log");
+
+  await dialog.getByLabel("블로그 이름").fill("도란 블로그");
+  await dialog.getByRole("button", { name: "+ 링크 추가" }).click();
+  await dialog.getByLabel("링크 1 이름").fill("GitHub");
+  await dialog.getByLabel("링크 1 주소").fill("https://github.com/HappyDoran");
+  await expectNoSeriousAccessibilityViolations(page);
+  await dialog.getByRole("button", { name: "저장" }).click();
+
+  await expect(dialog.getByRole("status")).toContainText("저장했습니다");
+  expect(saved).toEqual({
+    description: "기본 소개",
+    links: [{ label: "GitHub", url: "https://github.com/HappyDoran" }],
+    title: "도란 블로그",
+  });
+});
+
 async function installAppRoutes(
   page: Page,
   currentUserId: () => string,

@@ -29,6 +29,7 @@ type PublishingPropertyName =
   | "Blog Pinned"
   | "Blog Published At"
   | "Blog Series"
+  | "Blog Slug"
   | "Blog Tags";
 type BlogMetadataField =
   | PublishingPropertyName
@@ -85,6 +86,24 @@ export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
   };
 }
 
+/** `Blog Slug` rich text. 비어 있으면 제목을 쓴다. 영문 소문자·숫자·하이픈 1~80자만 허용한다. */
+function customSlug(property: NotionPageProperty | undefined): string | null {
+  if (property === undefined) {
+    return null;
+  }
+  if (property.kind !== "rich_text") {
+    throw new InvalidBlogMetadataError("Blog Slug");
+  }
+  const value = property.plainText.trim();
+  if (value === "") {
+    return null;
+  }
+  if (value.length > 80 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+    throw new InvalidBlogMetadataError("Blog Slug");
+  }
+  return value;
+}
+
 /** `Blog Pinned` checkbox. 없으면 고정하지 않는다. */
 function pinned(property: NotionPageProperty | undefined): boolean {
   if (property === undefined) {
@@ -135,7 +154,7 @@ export function buildPublishDocument(
     description: metadata.description,
     publishedAt: metadata.publishedAt,
     schemaVersion: 2,
-    slug: pageSlug(title, page.providerPageId),
+    slug: pageSlug(title, page.providerPageId, customSlug(page.publishingProperties?.["Blog Slug"])),
     tags: metadata.tags,
     title,
     updatedAt: validDate(page.lastEditedAt, "last_edited_time"),
@@ -168,17 +187,22 @@ export function categorySlug(name: string): string {
   return base ? `${base}-${hash}` : `category-${hash}`;
 }
 
-export function pageSlug(title: string, providerPageId: string): string {
+/**
+ * 글 주소 `<앞부분>-<page ID 앞 12자>`. 앞부분은 `Blog Slug`가 있으면 그 값, 없으면 제목에서 영문·숫자만 남긴 값이다.
+ * 접미사는 늘 page ID라 주소를 바꿔도 같은 글로 찾고 옛 주소 안내 page를 남긴다(R8·R11).
+ */
+export function pageSlug(title: string, providerPageId: string, custom: string | null = null): string {
   const suffix = pageIdSuffix(providerPageId);
   const base =
-    title
+    custom ??
+    (title
       .normalize("NFKD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 80)
-      .replace(/-+$/g, "") || "notion";
+      .replace(/-+$/g, "") || "notion");
   return `${base}-${suffix}`;
 }
 

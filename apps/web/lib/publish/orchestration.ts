@@ -215,7 +215,7 @@ export async function authorizePageRequest(
   };
 }
 
-function notReadyResponse(state: "pages_setup_required" | "repository_not_managed"): Response {
+export function notReadyResponse(state: "pages_setup_required" | "repository_not_managed"): Response {
   return errorResponse(
     409,
     state === "pages_setup_required" ? "github_pages_setup_required" : "github_repository_not_managed",
@@ -224,7 +224,7 @@ function notReadyResponse(state: "pages_setup_required" | "repository_not_manage
 }
 
 /** 준비 상태 확인에 넘기는 template 파일 경로. */
-function templatePaths(repository: { defaultBranch: string; fullName: string }, owner: string): string[] {
+export function templatePaths(repository: { defaultBranch: string; fullName: string }, owner: string): string[] {
   return createAstroTemplateManifest({
     defaultBranch: repository.defaultBranch,
     owner,

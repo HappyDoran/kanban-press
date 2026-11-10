@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { retryAtFromResponse } from "../lib/client/api";
 
+import { SiteSettingsButton } from "./site-settings";
 import { RetryAction } from "./retry-action";
 
 export interface RepositorySummary {
@@ -89,6 +90,9 @@ export function GitHubPagesStatus({ githubLogin }: { githubLogin: string }) {
       <div className="pagesStatusBody">
         {state === "ready" && target !== null ? (
           <RepositoryReadinessStatus onRetry={retry} target={target} />
+        ) : null}
+        {state === "ready" && target !== null && target.readiness.state !== "repository_not_managed" ? (
+          <SiteSettingsButton />
         ) : null}
         {state === "missing" ? (
           <div className="pagesRecovery" role="alert">

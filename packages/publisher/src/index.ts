@@ -285,10 +285,52 @@ const remainingTagCount = post.data.tags.length - visibleTags.length;
 </article>
 `,
     "src/lib/blog.ts": `import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { CollectionEntry } from "astro:content";
 
 export const base = ${JSON.stringify(linkBase)};
+export const siteOwner = ${JSON.stringify(owner)};
+
+export interface SiteSettings {
+  description: string;
+  links: { label: string; url: string }[];
+  title: string;
+}
+
+/**
+ * 게시 앱이 저장한 사이트 설정(.notion-kanban-blog/site.json, R11). 빌드는 저장소 루트에서 실행된다.
+ * 파일이 없거나 값이 틀리면 그 항목만 기본값을 쓴다.
+ */
+export const site: SiteSettings = readSiteSettings();
+
+function readSiteSettings(): SiteSettings {
+  const fallback: SiteSettings = {
+    description: "Notion에서 쓰고 GitHub Pages에 쌓아 가는 개발 기록입니다.",
+    links: [],
+    title: siteOwner + ".log",
+  };
+  const path = join(process.cwd(), ".notion-kanban-blog", "site.json");
+  if (!existsSync(path)) {
+    return fallback;
+  }
+  try {
+    const value = JSON.parse(readFileSync(path, "utf8")) as Partial<Record<keyof SiteSettings, unknown>>;
+    const text = (input: unknown, max: number) => (typeof input === "string" ? input.trim().slice(0, max) : "");
+    const links = Array.isArray(value.links) ? value.links : [];
+    return {
+      description: typeof value.description === "string" ? text(value.description, 200) : fallback.description,
+      links: links
+        .map((link: { label?: unknown; url?: unknown }) => ({ label: text(link?.label, 20), url: text(link?.url, 300) }))
+        .filter((link) => link.label !== "" && link.url.startsWith("https://"))
+        .slice(0, 4),
+      title: text(value.title, 40) || fallback.title,
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 export type BlogPost = CollectionEntry<"blog">;
 
@@ -460,10 +502,9 @@ const {
   title,
   type = "website",
 } = Astro.props;
-import { base, pathFor } from "../lib/blog";
+import { base, pathFor, site, siteOwner } from "../lib/blog";
 
-const siteOwner = ${JSON.stringify(owner)};
-const siteName = siteOwner + ".log";
+const siteName = site.title;
 const githubUrl = "https://github.com/" + siteOwner;
 const pathname = Astro.url.pathname;
 const section = pathname === base
@@ -554,19 +595,23 @@ ${BLOG_CSS}
 import { getCollection } from "astro:content";
 import PostCard from "../components/PostCard.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { categoriesFor, pathFor, sortPosts } from "../lib/blog";
+import { categoriesFor, pathFor, site, sortPosts } from "../lib/blog";
 
 const posts = sortPosts(await getCollection("blog"));
 // 고정 글(R10)은 최신 글 위에 따로 두고 최신 글에서는 뺀다.
 const pinnedPosts = posts.filter((post) => post.data.pinned);
 const latestPosts = posts.filter((post) => !post.data.pinned).slice(0, 12);
 const categories = categoriesFor(posts);
-const siteOwner = ${JSON.stringify(owner)};
 ---
-<BaseLayout title="홈">
+<BaseLayout title="홈" description={site.description || undefined}>
   <section class="hero" aria-labelledby="site-title">
-    <h1 id="site-title">{siteOwner}.log</h1>
-    <p>Notion에서 쓰고 GitHub Pages에 쌓아 가는 개발 기록입니다.</p>
+    <h1 id="site-title">{site.title}</h1>
+    {site.description && <p>{site.description}</p>}
+    {site.links.length > 0 && (
+      <ul class="hero-links" aria-label="프로필 링크">
+        {site.links.map((link) => <li><a href={link.url} rel="me">{link.label}</a></li>)}
+      </ul>
+    )}
     <dl class="hero-stats" aria-label="블로그 통계">
       <div><dt>글</dt><dd>{posts.length}</dd></div>
       <div><dt>주제</dt><dd>{categories.length}</dd></div>
@@ -954,9 +999,7 @@ const months = archiveFor(await getCollection("blog"));
     "src/pages/rss.xml.ts": `import { getCollection } from "astro:content";
 import type { APIContext } from "astro";
 
-import { absoluteUrl, escapeXml, sortPosts } from "../lib/blog";
-
-const siteOwner = ${JSON.stringify(owner)};
+import { absoluteUrl, escapeXml, site, sortPosts } from "../lib/blog";
 
 /** 최근 글 20개. 본문 대신 설명만 넣는다(결정 D2). */
 export async function GET(context: APIContext): Promise<Response> {
@@ -977,9 +1020,9 @@ export async function GET(context: APIContext): Promise<Response> {
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0"><channel>',
-    "<title>" + escapeXml(siteOwner + ".log") + "</title>",
+    "<title>" + escapeXml(site.title) + "</title>",
     "<link>" + escapeXml(absoluteUrl("", context.site)) + "</link>",
-    "<description>" + escapeXml(siteOwner + "의 블로그") + "</description>",
+    "<description>" + escapeXml(site.description || site.title) + "</description>",
     "<language>ko</language>",
     ...items,
     "</channel></rss>",

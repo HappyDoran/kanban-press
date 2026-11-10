@@ -19,6 +19,8 @@ export const BLOG_CSS = `
 .hero { max-width: var(--reading-max); margin-block-end: 3rem; }
 .hero h1 { margin: 0 0 0.75rem; font-size: clamp(1.75rem, 4vw, 2.125rem); line-height: 1.3; }
 .hero p { margin: 0; color: var(--color-text-secondary); }
+.hero-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin: 0.75rem 0 0; padding: 0; list-style: none; font-size: 0.875rem; }
+.hero-links a { display: inline-flex; min-height: 2.75rem; align-items: center; }
 .hero-stats { display: flex; gap: 1rem; margin: 1rem 0 0; font-family: var(--font-mono); font-size: 0.8125rem; color: var(--color-text-secondary); }
 .hero-stats div { display: flex; gap: 0.35rem; }
 .hero-stats dd { margin: 0; color: var(--color-text-primary); }

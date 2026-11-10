@@ -69,15 +69,18 @@ describe("createAstroTemplateManifest", () => {
       'export const base = "/"',
     );
     const layout = readArtifact(first.artifacts, "src/layouts/BaseLayout.astro");
-    expect(layout).toContain('const siteOwner = "HappyDoran"');
-    expect(layout).toContain('siteOwner + ".log"');
+    const blogLib = readArtifact(first.artifacts, "src/lib/blog.ts");
+    expect(blogLib).toContain('export const siteOwner = "HappyDoran"');
+    expect(blogLib).toContain('title: siteOwner + ".log"');
+    expect(blogLib).toContain('".notion-kanban-blog", "site.json"');
+    expect(layout).toContain("const siteName = site.title;");
     expect(layout).toContain("--color-accent: #2453c7");
     expect(layout).not.toContain("Gowun Batang");
     expect(layout).toContain('href={githubUrl} rel="me"');
     expect(layout).toContain(">주제</a>");
     const home = readArtifact(first.artifacts, "src/pages/index.astro");
     expect(home).toContain('class="hero-stats"');
-    expect(home).toContain("{siteOwner}.log");
+    expect(home).toContain("{site.title}");
     const post = readArtifact(first.artifacts, "src/pages/posts/[...slug].astro");
     expect(post).toContain('"article-layout"');
     expect(post).toContain('class="post-toc"');

@@ -767,6 +767,102 @@ button:disabled {
   color: var(--color-danger);
 }
 
+/* ── 블로그 설정 dialog ─────────────────────────────────────── */
+.settingsDialog {
+  width: min(92vw, 34rem);
+  max-height: 92dvh;
+  padding: 0;
+  overflow: auto;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dialog);
+}
+
+.settingsDialog::backdrop {
+  background: rgb(28 34 48 / 55%);
+}
+
+.settingsBody {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+.settingsBody label,
+.settingsBody fieldset {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.settingsBody legend {
+  margin-bottom: 0.375rem;
+  padding: 0;
+}
+
+.settingsBody input,
+.settingsBody textarea {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.625rem;
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 400;
+}
+
+.settingsBody textarea {
+  resize: vertical;
+}
+
+.settingsLink {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.settingsNotice {
+  margin: 0;
+  padding: 1rem 1.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.settingsBody .settingsNotice {
+  padding: 0;
+}
+
+.settingsActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settingsBody fieldset > .buttonQuiet {
+  justify-self: start;
+}
+
+/* 좁은 화면에서는 링크 주소 칸을 다음 줄 전체 폭으로 내린다. */
+@media (max-width: 37.4375rem) {
+  .settingsLink {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settingsLink input[type="url"] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
 /* ── 게시 전 프리뷰 ─────────────────────────────────────────── */
 .previewDialog {
   width: min(92vw, 90rem);

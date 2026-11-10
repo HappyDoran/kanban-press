@@ -393,6 +393,7 @@ const PUBLISHING_PROPERTY_TYPES = {
   "Blog Pinned": "checkbox",
   "Blog Published At": "date",
   "Blog Series": "select",
+  "Blog Slug": "rich_text",
   "Blog Tags": "multi_select",
 } as const;
 

@@ -68,6 +68,11 @@ const workflowRunsSchema = z.object({
   ),
 });
 const pagesDeploymentSchema = z.object({ status: z.string() });
+const fileContentSchema = z.object({
+  content: z.string().max(64 * 1024),
+  encoding: z.literal("base64"),
+  type: z.literal("file"),
+});
 const pagesSettingsSchema = z.object({ build_type: z.string() });
 
 // 관리 표식이 없는 저장소에서도 덮어써도 되는 v1 template 파일과 글.
@@ -303,6 +308,18 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       pageUrl: `https://${repository.fullName.split("/")[0]}.github.io/`,
       state,
     };
+  }
+
+  /** 기본 branch의 작은 텍스트 파일 하나(설정 파일용). 파일이나 branch가 없으면 null. */
+  async readFile(repository: GitHubRepository, path: string): Promise<string | null> {
+    const repo = repositoryPath(repository);
+    const filePath = gitPathSchema.parse(path).split("/").map(encodeURIComponent).join("/");
+    const file = await this.#optional(
+      `${repo}/contents/${filePath}?ref=${encodeURIComponent(repository.defaultBranch)}`,
+      fileContentSchema,
+      [404, 409],
+    );
+    return file === null ? null : Buffer.from(file.content, "base64").toString("utf8");
   }
 
   /** 기본 branch의 최신 commit. branch가 없는 빈 저장소(404·409)면 null. */

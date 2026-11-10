@@ -244,3 +244,20 @@ describe("pinned and series metadata (R10)", () => {
     );
   });
 });
+
+describe("custom post address (R11 Blog Slug)", () => {
+  it("uses Blog Slug before the page ID suffix and falls back to the title when empty", () => {
+    expect(buildPublishDocument(page({ "Blog Slug": { kind: "rich_text", plainText: " astro-notes " } })).slug).toBe(
+      "astro-notes-9188c6a57381",
+    );
+    expect(buildPublishDocument(page({ "Blog Slug": { kind: "rich_text", plainText: "" } })).slug).toBe(
+      "notion-9188c6a57381",
+    );
+  });
+
+  it.each(["Astro Notes", "한글", "a--b", "-a", "a".repeat(81)])("rejects Blog Slug %j", (plainText) => {
+    expect(() => buildPublishDocument(page({ "Blog Slug": { kind: "rich_text", plainText } }))).toThrowError(
+      new InvalidBlogMetadataError("Blog Slug"),
+    );
+  });
+});

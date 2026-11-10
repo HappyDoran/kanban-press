@@ -34,7 +34,7 @@ MVP 범위가 아니다.
 - R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원(구현 완료)
 - R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph(구현 완료)
 - R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서(구현 완료)
-- R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정
+- R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정(구현 완료)
 
 ## 3. 식별자와 저장 계약
 
@@ -337,6 +337,7 @@ orchestration이 최신 Notion page를 조회한 뒤 제목, 설명, 게시/수�
 | `Blog Description` | `rich_text` | annotation을 제거한 plain text | 첫 paragraph/quote/heading, 없으면 title |
 | `Blog Published At` | `date` | range start | Notion `created_time` |
 | `Blog Pinned`·`Blog Series`·`Blog Order` | `checkbox`·`select`·`number` | §5.1 R10 | 고정 안 함·시리즈 없음·순서 없음 |
+| `Blog Slug` | `rich_text` | 글 주소 앞부분(§5.1 R11) | 제목에서 만든 slug |
 
 category는 trim 후 1~80자, tag는 각각 1~40자, description은 0~1,000자다.
 속성이 존재하지만 타입, 값, 개수 또는 날짜가 계약에 맞지 않으면 fallback하지 않고
@@ -551,8 +552,15 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 글 주소: `Blog Slug`(`rich_text`, ASCII 소문자·숫자·`-` 1~80자)가 있으면 제목 대신 이 값을 쓴다.
   page ID 접미사는 유지해 R8 정리 규칙이 그대로 동작한다. 한글 제목은 현재 영문·숫자만 남아
   `11-333333333333` 같은 주소가 되므로 이 속성으로 읽기 좋은 주소를 줄 수 있다.
-- 사이트 설정: 사이트 이름, 소개 한두 줄, 프로필 링크를 저장소의 설정 파일에 두고 template이 읽는다.
-  편집 경로와 주소가 바뀐 옛 글의 처리 방식은 미결 결정이다.
+- `Blog Slug`가 비어 있으면 제목을 쓰고, 형식이 틀리면 `422 invalid_blog_metadata`다. 주소가 바뀐 옛 글은 R8
+  정리 규칙대로 지우고 옛 주소 안내 page를 남긴다(D4).
+- 사이트 설정(D3): 앱 상단 바의 게시 대상 상태를 펼친 곳의 `블로그 설정`에서 편집한다. `GET /api/blog/settings`는
+  저장소의 `.notion-kanban-blog/site.json`을 읽어 주고(없거나 형식이 틀리면 기본값과 `stored: false`),
+  `PUT /api/blog/settings`는 같은 origin·세션·저장소 소유권·쓰기 권한·관리 표식을 확인한 뒤 그 파일 하나만 commit한다.
+  형식: 이름 1~40자, 소개 0~200자, 프로필 링크 최대 4개(이름 1~20자, `https` 주소). 게시 commit은 이 파일을 바꾸지 않는다.
+- template은 빌드할 때 설정 파일을 읽어 사이트 이름(header·`<title>`·Open Graph·RSS), 홈 소개, 홈 프로필 링크에 쓴다.
+  항목이 없거나 틀리면 그 항목만 기본값(`<login>.log`, 기본 소개, 링크 없음)을 쓰고 `https`가 아닌 링크는 버린다.
+- 프리뷰는 설정 파일을 읽지 않고 기본 사이트 이름(`<login>.log`)으로 보여준다.
 - 완료 조건: 주소를 바꿔 재게시하면 새 주소 하나만 남는다. 설정 파일이 없으면 지금 기본값으로 build된다.
 
 ## 6. 명시적 제약

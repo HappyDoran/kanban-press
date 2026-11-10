@@ -550,6 +550,36 @@ describe("pinned posts and series (R10)", () => {
   });
 });
 
+describe("site settings (R11)", () => {
+  it("uses .notion-kanban-blog/site.json for the site name, intro, links and RSS, ignoring invalid links", async () => {
+    const { root } = await createFixture({ defaultBranch: "main", owner: "HappyDoran", repository: "HappyDoran.github.io" });
+    await writeFixture(
+      root,
+      ".notion-kanban-blog/site.json",
+      JSON.stringify({
+        description: "도란의 <개발> 기록",
+        links: [
+          { label: "GitHub", url: "https://github.com/HappyDoran" },
+          { label: "위험", url: "javascript:alert(1)" },
+        ],
+        title: "도란 블로그",
+      }),
+    );
+    await writeFixture(root, "src/content/blog/legacy-post.md", legacyPost);
+    await build(root);
+    const read = (path: string) => readFile(join(root, "dist", path), "utf8");
+
+    const home = await read("index.html");
+    expect(home).toContain("<title>도란 블로그</title>");
+    expect(home).toContain('<h1 id="site-title">도란 블로그</h1>');
+    expect(home).toContain("도란의 &lt;개발&gt; 기록");
+    expect(home).toContain('<a href="https://github.com/HappyDoran" rel="me">GitHub</a>');
+    expect(home).not.toContain("javascript:");
+    expect(await read("posts/legacy-post/index.html")).toContain("<title>Legacy Post · 도란 블로그</title>");
+    expect(await read("rss.xml")).toContain("<title>도란 블로그</title>");
+  });
+});
+
 async function createFixture(target: {
   defaultBranch: string;
   owner: string;
