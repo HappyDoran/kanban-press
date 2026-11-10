@@ -5,6 +5,9 @@ export {
   type PublishDocument,
   type PublishRichText,
 } from "./markdown.js";
+export { BLOG_CSS } from "./blog-css.js";
+
+import { BLOG_CSS } from "./blog-css.js";
 
 const ASTRO_VERSION = "7.1.1";
 const encoder = new TextEncoder();
@@ -130,6 +133,7 @@ export default defineConfig({
   site: ${JSON.stringify(siteUrl)},
   base: ${JSON.stringify(basePath)},
   image: { service: passthroughImageService() },
+  markdown: { shikiConfig: { theme: "github-light" } },
   output: "static",
 });
 `,
@@ -256,23 +260,18 @@ const visibleTags = post.data.tags.slice(0, 3);
 const remainingTagCount = post.data.tags.length - visibleTags.length;
 ---
 <article class="post-card">
-  <div class="post-card-kicker">
-    <a class="category-link" href={pathFor("categories/" + post.data.categorySlug + "/")}>
-      {post.data.category}
-    </a>
+  <div class="post-card-meta">
+    <a class="category-link" href={pathFor("categories/" + post.data.categorySlug + "/")}>{post.data.category}</a>
     <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
   </div>
   <Heading><a class="post-card-title" href={pathFor("posts/" + post.id + "/")}>{post.data.title}</a></Heading>
   {post.data.description && <p class="post-card-description">{post.data.description}</p>}
-  <div class="post-card-meta">
-    {visibleTags.length > 0 && (
-      <ul class="tag-list" aria-label="태그">
-        {visibleTags.map((tag) => <li>#{tag}</li>)}
-        {remainingTagCount > 0 && <li aria-label={"태그 " + remainingTagCount + "개 더 있음"}>+{remainingTagCount}</li>}
-      </ul>
-    )}
-    <a class="post-card-read" href={pathFor("posts/" + post.id + "/")} aria-label={post.data.title + " 읽기"}>읽기 <span aria-hidden="true">→</span></a>
-  </div>
+  {visibleTags.length > 0 && (
+    <ul class="tag-list" aria-label="태그">
+      {visibleTags.map((tag) => <li>#{tag}</li>)}
+      {remainingTagCount > 0 && <li aria-label={"태그 " + remainingTagCount + "개 더 있음"}>+{remainingTagCount}</li>}
+    </ul>
+  )}
 </article>
 `,
     "src/lib/blog.ts": `import type { CollectionEntry } from "astro:content";
@@ -357,7 +356,6 @@ import { base, pathFor } from "../lib/blog";
 
 const siteOwner = ${JSON.stringify(owner)};
 const siteName = siteOwner + ".log";
-const brandMark = (siteOwner.match(/[A-Z]/g)?.join("").slice(0, 2) || siteOwner.slice(0, 2)).toUpperCase();
 const githubUrl = "https://github.com/" + siteOwner;
 const pathname = Astro.url.pathname;
 const section = pathname === base
@@ -374,192 +372,51 @@ const section = pathname === base
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#f4f1e9" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
     <title>{title === "홈" ? siteName : title + " · " + siteName}</title>
     <style is:global>
       :root {
-        --color-bg-canvas: #f4f1e9;
-        --color-bg-surface: #fffdf8;
-        --color-bg-subtle: #eae7dd;
-        --color-text-primary: #17201c;
-        --color-text-secondary: #59635e;
-        --color-border: #d6d7cf;
-        --color-border-strong: #89958e;
-        --color-accent: #176b4d;
-        --color-accent-soft: #dcece4;
-        --color-accent-hover: #0e4f38;
-        --color-focus: #005fcc;
-        --shadow-card: 0 1rem 2.5rem rgba(34, 48, 41, 0.08);
-        --font-sans: Inter, Pretendard, system-ui, -apple-system, sans-serif;
+        --color-bg-canvas: #f6f7f9;
+        --color-bg-surface: #ffffff;
+        --color-text-primary: #1c2230;
+        --color-text-secondary: #5b6475;
+        --color-border: #e3e6ec;
+        --color-border-strong: #d5dae3;
+        --color-accent: #2453c7;
+        --color-accent-hover: #1a3d96;
+        --color-focus: #2453c7;
+        --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-        --shell-max: 74rem;
+        --radius-control: 6px;
+        --radius-card: 8px;
+        --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+        --shell-max: 67.5rem;
         --reading-max: 45rem;
-        font-family: var(--font-sans);
+        --toc-width: 13.75rem;
         color: var(--color-text-primary);
-        background: var(--color-bg-canvas);
+        background: var(--color-bg-surface);
+        font-family: var(--font-sans);
       }
       * { box-sizing: border-box; }
-      html { overflow-wrap: anywhere; scroll-behavior: smooth; }
-      body {
-        min-width: 20rem;
-        margin: 0;
-        background:
-          radial-gradient(circle at 8% 0%, rgba(23, 107, 77, 0.09), transparent 26rem),
-          var(--color-bg-canvas);
-        line-height: 1.7;
-      }
-      ::selection { background: var(--color-accent-soft); color: var(--color-text-primary); }
+      html { overflow-wrap: anywhere; word-break: keep-all; }
+      body { min-width: 20rem; margin: 0; line-height: 1.6; }
       a { color: var(--color-accent); text-underline-offset: 0.2em; }
       a:hover { color: var(--color-accent-hover); }
       a:focus-visible, summary:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-      h1, h2, h3, h4 { line-height: 1.2; text-wrap: balance; }
-      h1 { font-size: clamp(2rem, 5vw, 3.25rem); }
-      h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
-      img { max-width: 100%; height: auto; }
-      code, pre { font-family: var(--font-mono); }
-      pre { max-width: 100%; overflow-x: auto; padding: 1rem; border-radius: 0.375rem; background: var(--color-bg-subtle); }
-      blockquote { margin-inline: 0; padding-inline-start: 1rem; border-inline-start: 0.25rem solid var(--color-border-strong); }
-      .skip-link { position: fixed; z-index: 10; inset: 0 auto auto 0; padding: 0.75rem 1rem; transform: translateY(-120%); background: var(--color-text-primary); color: white; }
+      h1, h2, h3, h4 { line-height: 1.3; }
+      .skip-link { position: fixed; z-index: 10; inset: 0 auto auto 0; padding: 0.75rem 1rem; transform: translateY(-120%); background: var(--color-text-primary); color: #ffffff; }
       .skip-link:focus { transform: translateY(0); }
-      .site-header { position: sticky; z-index: 5; top: 0; border-bottom: 1px solid rgba(137, 149, 142, 0.35); background: rgba(244, 241, 233, 0.92); backdrop-filter: blur(14px); }
-      .site-header-inner, main, .site-footer-inner { width: min(var(--shell-max), calc(100% - 2.5rem)); margin-inline: auto; }
-      .site-header-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; min-height: 4.75rem; }
-      .site-brand { display: inline-flex; align-items: center; gap: 0.7rem; color: var(--color-text-primary); font-weight: 800; letter-spacing: -0.02em; text-decoration: none; }
-      .brand-mark { display: grid; width: 2.15rem; height: 2.15rem; place-items: center; border-radius: 0.65rem; background: var(--color-text-primary); color: var(--color-bg-surface); font-size: 0.85rem; letter-spacing: 0; }
-      .brand-copy { display: grid; line-height: 1.1; }
-      .brand-copy small { margin-block-start: 0.25rem; color: var(--color-text-secondary); font-size: 0.65rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; }
-      .site-nav ul, .tag-list, .breadcrumbs ol, .category-list { display: flex; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
-      .site-nav ul { gap: 0.2rem; }
-      .site-nav a { display: inline-flex; min-height: 2.75rem; align-items: center; padding: 0.5rem 0.75rem; border-radius: 999px; color: var(--color-text-secondary); font-size: 0.925rem; font-weight: 700; text-decoration: none; }
-      .site-nav a:hover, .site-nav a[aria-current="page"] { background: var(--color-accent-soft); color: var(--color-accent-hover); }
-      main { min-height: 70vh; padding-block: clamp(2.5rem, 7vw, 5rem) 6rem; }
-      .site-footer { border-top: 1px solid var(--color-border); color: var(--color-text-secondary); }
-      .site-footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.5rem; padding-block: 2rem; font-size: 0.875rem; }
-      .muted { color: var(--color-text-secondary); }
-      .eyebrow { margin: 0 0 1rem; color: var(--color-accent); font-size: 0.75rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
-      .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; margin-block-end: clamp(4rem, 9vw, 7rem); }
-      .hero h1 { max-width: 14ch; margin: 0; font-size: clamp(2.65rem, 8vw, 5.75rem); letter-spacing: -0.065em; line-height: 0.98; }
-      .hero h1 span { color: var(--color-accent); }
-      .hero-copy { max-width: 34rem; }
-      .hero-copy > p { margin-block: 0 1.5rem; color: var(--color-text-secondary); font-size: clamp(1.05rem, 2vw, 1.2rem); }
-      .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-      .button-link { display: inline-flex; min-height: 2.85rem; align-items: center; justify-content: center; padding: 0.6rem 1rem; border: 1px solid var(--color-text-primary); border-radius: 999px; background: var(--color-text-primary); color: var(--color-bg-surface); font-weight: 750; text-decoration: none; }
-      .button-link:hover { background: var(--color-accent-hover); color: white; }
-      .button-link.secondary { border-color: var(--color-border-strong); background: transparent; color: var(--color-text-primary); }
-      .button-link.secondary:hover { border-color: var(--color-accent); background: var(--color-accent-soft); color: var(--color-accent-hover); }
-      .hero-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 1.5rem 0 0; }
-      .hero-stats div { padding: 1.1rem; border: 1px solid var(--color-border); border-radius: 1rem; background: rgba(255, 253, 248, 0.72); }
-      .hero-stats dt { color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-      .hero-stats dd { margin: 0.2rem 0 0; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.04em; }
-      .section-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin-block-end: 1.5rem; }
-      .section-heading h2 { margin: 0; }
-      .section-heading > a { font-weight: 700; }
-      .post-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr)); gap: 1rem; }
-      .post-list { display: grid; gap: 1rem; }
-      .post-card { display: flex; min-width: 0; min-height: 17rem; flex-direction: column; padding: 1.5rem; border: 1px solid var(--color-border); border-radius: 1.1rem; background: var(--color-bg-surface); transition: transform 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1); }
-      .post-card:focus-within, .post-card:hover { transform: translateY(-0.2rem); border-color: var(--color-border-strong); box-shadow: var(--shadow-card); }
-      .post-card-kicker { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; color: var(--color-text-secondary); font-size: 0.78rem; }
-      .post-card h2, .post-card h3 { margin-block: 1.25rem 0.65rem; font-size: clamp(1.3rem, 2.4vw, 1.6rem); letter-spacing: -0.025em; }
-      .post-card-title { color: var(--color-text-primary); text-decoration: none; }
-      .post-card-title:hover { color: var(--color-accent-hover); }
-      .post-card-description { display: -webkit-box; overflow: hidden; margin-block: 0 1rem; color: var(--color-text-secondary); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-      .post-card-meta { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.75rem 1rem; margin-block-start: auto; color: var(--color-text-secondary); font-size: 0.85rem; }
-      .post-card-read { margin-inline-start: auto; font-weight: 800; text-decoration: none; white-space: nowrap; }
-      .category-link { display: inline-flex; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--color-accent-soft); font-size: 0.78rem; font-weight: 800; text-decoration: none; }
-      .tag-list { gap: 0.35rem 0.75rem; }
-      .tag-list li { white-space: nowrap; }
-      .category-section { margin-block-start: 4rem; }
-      .category-list { gap: 0.75rem; }
-      .category-list a { display: inline-flex; min-height: 2.75rem; align-items: center; gap: 0.4rem; padding: 0.55rem 0.95rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg-surface); font-weight: 700; text-decoration: none; }
-      .category-list a[aria-current="page"] { border-color: var(--color-accent); background: var(--color-bg-subtle); font-weight: 700; }
-      .breadcrumbs { margin-block-end: 2rem; color: var(--color-text-secondary); font-size: 0.875rem; }
-      .breadcrumbs ol { gap: 0.4rem; }
-      .breadcrumbs li { display: flex; gap: 0.4rem; }
-      .page-intro { max-width: var(--reading-max); margin-block-end: 2rem; }
-      .page-intro h1 { margin-block-end: 0.5rem; }
-      .empty-state { max-width: var(--reading-max); padding: 1.5rem; border: 1px solid var(--color-border); border-radius: 0.75rem; background: var(--color-bg-surface); }
-      .empty-state h2 { margin-block-start: 0; }
-      .post-header { width: min(100%, var(--reading-max)); margin-inline: auto; }
-      .post-header { margin-block-end: 2.5rem; }
-      .post-header h1 { margin-block: 0.5rem; }
-      .post-description { font-size: 1.125rem; color: var(--color-text-secondary); }
-      .post-meta { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; color: var(--color-text-secondary); }
-      .post-header .tag-list { margin-block-start: 1rem; }
-      .article-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; width: min(100%, 62rem); margin-inline: auto; }
-      .article-main, .post-body, .post-navigation { min-width: 0; width: min(100%, var(--reading-max)); margin-inline: auto; }
-      .post-toc { padding: 1.25rem 1.5rem; border: 1px solid var(--color-border); border-radius: 0.9rem; background: rgba(255, 253, 248, 0.8); }
-      .post-toc h2 { margin-block-start: 0; font-size: 1.25rem; }
-      .post-toc ol { margin-block-end: 0; padding-inline-start: 1.2rem; }
-      .post-toc a { color: var(--color-text-secondary); text-decoration: none; }
-      .post-toc a:hover { color: var(--color-accent-hover); text-decoration: underline; }
-      .post-body { font-size: 1.125rem; line-height: 1.75; }
-      .post-body > :first-child { margin-block-start: 0; }
-      .post-body p, .post-body ul, .post-body ol { margin-block: 0.7rem; }
-      .post-body ul, .post-body ol { padding-inline-start: 1.75rem; }
-      .post-body li + li { margin-block-start: 0.3rem; }
-      .post-body a { text-decoration: underline; }
-      .post-body h2, .post-body h3, .post-body h4 { line-height: 1.3; text-wrap: balance; }
-      .post-body h2 { margin-block: 3rem 0.9rem; font-size: clamp(1.55rem, 3vw, 1.9rem); }
-      .post-body h3 { margin-block: 2.25rem 0.8rem; font-size: clamp(1.3rem, 2.5vw, 1.55rem); }
-      .post-body h4 { margin-block: 1.75rem 0.7rem; font-size: clamp(1.18rem, 2vw, 1.3rem); }
-      .post-body img { display: block; margin: 1.5rem auto; border-radius: 0.375rem; }
-      .post-body input[type="checkbox"] { width: 1rem; height: 1rem; margin-inline: 0 0.55rem; accent-color: var(--color-accent); }
-      .post-body .notion-table-wrap { max-width: 100%; margin-block: 1.5rem; overflow-x: auto; }
-      .post-body table { width: 100%; min-width: 28rem; border-spacing: 0; border-collapse: collapse; font-size: 1rem; }
-      .post-body th, .post-body td { padding: 0.65rem 0.8rem; text-align: start; vertical-align: top; border: 1px solid var(--color-border); }
-      .post-body th { background: var(--color-bg-subtle); font-weight: 700; }
-      .post-body .notion-equation { max-width: 100%; margin-block: 1.25rem; padding: 0.9rem 1rem; overflow-x: auto; border: 1px solid var(--color-border); border-radius: 0.375rem; background: var(--color-bg-surface); text-align: center; }
-      .post-body .notion-resource-card { display: grid; gap: 0.2rem; margin-block: 0.85rem; padding: 0.85rem 1rem; border: 1px solid var(--color-border); border-radius: 0.375rem; background: var(--color-bg-surface); color: var(--color-text-primary); text-decoration: none; }
-      .post-body a.notion-resource-card:hover { border-color: var(--color-border-strong); }
-      .post-body .notion-resource-label { color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-      .post-body details { margin-block: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--color-border); border-radius: 0.375rem; }
-      .post-body summary { min-height: 2.75rem; cursor: pointer; font-weight: 700; }
-      .post-navigation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-block-start: 4rem; padding-block-start: 1.5rem; border-top: 1px solid var(--color-border); }
-      .post-navigation a { padding-block: 0.75rem; }
-      .post-navigation .next { text-align: end; }
-      .home-link { width: min(100%, var(--reading-max)); margin: 2rem auto 0; }
-      @media (min-width: 37.5rem) {
-        .site-header-inner, main, .site-footer-inner { width: min(var(--shell-max), calc(100% - 4rem)); }
-      }
-      @media (min-width: 52rem) {
-        .hero { grid-template-columns: minmax(0, 1.45fr) minmax(15rem, 0.55fr); align-items: end; }
-        .hero-copy { align-self: end; }
-      }
-      @media (min-width: 64rem) {
-        .article-layout:not(.without-toc) { grid-template-columns: 14rem minmax(0, var(--reading-max)); align-items: start; }
-        .article-layout.without-toc { grid-template-columns: minmax(0, var(--reading-max)); justify-content: center; }
-        .post-toc { position: sticky; top: 6.25rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
-      }
-      @media (max-width: 31.25rem) {
-        .site-header { position: static; }
-        .site-header-inner { align-items: flex-start; flex-direction: column; padding-block: 0.9rem; }
-        .site-nav { width: 100%; }
-        .site-nav ul { justify-content: space-between; }
-        .site-nav a { padding-inline: 0.55rem; font-size: 0.85rem; }
-        .hero h1 { font-size: clamp(2.5rem, 14vw, 3.6rem); }
-        .post-navigation { grid-template-columns: 1fr; }
-        .post-navigation .next { text-align: start; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
-      }
-      @media (prefers-contrast: more) {
-        .post-card, .category-list a, .post-toc, .empty-state { border-color: var(--color-text-primary); }
-      }
+${BLOG_CSS}
     </style>
   </head>
   <body>
     <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
     <header class="site-header">
       <div class="site-header-inner">
-        <a class="site-brand" href={base} aria-label={siteName + " 홈"}>
-          <span class="brand-mark" aria-hidden="true">{brandMark}</span>
-          <span class="brand-copy">{siteName}<small>Developer notes</small></span>
-        </a>
+        <a class="site-brand" href={base} aria-current={section === "home" ? "page" : undefined}>{siteName}</a>
         <nav class="site-nav" aria-label="주요 탐색">
           <ul>
-            <li><a href={base} aria-current={section === "home" ? "page" : undefined}>홈</a></li>
             <li><a href={pathFor("posts/")} aria-current={section === "posts" ? "page" : undefined}>전체 글</a></li>
             <li><a href={pathFor("categories/")} aria-current={section === "categories" ? "page" : undefined}>주제</a></li>
             <li><a href={githubUrl} rel="me">GitHub</a></li>
@@ -567,11 +424,11 @@ const section = pathname === base
         </nav>
       </div>
     </header>
-    <main id="main-content"><slot /></main>
+    <main class="site-main" id="main-content"><slot /></main>
     <footer class="site-footer">
       <div class="site-footer-inner">
         <span>© {new Date().getUTCFullYear()} {siteOwner}</span>
-        <span>Notion에서 쓰고 Astro로 빌드합니다.</span>
+        <span>GitHub Pages로 게시됨</span>
       </div>
     </footer>
   </body>
@@ -589,22 +446,13 @@ const categories = categoriesFor(posts);
 const siteOwner = ${JSON.stringify(owner)};
 ---
 <BaseLayout title="홈">
-  <section class="hero">
-    <div>
-      <p class="eyebrow">{siteOwner} · Developer journal</p>
-      <h1>배운 것을 기록하고, <span>만든 것을 나눕니다.</span></h1>
-    </div>
-    <div class="hero-copy">
-      <p>개발하면서 마주친 문제와 해결 과정, 오래 기억하고 싶은 배움을 차분히 쌓아갑니다.</p>
-      <div class="hero-actions">
-        <a class="button-link" href={pathFor("posts/")}>글 둘러보기</a>
-        <a class="button-link secondary" href={pathFor("categories/")}>주제로 찾기</a>
-      </div>
-      <dl class="hero-stats" aria-label="블로그 통계">
-        <div><dt>Posts</dt><dd>{posts.length}</dd></div>
-        <div><dt>Topics</dt><dd>{categories.length}</dd></div>
-      </dl>
-    </div>
+  <section class="hero" aria-labelledby="site-title">
+    <h1 id="site-title">{siteOwner}.log</h1>
+    <p>Notion에서 쓰고 GitHub Pages에 쌓아 가는 개발 기록입니다.</p>
+    <dl class="hero-stats" aria-label="블로그 통계">
+      <div><dt>글</dt><dd>{posts.length}</dd></div>
+      <div><dt>주제</dt><dd>{categories.length}</dd></div>
+    </dl>
   </section>
   {posts.length === 0 ? (
     <section class="empty-state" aria-labelledby="empty-title">
@@ -622,17 +470,16 @@ const siteOwner = ${JSON.stringify(owner)};
           {latestPosts.map((post) => <PostCard headingLevel="h3" post={post} />)}
         </div>
       </section>
-      <section class="category-section" aria-labelledby="categories-title">
+      <section aria-labelledby="categories-title">
         <div class="section-heading">
           <h2 id="categories-title">주제</h2>
-          <a href={pathFor("categories/")}>모든 주제 보기</a>
         </div>
         <ul class="category-list">
           {categories.map((category) => (
             <li>
               <a href={pathFor("categories/" + category.slug + "/")}>
                 <span>{category.name}</span>
-                <span class="muted">글 {category.count}개</span>
+                <span class="muted">{category.count}</span>
               </a>
             </li>
           ))}
@@ -654,7 +501,6 @@ const posts = sortPosts(await getCollection("blog"));
 <BaseLayout description="게시된 모든 글을 최신순으로 봅니다." title="전체 글">
   <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "전체 글" }]} />
   <header class="page-intro">
-    <p class="eyebrow">Archive</p>
     <h1>전체 글</h1>
     <p class="muted">글 {posts.length}개 · 최신순</p>
   </header>
@@ -679,9 +525,8 @@ const categories = categoriesFor(await getCollection("blog"));
 <BaseLayout description="게시된 글을 주제별로 찾아봅니다." title="주제">
   <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "주제" }]} />
   <header class="page-intro">
-    <p class="eyebrow">Topics</p>
     <h1>주제</h1>
-    <p class="muted">큰 주제별로 글을 둘러보세요.</p>
+    <p class="muted">주제 {categories.length}개</p>
   </header>
   {categories.length === 0 ? (
     <section class="empty-state" aria-labelledby="empty-title">
@@ -694,7 +539,7 @@ const categories = categoriesFor(await getCollection("blog"));
         <li>
           <a href={pathFor("categories/" + category.slug + "/")}>
             <span>{category.name}</span>
-            <span class="muted">글 {category.count}개</span>
+            <span class="muted">{category.count}</span>
           </a>
         </li>
       ))}
@@ -722,7 +567,6 @@ const { categories, category } = Astro.props;
 <BaseLayout description={category.name + " 카테고리의 글입니다."} title={category.name}>
   <Breadcrumbs items={[{ href: base, label: "홈" }, { href: pathFor("categories/"), label: "주제" }, { label: category.name }]} />
   <header class="page-intro">
-    <p class="eyebrow">Topic</p>
     <h1>{category.name}</h1>
     <p class="muted">글 {category.count}개</p>
   </header>
@@ -737,8 +581,9 @@ const { categories, category } = Astro.props;
       ))}
     </ul>
   </nav>
-  <div class="post-list category-section">
-    {category.posts.map((post) => <PostCard post={post} />)}
+  <div class="section-heading"><h2>글</h2></div>
+  <div class="post-list">
+    {category.posts.map((post) => <PostCard headingLevel="h3" post={post} />)}
   </div>
 </BaseLayout>
 `,
@@ -770,7 +615,7 @@ const nextPost = currentIndex < categoryPosts.length - 1 ? categoryPosts[current
     { href: pathFor("categories/" + post.data.categorySlug + "/"), label: post.data.category },
     { label: post.data.title },
   ]} />
-  <article>
+  <article class:list={["article-layout", sectionHeadings.length >= 3 ? "with-toc" : "without-toc"]}>
     <header class="post-header">
       <a class="category-link" href={pathFor("categories/" + post.data.categorySlug + "/")}>{post.data.category}</a>
       <h1>{post.data.title}</h1>
@@ -787,23 +632,21 @@ const nextPost = currentIndex < categoryPosts.length - 1 ? categoryPosts[current
         </ul>
       )}
     </header>
-    <div class:list={["article-layout", sectionHeadings.length >= 3 ? "with-toc" : "without-toc"]}>
-      {sectionHeadings.length >= 3 && (
-        <nav class="post-toc" aria-labelledby="toc-title">
-          <h2 id="toc-title">목차</h2>
-          <ol>{sectionHeadings.map((heading) => <li><a href={"#" + heading.slug}>{heading.text}</a></li>)}</ol>
+    {sectionHeadings.length >= 3 && (
+      <nav class="post-toc" aria-labelledby="toc-title">
+        <h2 id="toc-title">목차</h2>
+        <ol>{sectionHeadings.map((heading) => <li><a href={"#" + heading.slug}>{heading.text}</a></li>)}</ol>
+      </nav>
+    )}
+    <div class="article-main">
+      <div class="post-body"><Content /></div>
+      {(previousPost !== undefined || nextPost !== undefined) && (
+        <nav class="post-navigation" aria-label="같은 카테고리의 이전 및 다음 글">
+          <div>{previousPost && <a href={pathFor("posts/" + previousPost.id + "/")}><small>← 이전 글</small>{previousPost.data.title}</a>}</div>
+          <div class="next">{nextPost && <a href={pathFor("posts/" + nextPost.id + "/")}><small>다음 글 →</small>{nextPost.data.title}</a>}</div>
         </nav>
       )}
-      <div class="article-main">
-        <div class="post-body"><Content /></div>
-        {(previousPost !== undefined || nextPost !== undefined) && (
-          <nav class="post-navigation" aria-label="같은 카테고리의 이전 및 다음 글">
-            <div>{previousPost && <a href={pathFor("posts/" + previousPost.id + "/")}>← 이전 글<br /><strong>{previousPost.data.title}</strong></a>}</div>
-            <div class="next">{nextPost && <a href={pathFor("posts/" + nextPost.id + "/")}>다음 글 →<br /><strong>{nextPost.data.title}</strong></a>}</div>
-          </nav>
-        )}
-        <p class="home-link"><a href={base}>홈으로</a></p>
-      </div>
+      <p class="home-link"><a href={base}>홈으로</a></p>
     </div>
   </article>
 </BaseLayout>
@@ -822,8 +665,8 @@ const latestPosts = sortPosts(await getCollection("blog")).slice(0, 3);
     <p><a href={base}>홈으로 돌아가기</a></p>
   </section>
   {latestPosts.length > 0 && (
-    <section class="category-section" aria-labelledby="latest-title">
-      <h2 id="latest-title">최신 글</h2>
+    <section aria-labelledby="latest-title">
+      <div class="section-heading"><h2 id="latest-title">최신 글</h2></div>
       <ul>
         {latestPosts.map((post) => <li><a href={pathFor("posts/" + post.id + "/")}>{post.data.title}</a></li>)}
       </ul>

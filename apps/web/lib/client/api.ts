@@ -3,6 +3,8 @@
 import type { NotionOutlineNode } from "@notion-kanban-blog/notion";
 import { z } from "zod";
 
+import { parsePublishPreviewResponse, type PublishPreviewResponse } from "../publish/preview";
+
 
 /** 실패한 API 호출. `code`는 서버 오류 code, `retryAt`은 429 등에서 다시 시도해도 되는 시각. */
 export class ApiError extends Error {
@@ -115,6 +117,25 @@ export async function requestPublish(connectionId: string, providerPageId: strin
     method: "POST",
   });
   return parse(publishResultSchema, await readJson(response), "invalid_publish_response");
+}
+
+/** 게시 전 프리뷰. 서버 응답을 zod로 다시 검증한다. */
+export async function fetchPublishPreview(
+  connectionId: string,
+  providerPageId: string,
+  signal: AbortSignal,
+): Promise<PublishPreviewResponse> {
+  const response = await fetch("/api/publish/preview", {
+    body: JSON.stringify({ connectionId, providerPageId }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+    signal,
+  });
+  const preview = parsePublishPreviewResponse(await readJson(response));
+  if (preview === null) {
+    throw new ApiError("invalid_preview_response");
+  }
+  return preview;
 }
 
 export async function fetchPublishStatus(commitSha: string, githubLogin: string): Promise<PublishStatus> {

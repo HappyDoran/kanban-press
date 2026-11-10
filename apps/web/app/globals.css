@@ -767,19 +767,9 @@ button:disabled {
   color: var(--color-danger);
 }
 
-/* 프리뷰 dialog 머리말의 작은 구분 문구 */
-.eyebrow {
-  margin: 0;
-  color: var(--color-accent);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 /* ── 게시 전 프리뷰 ─────────────────────────────────────────── */
 .previewDialog {
-  width: min(90vw, 90rem);
+  width: min(92vw, 90rem);
   max-width: none;
   max-height: 92dvh;
   padding: 0;
@@ -792,7 +782,7 @@ button:disabled {
 }
 
 .previewDialog::backdrop {
-  background: rgba(28, 34, 48, 0.62);
+  background: rgb(28 34 48 / 55%);
 }
 
 .previewDialogHeader {
@@ -800,63 +790,60 @@ button:disabled {
   position: sticky;
   z-index: 2;
   top: 0;
-  padding: 1.15rem 1.5rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  background: color-mix(in srgb, var(--color-bg-canvas) 94%, transparent);
-  border-bottom: 1px solid var(--color-border-strong);
-  backdrop-filter: blur(0.8rem);
-}
-
-.previewDialogHeader .eyebrow {
-  margin: 0 0 0.3rem;
-}
-
-.previewDialogHeader h2 {
-  font-size: clamp(1.25rem, 3vw, 1.75rem);
-}
-
-.previewCloseButton,
-.previewError button,
-.previewSegmented button {
-  min-height: 2.6rem;
-  padding: 0.45rem 0.75rem;
-  color: var(--color-text-primary);
+  padding: 0.75rem 1.5rem;
   background: var(--color-bg-surface);
-  font: inherit;
-  font-size: 0.74rem;
-  font-weight: 700;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
 }
 
-.previewNotice,
-.previewPublishHint {
-  padding: 0.85rem 1.5rem;
+.previewTitle {
+  min-width: 0;
   margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.previewTitle span {
+  margin-right: 0.5rem;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.previewNotice {
+  margin: 0;
+  padding: 0.625rem 1.5rem;
   color: var(--color-text-secondary);
   background: var(--color-bg-selected);
-  font-size: 0.78rem;
-  line-height: 1.6;
+  font-size: 0.8125rem;
 }
 
-.previewPublishHint {
+.previewNotice:last-child {
   background: var(--color-bg-surface);
-  border-top: 1px solid var(--color-border-strong);
+  border-top: 1px solid var(--color-border);
 }
 
-.previewLoading,
-.previewError {
+.previewStatus {
   display: grid;
   min-height: 28rem;
   padding: 2rem;
   align-content: center;
   justify-items: center;
-  gap: 0.8rem;
+  gap: 0.75rem;
   color: var(--color-text-secondary);
   text-align: center;
+}
+
+.previewStatus.error strong {
+  color: var(--color-danger);
+}
+
+.previewStatus p {
+  max-width: 32rem;
+  margin: 0;
 }
 
 .previewSkeleton {
@@ -874,74 +861,80 @@ button:disabled {
   }
 }
 
-.previewError strong {
-  color: var(--color-danger);
-  font-size: 1rem;
-}
-
-.previewError p {
-  max-width: 32rem;
-  margin: 0;
-  line-height: 1.7;
-}
-
 .previewReady {
-  padding: 1.25rem 1.5rem 2rem;
+  padding: 1rem 1.5rem 1.5rem;
 }
 
 .previewWarnings {
-  padding: 0.9rem 1rem;
   margin-bottom: 1rem;
-  color: var(--color-text-primary);
+  padding: 0.75rem 1rem;
   background: var(--color-warning-bg);
-  font-size: 0.78rem;
-  border: 1px solid color-mix(in srgb, var(--color-text-primary) 25%, transparent);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-control);
+  font-size: 0.8125rem;
 }
 
 .previewWarnings ul {
-  margin: 0.4rem 0 0;
-  padding-left: 1.2rem;
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
 }
 
 .previewToolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.previewSegmented {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.previewSegmented button[aria-pressed="true"] {
-  color: #fff;
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
 }
 
 .previewFreshness {
-  margin: 0.9rem 0;
+  margin: 0 0 0 auto;
   color: var(--color-text-secondary);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
-  text-align: center;
+  font-size: 0.75rem;
 }
 
+/* 버튼 묶음 중 하나를 고르는 전환 버튼 */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--color-bg-column);
+  border-radius: var(--radius-control);
+}
+
+.segmented button {
+  min-height: 2.25rem;
+  padding: 0 0.75rem;
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  color: var(--color-text-primary);
+  background: var(--color-bg-surface);
+  font-weight: 600;
+}
+
+/* 프레임 안은 블로그 CSS(BLOG_CSS)가 그린다. 여기서는 블로그 전용 크기 토큰과 기본 글자만 맞춘다. */
 .previewFrame {
+  --shell-max: 67.5rem;
+  --reading-max: 45rem;
+  --toc-width: 13.75rem;
   width: 100%;
   margin: 0 auto;
   overflow: hidden;
-  color: #211f1b;
-  background: #f7f4ee;
-  font-family: Inter, Pretendard, system-ui, sans-serif;
+  background: var(--color-bg-surface);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-card);
-  transition: max-width 200ms ease;
+  font-size: 1rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 
 .previewFrame.mobile {
@@ -956,284 +949,42 @@ button:disabled {
   max-width: 80rem;
 }
 
-.previewSiteHeader {
-  padding: 1rem clamp(1.25rem, 4vw, 3rem);
-  font-weight: 700;
-  border-bottom: 1px solid #d9d2c6;
-}
-
-.previewPost,
-.previewHome {
-  width: min(100% - 2.5rem, 45rem);
-  padding: clamp(2rem, 7vw, 4rem) 0;
-  margin: 0 auto;
-  line-height: 1.75;
-  overflow-wrap: anywhere;
-}
-
-.previewBreadcrumb,
-.previewCategory,
-.previewMetadata,
-.previewPath {
-  color: #625c53;
-  font-size: 0.78rem;
-}
-
-.previewCategory {
-  margin-top: 2rem;
-  color: #315c47;
-  font-weight: 700;
-}
-
-.previewPost > h3,
-.previewHome > h3 {
-  margin: 0.5rem 0;
-  font-size: clamp(1.8rem, 6vw, 3rem);
-  line-height: 1.2;
-}
-
-.previewDescription {
-  color: #625c53;
-  font-size: 1.05rem;
-}
-
-.previewTags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.85rem;
-  padding: 0;
-  list-style: none;
-  color: #315c47;
-  font-size: 0.8rem;
-}
-
-.previewPath {
-  padding: 0.55rem 0.7rem;
-  background: #efe9de;
-  font-family: var(--font-mono);
-  border-radius: var(--radius-control);
-}
-
-.previewBody {
-  margin-top: 2.5rem;
-  font-size: 1.05rem;
-  line-height: 1.7;
-}
-
-.previewBody > :first-child {
-  margin-top: 0;
-}
-
-.previewBody p,
-.previewBody ul,
-.previewBody ol {
-  margin-block: 0.65rem;
-}
-
-.previewBody ul,
-.previewBody ol {
-  padding-inline-start: 1.6rem;
-}
-
-.previewBody li + li {
-  margin-top: 0.25rem;
-}
-
-.previewNotionHeading {
+.previewFrame :is(h1, h2, h3, h4) {
   line-height: 1.3;
-  text-wrap: balance;
 }
 
-.previewNotionHeading1 {
-  margin-block: 2.5rem 0.8rem;
-  font-size: clamp(1.55rem, 3vw, 1.9rem);
+.previewFrame .site-main {
+  min-height: 0;
 }
 
-.previewNotionHeading2 {
-  margin-block: 2rem 0.7rem;
-  font-size: clamp(1.3rem, 2.5vw, 1.55rem);
+/* 블로그 CSS는 화면 폭으로 목차 위치를 정한다. 좁은 프레임에서는 실제 화면 폭과 무관하게 목차를 본문 위에 둔다. */
+.previewFrame:not(.desktop) .article-layout.with-toc {
+  grid-template-columns: minmax(0, var(--reading-max));
 }
 
-.previewNotionHeading3 {
-  margin-block: 1.6rem 0.6rem;
-  font-size: clamp(1.18rem, 2vw, 1.3rem);
+.previewFrame:not(.desktop) .article-layout.with-toc > * {
+  position: static;
+  grid-column: auto;
+  grid-row: auto;
+  max-height: none;
 }
 
-.previewBody a {
-  color: #315c47;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.previewBody pre {
-  max-width: 100%;
-  padding: 1rem;
-  overflow-x: auto;
-  background: #efe9de;
-  border-radius: var(--radius-control);
-}
-
-.previewBody blockquote {
-  padding-left: 1rem;
-  margin-left: 0;
-  border-left: 0.25rem solid #9b9285;
-}
-
-.previewBody details {
-  padding: 0.75rem 1rem;
-  border: 1px solid #d9d2c6;
-  border-radius: var(--radius-control);
-}
-
-.previewBody summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.previewCallout {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 1rem;
-  margin-block: 1rem;
-  background: #efe9de;
-  border-radius: var(--radius-control);
-}
-
-.previewCallout p {
-  margin: 0;
-}
-
-.previewCalloutIcon {
-  line-height: 1.7;
-}
-
-.previewToDo {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.6rem;
-  align-items: start;
-  margin-block: 0.4rem;
-}
-
-.previewToDo input {
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.35rem;
-  accent-color: #315c47;
-}
-
-.previewTableWrap {
-  max-width: 100%;
-  margin-block: 1.25rem;
-  overflow-x: auto;
-}
-
-.previewTableWrap table {
-  width: 100%;
-  min-width: 28rem;
-  border-spacing: 0;
-  border-collapse: collapse;
-}
-
-.previewTableWrap th,
-.previewTableWrap td {
-  padding: 0.6rem 0.75rem;
-  text-align: left;
-  vertical-align: top;
-  border: 1px solid #d9d2c6;
-}
-
-.previewTableWrap th {
-  background: #efe9de;
-  font-weight: 700;
-}
-
-.previewEquation {
-  max-width: 100%;
-  padding: 0.85rem 1rem;
-  margin-block: 1rem;
-  overflow-x: auto;
-  background: #f7f4ee;
-  border: 1px solid #d9d2c6;
-  border-radius: var(--radius-control);
-  text-align: center;
-}
-
-.previewResourceCard {
-  display: grid;
-  gap: 0.2rem;
-  padding: 0.8rem 1rem;
-  margin-block: 0.75rem;
-  color: #211f1b;
-  background: #fffcf7;
-  border: 1px solid #d9d2c6;
-  border-radius: var(--radius-control);
-  text-decoration: none !important;
-}
-
-.previewResourceCard:hover {
-  border-color: #9b9285;
-}
-
-.previewResourceLabel {
-  color: #625c53;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.previewImagePlaceholder {
-  margin: 1.5rem 0;
+.previewFrame:not(.desktop) .article-layout.with-toc > .post-toc {
+  margin-bottom: 2rem;
 }
 
 .previewImagePlaceholder > div {
   display: grid;
   min-height: 10rem;
-  padding: 1rem;
-  color: #625c53;
-  background: #efe9de;
-  text-align: center;
-  border: 1px dashed #9b9285;
-  border-radius: var(--radius-control);
   place-items: center;
+  padding: 1rem;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-canvas);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-control);
+  font-size: 0.875rem;
 }
 
-.previewImagePlaceholder figcaption {
-  margin-top: 0.45rem;
-  color: #625c53;
-  font-size: 0.78rem;
-  text-align: center;
-}
-
-.previewHome > p {
-  color: #625c53;
-}
-
-.previewHome > h4 {
-  margin-top: 3rem;
-}
-
-.previewHomeCard {
-  padding: 1.25rem;
-  background: #fffcf7;
-  border: 1px solid #d9d2c6;
-  border-radius: 0.75rem;
-}
-
-.previewHomeCard > span,
-.previewHomeCard time {
-  color: #315c47;
-  font-size: 0.78rem;
-}
-
-.previewHomeCard h5 {
-  margin: 0.5rem 0;
-  font-size: 1.25rem;
-}
-
-
-/* ── 반응형(디자인 기획 6.4) ────────────────────────────────── */
 @media (max-width: 56.1875rem) {
   .workbench {
     align-content: flex-start;
@@ -1306,7 +1057,6 @@ button:disabled {
 
   .previewDialogHeader,
   .previewNotice,
-  .previewPublishHint,
   .previewReady {
     padding-right: 1rem;
     padding-left: 1rem;

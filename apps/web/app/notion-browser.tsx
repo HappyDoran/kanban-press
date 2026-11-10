@@ -187,6 +187,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
         <PublishPreviewDialog
           key={`${previewTarget.connectionId}:${previewTarget.providerPageId}`}
           onClose={() => setPreviewTarget(null)}
+          siteOwner={githubLogin}
           target={previewTarget}
         />
       )}

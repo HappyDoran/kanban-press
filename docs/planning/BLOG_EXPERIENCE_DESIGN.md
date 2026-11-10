@@ -256,7 +256,7 @@ Notion Kanban Blog의 게시 결과를 단순한 글 목록에서 **읽기 쉽�
 4. 설명
 5. 게시일과 수정일: 날짜가 다를 때만 수정일 노출
 6. 태그 목록
-7. 선택적 목차: h2가 3개 이상일 때 생성, 데스크톱도 본문 위에 배치
+7. 선택적 목차: h2가 3개 이상일 때 생성. 64rem 미만은 본문 위, 이상은 본문 왼쪽에 고정(2.3절)
 8. 본문
 9. 같은 카테고리 기준 이전/다음 글; 카테고리 없으면 전체 글 기준
 10. `홈으로` 링크
@@ -335,7 +335,7 @@ A 작업대형 기준값이다(2026-11-10). 게시 앱 `apps/web/app/globals.css
 | `--font-sans` | 앱: `IBM Plex Sans KR`(`next/font`), 블로그: `system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif`(외부 글꼴 요청 없음) |
 | `--font-mono` | 앱: `IBM Plex Mono`, 블로그: `ui-monospace, SFMono-Regular, Menlo, monospace` |
 | `--text-xs/sm/base/lg` | `0.75 / 0.875 / 1 / 1.125rem` (앱 본문 0.875rem, 블로그 본문 1rem) |
-| 블로그 제목 | 글 h1 `clamp(1.75rem, 4vw, 2.125rem)`, Notion heading 1·2·3 = `1.5 / 1.25 / 1.125rem` |
+| 블로그 제목 | 글 h1 `clamp(1.75rem, 4vw, 2.125rem)`, Notion heading 1·2·3 = `clamp(1.55rem, 3vw, 1.9rem)` / `clamp(1.3rem, 2.5vw, 1.55rem)` / `clamp(1.18rem, 2vw, 1.3rem)` |
 | 본문 행간 | 블로그 `1.75`, 앱 `1.5` |
 | 제목 행간 | `1.3` |
 
@@ -369,7 +369,7 @@ serif 글꼴(`Gowun Batang` 등)은 쓰지 않는다.
 | `ViewportSwitcher` | 프리뷰 폭 점검 | segmented control, 선택 이름 제공 |
 | `Notice` | 프리뷰 비영속·경고 안내 | info/warning/error, 색 외 label |
 
-컴포넌트는 공개 블로그와 프리뷰에서 동일한 markup과 token을 공유해야 한다. 프리뷰 전용 chrome만 앱 UI로 분리한다.
+컴포넌트는 공개 블로그와 프리뷰에서 동일한 markup과 token을 공유해야 한다. 블로그 CSS는 `packages/publisher`의 `BLOG_CSS` 하나이며 template의 `BaseLayout`과 앱 프리뷰가 함께 쓴다. 프리뷰 전용 chrome(dialog, 화면·너비 전환)만 앱 UI로 분리한다. 프리뷰 안의 블로그 이동 링크는 href 없이 그려 앱을 벗어나지 않는다.
 
 ## 12. 빈 상태와 오류 상태
 
