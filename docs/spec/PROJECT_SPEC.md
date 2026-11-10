@@ -447,7 +447,10 @@ GitHub 반영은 기본 branch의 현재 commit/tree를 읽고 artifact별 blob�
 최초 commit을 만든 뒤 기본 branch ref를 생성한다.
 
 상태 조회는 현재 화면 메모리에 있는 commit SHA로 deploy workflow run과 Pages
-deployment를 조회한다.
+deployment를 조회한다. deploy workflow는 `concurrency`로 Pages 배포를 한 번에 하나만
+실행하므로 연달아 게시하면 기다리던 중간 배포가 취소된다. 그래서 commit의 배포가
+실패·취소됐어도 기본 branch의 최신 commit이 그 commit을 포함하면 최신 commit의 배포
+상태를 그 글의 상태로 본다.
 Pages 성공을 최우선으로 하고, Actions 실패 conclusion은 `failed`, 진행 상태는
 `queued` 또는 `in_progress`로 반환한다. workflow가 아직 생성되지 않은 짧은 구간은
 `queued`로 간주한다. 새로고침 이후에는 이전 실행을 복구하거나 polling하지 않는다.

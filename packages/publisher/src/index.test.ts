@@ -106,6 +106,14 @@ describe("createAstroTemplateManifest", () => {
     ).toContain('branches: ["release/\\"pages\\""]');
   });
 
+  it("serializes Pages deployments so back-to-back publishes do not collide", () => {
+    const workflow = readArtifact(
+      createAstroTemplateManifest({ defaultBranch: "main", owner: "owner", repository: "owner.github.io" }).artifacts,
+      ".github/workflows/deploy.yml",
+    );
+    expect(workflow).toContain("concurrency:\n  group: pages\n  cancel-in-progress: false");
+  });
+
   it("rejects names that could inject config or escape artifact paths", () => {
     expect(() =>
       createAstroTemplateManifest({

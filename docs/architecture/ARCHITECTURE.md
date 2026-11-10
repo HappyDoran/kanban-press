@@ -178,4 +178,6 @@ IndexedDB에 포함하지 않는다.
 - 같은 artifact로 만든 Git tree가 현재 tree와 같아도 새 commit을 만든다.
 - ref update 사이에 다른 변경이 생기면 force push하지 않고 게시 충돌로 반환한다.
 - GitHub Actions/Pages 상태는 GitHub가 source of truth다.
+- 생성하는 deploy workflow는 `concurrency: pages`로 Pages 배포를 직렬화한다. 기다리던 중간 배포가 취소되면
+  그 commit을 포함한 기본 branch 최신 commit의 배포 상태를 따른다.
 - 서버 재시작은 사용자 상태에 영향을 주지 않지만 쿠키 암호화 키는 안정적으로 유지해야 한다.
