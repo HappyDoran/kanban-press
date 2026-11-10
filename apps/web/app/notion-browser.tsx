@@ -522,7 +522,6 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
     const records = await repository.move(
       record.connectionId,
       record.providerPageId,
-      "stored",
       targetIndex,
     );
     setPublishViewStates((current) => {

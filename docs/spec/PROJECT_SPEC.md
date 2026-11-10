@@ -1,7 +1,7 @@
 ---
 title: 제품 명세
 kind: spec
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # 제품 명세
@@ -72,23 +72,23 @@ token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 �
 칸반 데이터베이스 이름은 `notion-kanban-blog.board.<GitHub numeric ID>` 형식으로
 사용자별 분리한다. record에도 동일한 owner ID를 저장해 이중으로 검증한다.
 현재 Dexie schema version은 12이며 compound primary key는
-`[ownerGitHubUserId+connectionId+providerPageId]`다. version 1에서 올라올 때와
-모든 read 전에 strict schema를 통과하지 못하거나 owner가 다른 record를 삭제한다.
+`[ownerGitHubUserId+connectionId+providerPageId]`다. 모든 read 전에 strict schema를
+통과하지 못하거나 owner가 다른 record를 삭제한다. version 11 이하 데이터베이스는
+migration하지 않고 열 때 비운다. 칸반은 다음 Notion 동기화로 다시 채워지며 이때
+이전 표시·숨김 선택은 사라진다(2026-11-10 사용자 결정).
 알 수 없는 필드는 거절하므로 credential 성격의 필드는 저장될 수 없다.
 최상위 page는 기본 표시하고 하위 page와 data source 행 page는 기본 숨김이다.
 `visibilityOverride`가 `shown` 또는 `hidden`이면 사용자의 선택이 기본값보다 우선한다.
 `isVisible=false`인 문서는 Notion 계층 목록에는 남아 있지만 칸반에서는 숨긴다.
 `pageRole`은 자동 구조 판별과 `pageRoleOverride`를 합성한 유효 역할이다.
 `pageRoleOverride=null`이면 탐색 가능한 하위 구조가 있는 page는 `container`, 없으면
-`document`가 된다. `pageRoleOverride`는 이전 버전의 수동 설정과 migration 호환을
-위해 내부적으로만 유지하며 사용자가 변경하는 UI는 제공하지 않는다.
+`document`가 된다. `pageRoleOverride`는 version 12 데이터에 남은 이전 수동 설정을
+읽기 위해서만 유지하며 사용자가 변경하는 UI와 API는 제공하지 않는다.
 `pageRole=container`인 page는 `Legacy`처럼 탐색 계층만 구성하며 칸반에 표시하거나
 게시 대상으로 사용할 수 없다. 컨테이너 전환은 column, position,
 `visibilityOverride`를 지우지 않는다. 다시 `document`가 되면 명시적 표시 선택 또는
 현재 계층의 기본 표시 규칙을 적용해 기존 칸반 상태를 복원한다.
-v11 record는 v12에서 `publishing`과 `published`를 `stored`로 합치고
-`publishCommitSha`, `publishContentHash`, `publishedUrl`을 제거한다. 이후 게시 상태와
-결과는 IndexedDB에 쓰지 않는다.
+게시 상태와 결과는 IndexedDB에 쓰지 않는다.
 
 ## 4. 상태 흐름
 

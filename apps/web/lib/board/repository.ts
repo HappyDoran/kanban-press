@@ -1,132 +1,59 @@
 "use client";
 
-import {
-  assertBoardTransition,
-  DomainInvariantError,
-} from "@notion-kanban-blog/domain";
-import Dexie from "dexie";
+// GitHub 사용자별 칸반 저장소(IndexedDB, Dexie). 게시 중·완료 상태는 화면 메모리에만 있고
+// 여기에는 보관 중(stored) 카드의 순서·표시 여부·구조 판별 캐시만 남는다(제품 명세 §3).
+import Dexie, { type DexieOptions, type Table } from "dexie";
 import { z } from "zod";
 
-import type {
-  BoardColumn,
-  BoardTransitionInitiator,
-} from "@notion-kanban-blog/domain";
-import type { DexieOptions, Table } from "dexie";
-
-const DATABASE_PREFIX = "notion-kanban-blog.board";
-const CURRENT_SCHEMA_VERSION = 12;
+const SCHEMA_VERSION = 12;
 const BOARD_STORE = "boardRecords";
-const LEGACY_BOARD_COLUMNS = [
-  "draft",
-  "review",
-  "ready",
-  "publishing",
-  "published",
-  "failed",
-] as const;
 
-const ownerGitHubUserIdSchema = z
-  .string()
-  .regex(/^[1-9]\d{0,19}$/, "GitHub user ID must be numeric");
+const ownerGitHubUserIdSchema = z.string().regex(/^[1-9]\d{0,19}$/, "GitHub user ID must be numeric");
 const providerIdSchema = z.string().trim().min(1).max(255);
 const isoDateSchema = z.iso.datetime({ offset: true });
-const httpsUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => new URL(value).protocol === "https:");
-const version11BoardRecordSchema = z
+
+// strict: 알 수 없는 field(예: token)가 섞인 record는 읽을 때 지워진다.
+export const boardRecordSchema = z
   .object({
-    column: z.enum(["stored", "publishing", "published"]),
+    column: z.literal("stored"),
     connectionId: providerIdSchema,
+    /** 탐색 가능한 하위 구조 여부. 아직 판별 전이면 `null`. */
     hasNavigableChildren: z.boolean().nullable(),
     isVisible: z.boolean(),
     ownerGitHubUserId: ownerGitHubUserIdSchema,
+    /** 유효 역할. container는 탐색 계층만 만들고 칸반·게시 대상이 아니다. */
     pageRole: z.enum(["container", "document"]),
+    /** 이전 버전의 수동 역할 설정. 새 UI에서는 바꾸지 않고 읽기만 한다. */
     pageRoleOverride: z.enum(["container", "document"]).nullable(),
     position: z.number().finite().nonnegative(),
-    publishCommitSha: z
-      .string()
-      .regex(/^[a-f0-9]{40,64}$/)
-      .nullable()
-      .default(null),
-    publishContentHash: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .nullable()
-      .default(null),
-    publishedUrl: httpsUrlSchema.nullable().default(null),
     providerPageId: providerIdSchema,
     sourceLastEditedAt: isoDateSchema,
+    /** 구조 판별 결과가 어느 Notion 수정 시각 기준인지. 원문이 바뀌면 `null`로 무효화한다. */
     structureSourceLastEditedAt: isoDateSchema.nullable(),
     title: z.string().trim().min(1).max(2_000),
     updatedAt: isoDateSchema,
+    /** 사용자의 명시적 표시 선택. `null`이면 계층 기본값(최상위만 표시)을 따른다. */
     visibilityOverride: z.enum(["hidden", "shown"]).nullable(),
   })
   .strict();
-export const boardRecordSchema = version11BoardRecordSchema
-  .omit({
-    publishCommitSha: true,
-    publishContentHash: true,
-    publishedUrl: true,
-  })
-  .extend({
-    column: z.literal("stored"),
-  });
-const version10BoardRecordSchema = version11BoardRecordSchema.extend({
-  publishCommitSha: z
-    .string()
-    .regex(/^[a-f0-9]{40,64}$/)
-    .nullable()
-    .optional(),
-  publishContentHash: z
-    .string()
-    .regex(/^[a-f0-9]{64}$/)
-    .nullable()
-    .optional(),
-  publishedUrl: httpsUrlSchema.nullable().optional(),
-});
-const version9BoardRecordSchema = version10BoardRecordSchema.extend({
-  column: z.enum(LEGACY_BOARD_COLUMNS),
-});
-const version8BoardRecordSchema = version9BoardRecordSchema.omit({
-  pageRoleOverride: true,
-});
-const version6BoardRecordSchema = version8BoardRecordSchema.omit({
-  hasNavigableChildren: true,
-  structureSourceLastEditedAt: true,
-});
-const version5BoardRecordSchema = version6BoardRecordSchema.omit({
-  pageRole: true,
-});
-const version4BoardRecordSchema = version5BoardRecordSchema.omit({
-  visibilityOverride: true,
-});
-const legacyBoardRecordSchema = version4BoardRecordSchema.omit({
-  isVisible: true,
-});
 
-const draftSourceSchema = z
+const syncSourceSchema = z
   .object({
     connectionId: providerIdSchema,
+    isVisibleByDefault: z.boolean(),
     providerPageId: providerIdSchema,
     sourceLastEditedAt: isoDateSchema,
     title: z.string().trim().min(1).max(2_000),
-  })
-  .strict();
-const syncDraftSourceSchema = draftSourceSchema
-  .extend({
-    isVisibleByDefault: z.boolean(),
   })
   .strict();
 
 export type BoardRecord = z.infer<typeof boardRecordSchema>;
-export type BoardDraftSource = z.infer<typeof draftSourceSchema>;
-export type BoardSyncSource = z.infer<typeof syncDraftSourceSchema>;
-export type BoardRecordKey = [
-  ownerGitHubUserId: string,
-  connectionId: string,
-  providerPageId: string,
-];
+export type BoardSyncSource = z.infer<typeof syncSourceSchema>;
+type BoardRecordKey = [ownerGitHubUserId: string, connectionId: string, providerPageId: string];
+
+export class BoardRecordError extends Error {
+  override readonly name = "BoardRecordError";
+}
 
 export interface BoardRepositoryOptions {
   databaseName?: string;
@@ -134,394 +61,144 @@ export interface BoardRepositoryOptions {
   now?: () => Date;
 }
 
+export function boardDatabaseName(ownerGitHubUserId: string): string {
+  return `notion-kanban-blog.board.${ownerGitHubUserIdSchema.parse(ownerGitHubUserId)}`;
+}
+
 export class BoardRepository {
   readonly #database: BoardDatabase;
   readonly #now: () => Date;
-  readonly #ownerGitHubUserId: string;
+  readonly #owner: string;
 
-  constructor(
-    ownerGitHubUserId: string,
-    options: BoardRepositoryOptions = {},
-  ) {
-    this.#ownerGitHubUserId =
-      ownerGitHubUserIdSchema.parse(ownerGitHubUserId);
+  constructor(ownerGitHubUserId: string, options: BoardRepositoryOptions = {}) {
+    this.#owner = ownerGitHubUserIdSchema.parse(ownerGitHubUserId);
     this.#now = options.now ?? (() => new Date());
     this.#database = new BoardDatabase(
-      options.databaseName ?? boardDatabaseName(this.#ownerGitHubUserId),
-      this.#ownerGitHubUserId,
+      options.databaseName ?? boardDatabaseName(this.#owner),
       options.dexie,
     );
   }
 
-  async addDraft(source: BoardDraftSource): Promise<BoardRecord> {
-    const parsedSource = draftSourceSchema.parse(source);
-    return this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const key = recordKey(this.#ownerGitHubUserId, parsedSource);
-        const existing = await this.#database.boardRecords.get(key);
-        const validatedExisting =
-          existing === undefined
-            ? null
-            : boardRecordSchema.safeParse(existing);
-        if (existing !== undefined && !validatedExisting?.success) {
-          await this.#database.boardRecords.delete(key);
-        }
-
-        const record = boardRecordSchema.parse({
-          ...parsedSource,
-          column: "stored",
-          hasNavigableChildren: validatedExisting?.success
-            ? validatedExisting.data.hasNavigableChildren
-            : null,
-          isVisible: validatedExisting?.success
-            ? validatedExisting.data.isVisible
-            : true,
-          ownerGitHubUserId: this.#ownerGitHubUserId,
-          pageRole: validatedExisting?.success
-            ? validatedExisting.data.pageRole
-            : "document",
-          pageRoleOverride: validatedExisting?.success
-            ? validatedExisting.data.pageRoleOverride
-            : null,
-          position: validatedExisting?.success
-            ? validatedExisting.data.position
-            : await this.#nextStoredPosition(),
-          structureSourceLastEditedAt: validatedExisting?.success
-            ? validatedExisting.data.structureSourceLastEditedAt
-            : null,
-          updatedAt: this.#now().toISOString(),
-          visibilityOverride: validatedExisting?.success
-            ? validatedExisting.data.visibilityOverride
-            : "shown",
-        });
-        await this.#database.boardRecords.put(record);
-        return record;
-      },
-    );
-  }
-
-  async syncDrafts(
-    sources: readonly BoardSyncSource[],
-  ): Promise<readonly BoardRecord[]> {
-    const parsedSources = z
-      .array(syncDraftSourceSchema)
-      .max(10_000)
-      .parse(sources);
+  /** 현재 사용자의 모든 record(숨김 포함)를 칸반 순서로. 형식이 틀린 record는 이때 지운다. */
+  async list(): Promise<readonly BoardRecord[]> {
     await this.#purgeInvalidRecords();
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const existingValues = await this.#database.boardRecords
-          .where("ownerGitHubUserId")
-          .equals(this.#ownerGitHubUserId)
-          .toArray();
-        const existing = new Map(
-          existingValues.map((value) => {
-            const record = boardRecordSchema.parse(value);
-            return [
-              boardPageKey(record.connectionId, record.providerPageId),
-              record,
-            ];
-          }),
-        );
-        let nextStoredPosition =
-          Math.max(
-            -1,
-            ...existingValues
-              .map((value) => boardRecordSchema.parse(value))
-              .filter((record) => record.column === "stored")
-              .map((record) => record.position),
-          ) + 1;
-        const now = this.#now().toISOString();
-        const updates = parsedSources.map((source) => {
-          const { isVisibleByDefault, ...pageSource } = source;
-          const current = existing.get(
-            boardPageKey(source.connectionId, source.providerPageId),
-          );
-          if (current !== undefined) {
-            const sourceChanged =
-              current.sourceLastEditedAt !== pageSource.sourceLastEditedAt;
-            return boardRecordSchema.parse({
-              ...current,
-              ...pageSource,
-              column: "stored",
-              hasNavigableChildren: sourceChanged
-                ? null
-                : current.hasNavigableChildren,
-              isVisible:
-                current.pageRole === "container"
-                  ? false
-                  : current.visibilityOverride === "shown"
-                    ? true
-                    : current.visibilityOverride === "hidden"
-                      ? false
-                      : isVisibleByDefault,
-              structureSourceLastEditedAt: sourceChanged
-                ? null
-                : current.structureSourceLastEditedAt,
-              updatedAt: now,
-            });
-          }
-          return boardRecordSchema.parse({
-            ...pageSource,
-            column: "stored",
-            hasNavigableChildren: null,
-            isVisible: isVisibleByDefault,
-            ownerGitHubUserId: this.#ownerGitHubUserId,
-            pageRole: "document",
-            pageRoleOverride: null,
-            position: nextStoredPosition++,
-            structureSourceLastEditedAt: null,
-            updatedAt: now,
-            visibilityOverride: null,
-          });
-        });
-        await this.#database.boardRecords.bulkPut(updates);
-      },
-    );
-    return this.list();
+    return (await this.#records()).sort(compareRecords);
   }
 
-  async get(
-    connectionId: string,
-    providerPageId: string,
-  ): Promise<BoardRecord | null> {
-    const key = recordKey(this.#ownerGitHubUserId, {
-      connectionId: providerIdSchema.parse(connectionId),
-      providerPageId: providerIdSchema.parse(providerPageId),
-    });
+  async get(connectionId: string, providerPageId: string): Promise<BoardRecord | null> {
+    const key = this.#key(connectionId, providerPageId);
     const value = await this.#database.boardRecords.get(key);
     if (value === undefined) {
       return null;
     }
     const parsed = boardRecordSchema.safeParse(value);
-    if (
-      !parsed.success ||
-      parsed.data.ownerGitHubUserId !== this.#ownerGitHubUserId
-    ) {
+    if (!parsed.success || parsed.data.ownerGitHubUserId !== this.#owner) {
       await this.#database.boardRecords.delete(key);
       return null;
     }
     return parsed.data;
   }
 
-  async list(): Promise<readonly BoardRecord[]> {
+  /**
+   * Notion에서 발견한 page를 칸반 record로 맞춘다. 새 page는 보관 중 끝에 추가하고,
+   * 기존 page는 제목·수정 시각을 갱신하되 사용자의 표시 선택과 순서를 보존한다.
+   * 원문이 바뀌었으면 구조 판별 캐시를 무효화한다.
+   */
+  async syncDrafts(sources: readonly BoardSyncSource[]): Promise<readonly BoardRecord[]> {
+    const parsedSources = z.array(syncSourceSchema).max(10_000).parse(sources);
     await this.#purgeInvalidRecords();
-    const values = await this.#database.boardRecords
-      .where("ownerGitHubUserId")
-      .equals(this.#ownerGitHubUserId)
-      .toArray();
-    return values
-      .map((value) => boardRecordSchema.parse(value))
-      .sort(compareBoardRecords);
-  }
+    await this.#transaction(async () => {
+      const existing = await this.#records();
+      const byPage = new Map(existing.map((record) => [pageKey(record), record]));
+      let nextPosition = Math.max(-1, ...existing.map((record) => record.position)) + 1;
+      const now = this.#now().toISOString();
 
-  async listByColumn(column: BoardColumn): Promise<readonly BoardRecord[]> {
-    const parsedColumn = z.literal("stored").parse(column);
-    await this.#purgeInvalidRecords();
-    const values = await this.#database.boardRecords
-      .where("[ownerGitHubUserId+column]")
-      .equals([this.#ownerGitHubUserId, parsedColumn])
-      .toArray();
-    return values
-      .map((value) => boardRecordSchema.parse(value))
-      .sort(compareBoardRecords);
-  }
-
-  async move(
-    connectionId: string,
-    providerPageId: string,
-    targetColumn: BoardColumn,
-    targetIndex: number,
-    initiator: BoardTransitionInitiator = "user",
-  ): Promise<readonly BoardRecord[]> {
-    const parsedConnectionId = providerIdSchema.parse(connectionId);
-    const parsedProviderPageId = providerIdSchema.parse(providerPageId);
-    const parsedColumn = z.literal("stored").parse(targetColumn);
-    const parsedTargetIndex = z.number().int().nonnegative().parse(targetIndex);
-    const parsedInitiator = z
-      .enum(["publisher", "user"])
-      .parse(initiator);
-    await this.#purgeInvalidRecords();
-
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const activeKey = recordKey(this.#ownerGitHubUserId, {
-          connectionId: parsedConnectionId,
-          providerPageId: parsedProviderPageId,
-        });
-        const activeValue =
-          await this.#database.boardRecords.get(activeKey);
-        const active = boardRecordSchema.safeParse(activeValue);
-        if (
-          !active.success ||
-          active.data.ownerGitHubUserId !== this.#ownerGitHubUserId
-        ) {
-          throw new DomainInvariantError("Board record was not found");
-        }
-        if (active.data.pageRole === "container") {
-          throw new DomainInvariantError(
-            "Container pages cannot move on the board",
-          );
-        }
-        assertBoardTransition(
-          active.data.column,
-          parsedColumn,
-          parsedInitiator,
-        );
-
-        const allRecords = (
-          await this.#database.boardRecords
-            .where("ownerGitHubUserId")
-            .equals(this.#ownerGitHubUserId)
-            .toArray()
-        )
-          .map((value) => boardRecordSchema.parse(value))
-          .sort(compareBoardRecords);
-        const withoutActive = allRecords.filter(
-          (record) =>
-            record.isVisible && !sameRecord(record, active.data),
-        );
-        const sourceRecords: BoardRecord[] = [];
-        const targetRecords = withoutActive.filter(
-          (record) => record.column === parsedColumn,
-        );
-        targetRecords.splice(
-          Math.min(parsedTargetIndex, targetRecords.length),
-          0,
-          active.data,
-        );
-
-        const now = this.#now().toISOString();
-        const updates = [
-          ...reindexColumn(sourceRecords, active.data.column, now),
-          ...reindexColumn(targetRecords, parsedColumn, now),
-        ];
-        await this.#database.boardRecords.bulkPut(updates);
-      },
-    );
-
+      await this.#database.boardRecords.bulkPut(
+        parsedSources.map(({ isVisibleByDefault, ...source }) => {
+          const current = byPage.get(pageKey(source));
+          if (current === undefined) {
+            return boardRecordSchema.parse({
+              ...source,
+              column: "stored",
+              hasNavigableChildren: null,
+              isVisible: isVisibleByDefault,
+              ownerGitHubUserId: this.#owner,
+              pageRole: "document",
+              pageRoleOverride: null,
+              position: nextPosition++,
+              structureSourceLastEditedAt: null,
+              updatedAt: now,
+              visibilityOverride: null,
+            });
+          }
+          const sourceChanged = current.sourceLastEditedAt !== source.sourceLastEditedAt;
+          return boardRecordSchema.parse({
+            ...current,
+            ...source,
+            hasNavigableChildren: sourceChanged ? null : current.hasNavigableChildren,
+            isVisible: current.pageRole === "container" ? false : visibility(current, isVisibleByDefault),
+            structureSourceLastEditedAt: sourceChanged ? null : current.structureSourceLastEditedAt,
+            updatedAt: now,
+          });
+        }),
+      );
+    });
     return this.list();
   }
 
-  async remove(connectionId: string, providerPageId: string): Promise<void> {
-    await this.#database.boardRecords.delete(
-      recordKey(this.#ownerGitHubUserId, {
-        connectionId: providerIdSchema.parse(connectionId),
-        providerPageId: providerIdSchema.parse(providerPageId),
-      }),
-    );
+  /** 보관 중 열 안에서 카드를 `targetIndex` 자리로 옮기고 보이는 카드의 순서를 0부터 다시 매긴다. */
+  async move(
+    connectionId: string,
+    providerPageId: string,
+    targetIndex: number,
+  ): Promise<readonly BoardRecord[]> {
+    const index = z.number().int().nonnegative().parse(targetIndex);
+    const key = this.#key(connectionId, providerPageId);
+    await this.#purgeInvalidRecords();
+    await this.#transaction(async () => {
+      const active = await this.#require(key);
+      if (active.pageRole === "container") {
+        throw new BoardRecordError("Container pages cannot move on the board");
+      }
+      const ordered = (await this.#records())
+        .sort(compareRecords)
+        .filter((record) => record.isVisible && pageKey(record) !== pageKey(active));
+      ordered.splice(Math.min(index, ordered.length), 0, active);
+
+      const now = this.#now().toISOString();
+      await this.#database.boardRecords.bulkPut(
+        ordered.map((record, position) =>
+          record.position === position ? record : { ...record, position, updatedAt: now },
+        ),
+      );
+    });
+    return this.list();
   }
 
+  /** 칸반 표시 여부를 사용자 선택으로 고정한다. 다시 보이게 하면 보관 중 맨 끝에 놓는다. */
   async setVisibility(
     connectionId: string,
     providerPageId: string,
     isVisible: boolean,
   ): Promise<readonly BoardRecord[]> {
-    const key = recordKey(this.#ownerGitHubUserId, {
-      connectionId: providerIdSchema.parse(connectionId),
-      providerPageId: providerIdSchema.parse(providerPageId),
+    const shown = z.boolean().parse(isVisible);
+    await this.#update(this.#key(connectionId, providerPageId), async (current) => {
+      if (current.pageRole === "container" && shown) {
+        throw new BoardRecordError("Container pages cannot be shown on the board");
+      }
+      return {
+        isVisible: shown,
+        position: shown && !current.isVisible ? await this.#nextPosition() : current.position,
+        visibilityOverride: shown ? "shown" : "hidden",
+      };
     });
-    const parsedVisibility = z.boolean().parse(isVisible);
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const current = boardRecordSchema.safeParse(
-          await this.#database.boardRecords.get(key),
-        );
-        if (
-          !current.success ||
-          current.data.ownerGitHubUserId !== this.#ownerGitHubUserId
-        ) {
-          throw new DomainInvariantError("Board record was not found");
-        }
-        if (
-          current.data.pageRole === "container" &&
-          parsedVisibility
-        ) {
-          throw new DomainInvariantError(
-            "Container pages cannot be shown on the board",
-          );
-        }
-        await this.#database.boardRecords.put(
-          boardRecordSchema.parse({
-            ...current.data,
-            isVisible: parsedVisibility,
-            position:
-              parsedVisibility && !current.data.isVisible
-                ? await this.#nextColumnPosition(current.data.column)
-                : current.data.position,
-            updatedAt: this.#now().toISOString(),
-            visibilityOverride: parsedVisibility ? "shown" : "hidden",
-          }),
-        );
-      },
-    );
     return this.list();
   }
 
-  async setPageRole(
-    connectionId: string,
-    providerPageId: string,
-    pageRoleOverride: "container" | "document" | null,
-    isVisibleByDefault: boolean,
-  ): Promise<readonly BoardRecord[]> {
-    const key = recordKey(this.#ownerGitHubUserId, {
-      connectionId: providerIdSchema.parse(connectionId),
-      providerPageId: providerIdSchema.parse(providerPageId),
-    });
-    const parsedOverride = z
-      .enum(["container", "document"])
-      .nullable()
-      .parse(pageRoleOverride);
-    const parsedDefaultVisibility = z
-      .boolean()
-      .parse(isVisibleByDefault);
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const current = boardRecordSchema.safeParse(
-          await this.#database.boardRecords.get(key),
-        );
-        if (
-          !current.success ||
-          current.data.ownerGitHubUserId !== this.#ownerGitHubUserId
-        ) {
-          throw new DomainInvariantError("Board record was not found");
-        }
-        const restoredVisibility =
-          current.data.visibilityOverride === "shown"
-            ? true
-            : current.data.visibilityOverride === "hidden"
-              ? false
-              : parsedDefaultVisibility;
-        const pageRole =
-          parsedOverride ??
-          (current.data.hasNavigableChildren === true
-            ? "container"
-            : "document");
-        await this.#database.boardRecords.put(
-          boardRecordSchema.parse({
-            ...current.data,
-            isVisible:
-              pageRole === "container" ? false : restoredVisibility,
-            pageRole,
-            pageRoleOverride: parsedOverride,
-            updatedAt: this.#now().toISOString(),
-          }),
-        );
-      },
-    );
-    return this.list();
-  }
-
+  /**
+   * 구조 판별 결과를 저장하고 역할을 정한다. 하위 구조가 있으면 container로 칸반에서 빠진다.
+   * 판별하는 동안 Notion 원문이 바뀌었으면(`sourceLastEditedAt` 불일치) 오래된 결과라 버린다.
+   */
   async setStructureInspection(
     connectionId: string,
     providerPageId: string,
@@ -529,60 +206,21 @@ export class BoardRepository {
     hasNavigableChildren: boolean,
     isVisibleByDefault = true,
   ): Promise<readonly BoardRecord[]> {
-    const key = recordKey(this.#ownerGitHubUserId, {
-      connectionId: providerIdSchema.parse(connectionId),
-      providerPageId: providerIdSchema.parse(providerPageId),
+    const inspectedAt = isoDateSchema.parse(sourceLastEditedAt);
+    const hasChildren = z.boolean().parse(hasNavigableChildren);
+    const defaultVisibility = z.boolean().parse(isVisibleByDefault);
+    await this.#update(this.#key(connectionId, providerPageId), (current) => {
+      if (current.sourceLastEditedAt !== inspectedAt) {
+        return null;
+      }
+      const pageRole = current.pageRoleOverride ?? (hasChildren ? "container" : "document");
+      return {
+        hasNavigableChildren: hasChildren,
+        isVisible: pageRole === "container" ? false : visibility(current, defaultVisibility),
+        pageRole,
+        structureSourceLastEditedAt: inspectedAt,
+      };
     });
-    const parsedSourceLastEditedAt =
-      isoDateSchema.parse(sourceLastEditedAt);
-    const parsedHasNavigableChildren = z
-      .boolean()
-      .parse(hasNavigableChildren);
-    const parsedDefaultVisibility = z
-      .boolean()
-      .parse(isVisibleByDefault);
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      async () => {
-        const current = boardRecordSchema.safeParse(
-          await this.#database.boardRecords.get(key),
-        );
-        if (
-          !current.success ||
-          current.data.ownerGitHubUserId !== this.#ownerGitHubUserId
-        ) {
-          throw new DomainInvariantError("Board record was not found");
-        }
-        if (
-          current.data.sourceLastEditedAt !==
-          parsedSourceLastEditedAt
-        ) {
-          return;
-        }
-        const pageRole =
-          current.data.pageRoleOverride ??
-          (parsedHasNavigableChildren ? "container" : "document");
-        const restoredVisibility =
-          current.data.visibilityOverride === "shown"
-            ? true
-            : current.data.visibilityOverride === "hidden"
-              ? false
-              : parsedDefaultVisibility;
-        await this.#database.boardRecords.put(
-          boardRecordSchema.parse({
-            ...current.data,
-            hasNavigableChildren: parsedHasNavigableChildren,
-            isVisible:
-              pageRole === "container" ? false : restoredVisibility,
-            pageRole,
-            structureSourceLastEditedAt:
-              parsedSourceLastEditedAt,
-            updatedAt: this.#now().toISOString(),
-          }),
-        );
-      },
-    );
     return this.list();
   }
 
@@ -590,45 +228,67 @@ export class BoardRepository {
     this.#database.close();
   }
 
-  async deleteDatabase(): Promise<void> {
-    await this.#database.delete();
+  #key(connectionId: string, providerPageId: string): BoardRecordKey {
+    return [this.#owner, providerIdSchema.parse(connectionId), providerIdSchema.parse(providerPageId)];
   }
 
-  async #nextStoredPosition(): Promise<number> {
-    return this.#nextColumnPosition("stored");
+  #transaction<T>(work: () => Promise<T>): Promise<T> {
+    return this.#database.transaction("rw", this.#database.boardRecords, work);
   }
 
-  async #nextColumnPosition(column: "stored"): Promise<number> {
-    const records = await this.#database.boardRecords
-      .where("[ownerGitHubUserId+column]")
-      .equals([this.#ownerGitHubUserId, column])
+  /** 현재 사용자의 record 중 schema를 통과한 것만. */
+  async #records(): Promise<BoardRecord[]> {
+    const values = await this.#database.boardRecords
+      .where("ownerGitHubUserId")
+      .equals(this.#owner)
       .toArray();
-    const positions = records.flatMap((value) => {
+    return values.flatMap((value) => {
       const parsed = boardRecordSchema.safeParse(value);
-      return parsed.success && parsed.data.isVisible
-        ? [parsed.data.position]
-        : [];
+      return parsed.success ? [parsed.data] : [];
     });
+  }
+
+  async #require(key: BoardRecordKey): Promise<BoardRecord> {
+    const current = boardRecordSchema.safeParse(await this.#database.boardRecords.get(key));
+    if (!current.success || current.data.ownerGitHubUserId !== this.#owner) {
+      throw new BoardRecordError("Board record was not found");
+    }
+    return current.data;
+  }
+
+  /** record 하나를 읽고 `change`가 돌려준 field만 바꿔 저장한다. `null`이면 저장하지 않는다. */
+  async #update(
+    key: BoardRecordKey,
+    change: (current: BoardRecord) => Partial<BoardRecord> | null | Promise<Partial<BoardRecord> | null>,
+  ): Promise<void> {
+    await this.#transaction(async () => {
+      const current = await this.#require(key);
+      const changed = await change(current);
+      if (changed !== null) {
+        await this.#database.boardRecords.put(
+          boardRecordSchema.parse({ ...current, ...changed, updatedAt: this.#now().toISOString() }),
+        );
+      }
+    });
+  }
+
+  async #nextPosition(): Promise<number> {
+    const positions = (await this.#records())
+      .filter((record) => record.isVisible)
+      .map((record) => record.position);
     return positions.length === 0 ? 0 : Math.max(...positions) + 1;
   }
 
+  /** 형식이 틀리거나 다른 사용자의 record는 읽기 전에 지운다. */
   async #purgeInvalidRecords(): Promise<void> {
-    const ownerGitHubUserId = this.#ownerGitHubUserId;
-    await this.#database.transaction(
-      "rw",
-      this.#database.boardRecords,
-      () =>
-        this.#database.boardRecords
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const parsed = boardRecordSchema.safeParse(value);
-            if (
-              !parsed.success ||
-              parsed.data.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete (reference as { value?: unknown }).value;
-            }
-          }),
+    const owner = this.#owner;
+    await this.#transaction(() =>
+      this.#database.boardRecords.toCollection().modify((value: unknown, reference) => {
+        const parsed = boardRecordSchema.safeParse(value);
+        if (!parsed.success || parsed.data.ownerGitHubUserId !== owner) {
+          delete (reference as { value?: unknown }).value;
+        }
+      }),
     );
   }
 }
@@ -636,438 +296,33 @@ export class BoardRepository {
 class BoardDatabase extends Dexie {
   boardRecords!: Table<BoardRecord, BoardRecordKey>;
 
-  constructor(
-    databaseName: string,
-    ownerGitHubUserId: string,
-    options?: DexieOptions,
-  ) {
+  constructor(databaseName: string, options?: DexieOptions) {
     super(databaseName, options);
-    this.version(1).stores({
-      [BOARD_STORE]:
-        "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId",
-    });
-    this.version(2)
+    // v11 이하 DB는 옮기지 않고 비운다. 칸반은 다음 Notion 동기화로 다시 채워지고
+    // 그때 사용자의 표시·숨김 선택만 사라진다(2026-11-10 결정). 새 DB 생성 시에는 upgrade가 실행되지 않는다.
+    this.version(SCHEMA_VERSION)
       .stores({
         [BOARD_STORE]:
           "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
       })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            migrateBoardRecord(value, ownerGitHubUserId, reference);
-          }),
-      );
-    this.version(3).stores({
-      [BOARD_STORE]:
-        "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      publishTargets: "ownerGitHubUserId, updatedAt",
-    });
-    this.version(4)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-        publishTargets: null,
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            migrateBoardRecord(value, ownerGitHubUserId, reference);
-          }),
-      );
-    this.version(5)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            migrateBoardRecord(value, ownerGitHubUserId, reference);
-          }),
-      );
-    this.version(6)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            migrateBoardRecord(value, ownerGitHubUserId, reference);
-          }),
-      );
-    this.version(7)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            migrateBoardRecord(value, ownerGitHubUserId, reference);
-          }),
-      );
-    this.version(8)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const current = boardRecordSchema.safeParse(value);
-            if (
-              current.success &&
-              current.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              return;
-            }
-            const version9 = version9BoardRecordSchema.safeParse(value);
-            const parsed = version8BoardRecordSchema.safeParse(value);
-            const migrated =
-              version9.success
-                ? toVersion8BoardRecord(version9.data)
-                : parsed.success
-                  ? parsed.data
-                  : null;
-            if (
-              migrated === null ||
-              migrated.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete reference.value;
-              return;
-            }
-            reference.value = {
-              ...migrated,
-              hasNavigableChildren: null,
-              structureSourceLastEditedAt: null,
-            };
-          }),
-      );
-    this.version(9)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const current = boardRecordSchema.safeParse(value);
-            const version9 = version9BoardRecordSchema.safeParse(value);
-            const parsed = version8BoardRecordSchema.safeParse(value);
-            if (
-              current.success &&
-              current.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              return;
-            }
-            if (
-              version9.success &&
-              version9.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              return;
-            }
-            if (
-              !parsed.success ||
-              parsed.data.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete reference.value;
-              return;
-            }
-            reference.value = {
-              ...parsed.data,
-              pageRoleOverride:
-                parsed.data.pageRole === "container"
-                  ? "container"
-                  : null,
-            };
-          }),
-      );
-    this.version(10)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const current = version10BoardRecordSchema.safeParse(value);
-            if (
-              current.success &&
-              current.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              return;
-            }
-            const legacy = version9BoardRecordSchema.safeParse(value);
-            if (
-              !legacy.success ||
-              legacy.data.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete reference.value;
-              return;
-            }
-            reference.value = version10BoardRecordSchema.parse({
-              ...legacy.data,
-              column: migrateVersion9Column(legacy.data.column),
-            });
-          }),
-      );
-    this.version(11)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const current = version11BoardRecordSchema.safeParse(value);
-            if (
-              current.success &&
-              current.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              reference.value = current.data;
-              return;
-            }
-            const previous = version10BoardRecordSchema.safeParse(value);
-            if (
-              !previous.success ||
-              previous.data.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete reference.value;
-              return;
-            }
-            reference.value = version11BoardRecordSchema.parse(previous.data);
-          }),
-      );
-    this.version(CURRENT_SCHEMA_VERSION)
-      .stores({
-        [BOARD_STORE]:
-          "[ownerGitHubUserId+connectionId+providerPageId], ownerGitHubUserId, [ownerGitHubUserId+column], updatedAt",
-      })
-      .upgrade((transaction) =>
-        transaction
-          .table(BOARD_STORE)
-          .toCollection()
-          .modify((value: unknown, reference) => {
-            const current = boardRecordSchema.safeParse(value);
-            if (
-              current.success &&
-              current.data.ownerGitHubUserId === ownerGitHubUserId
-            ) {
-              reference.value = current.data;
-              return;
-            }
-            const previous = version11BoardRecordSchema.safeParse(value);
-            if (
-              !previous.success ||
-              previous.data.ownerGitHubUserId !== ownerGitHubUserId
-            ) {
-              delete reference.value;
-              return;
-            }
-            reference.value = toStoredBoardRecord(previous.data);
-          }),
-      );
+      .upgrade((transaction) => transaction.table(BOARD_STORE).clear());
     this.boardRecords = this.table(BOARD_STORE);
   }
 }
 
-export function boardDatabaseName(ownerGitHubUserId: string): string {
-  return `${DATABASE_PREFIX}.${ownerGitHubUserIdSchema.parse(ownerGitHubUserId)}`;
+/** 사용자 선택(`visibilityOverride`)이 있으면 그것, 없으면 계층 기본값. */
+function visibility(record: BoardRecord, isVisibleByDefault: boolean): boolean {
+  return record.visibilityOverride === null ? isVisibleByDefault : record.visibilityOverride === "shown";
 }
 
-function recordKey(
-  ownerGitHubUserId: string,
-  source: Pick<BoardDraftSource, "connectionId" | "providerPageId">,
-): BoardRecordKey {
-  return [
-    ownerGitHubUserId,
-    source.connectionId,
-    source.providerPageId,
-  ];
+function pageKey(record: Pick<BoardRecord, "connectionId" | "providerPageId">): string {
+  return `${record.connectionId}:${record.providerPageId}`;
 }
 
-function compareBoardRecords(left: BoardRecord, right: BoardRecord): number {
+function compareRecords(left: BoardRecord, right: BoardRecord): number {
   return (
     left.position - right.position ||
     left.updatedAt.localeCompare(right.updatedAt) ||
     left.providerPageId.localeCompare(right.providerPageId)
   );
-}
-
-function reindexColumn(
-  records: readonly BoardRecord[],
-  column: "stored",
-  updatedAt: string,
-): BoardRecord[] {
-  return records.map((record, position) =>
-    boardRecordSchema.parse({
-      ...record,
-      column,
-      position,
-      updatedAt:
-        record.column !== column || record.position !== position
-          ? updatedAt
-          : record.updatedAt,
-    }),
-  );
-}
-
-function sameRecord(left: BoardRecord, right: BoardRecord): boolean {
-  return (
-    left.connectionId === right.connectionId &&
-    left.providerPageId === right.providerPageId &&
-    left.ownerGitHubUserId === right.ownerGitHubUserId
-  );
-}
-
-function boardPageKey(connectionId: string, providerPageId: string): string {
-  return `${connectionId}:${providerPageId}`;
-}
-
-function migrateBoardRecord(
-  value: unknown,
-  ownerGitHubUserId: string,
-  reference: { value?: unknown },
-): void {
-  const current = boardRecordSchema.safeParse(value);
-  if (
-    current.success &&
-    current.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    return;
-  }
-  const version9 = version9BoardRecordSchema.safeParse(value);
-  if (
-    version9.success &&
-    version9.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    return;
-  }
-  const version8 = version8BoardRecordSchema.safeParse(value);
-  const legacy = legacyBoardRecordSchema.safeParse(value);
-  const version4 = version4BoardRecordSchema.safeParse(value);
-  const version5 = version5BoardRecordSchema.safeParse(value);
-  const version6 = version6BoardRecordSchema.safeParse(value);
-  if (
-    version8.success &&
-    version8.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    reference.value = version9BoardRecordSchema.parse({
-      ...version8.data,
-      pageRoleOverride:
-        version8.data.pageRole === "container" ? "container" : null,
-    });
-    return;
-  }
-  if (
-    version6.success &&
-    version6.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    reference.value = version9BoardRecordSchema.parse({
-      ...version6.data,
-      hasNavigableChildren: null,
-      pageRoleOverride:
-        version6.data.pageRole === "container" ? "container" : null,
-      structureSourceLastEditedAt: null,
-    });
-    return;
-  }
-  if (
-    version5.success &&
-    version5.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    reference.value = version9BoardRecordSchema.parse({
-      ...version5.data,
-      hasNavigableChildren: null,
-      pageRole: "document",
-      pageRoleOverride: null,
-      structureSourceLastEditedAt: null,
-    });
-    return;
-  }
-  if (
-    version4.success &&
-    version4.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    reference.value = version9BoardRecordSchema.parse({
-      ...version4.data,
-      hasNavigableChildren: null,
-      pageRole: "document",
-      pageRoleOverride: null,
-      structureSourceLastEditedAt: null,
-      visibilityOverride: version4.data.isVisible ? null : "hidden",
-    });
-    return;
-  }
-  if (
-    legacy.success &&
-    legacy.data.ownerGitHubUserId === ownerGitHubUserId
-  ) {
-    reference.value = version9BoardRecordSchema.parse({
-      ...legacy.data,
-      hasNavigableChildren: null,
-      isVisible: true,
-      pageRole: "document",
-      pageRoleOverride: null,
-      structureSourceLastEditedAt: null,
-      visibilityOverride: null,
-    });
-    return;
-  }
-  delete reference.value;
-}
-
-function toVersion8BoardRecord(
-  record: z.infer<typeof version9BoardRecordSchema>,
-): z.infer<typeof version8BoardRecordSchema> {
-  const migrated: Record<string, unknown> = { ...record };
-  delete migrated.pageRoleOverride;
-  return version8BoardRecordSchema.parse(migrated);
-}
-
-function migrateVersion9Column(
-  column: z.infer<typeof version9BoardRecordSchema>["column"],
-): BoardColumn {
-  switch (column) {
-    case "publishing":
-    case "published":
-      return column;
-    case "draft":
-    case "failed":
-    case "ready":
-    case "review":
-      return "stored";
-  }
-}
-
-function toStoredBoardRecord(
-  record: z.infer<typeof version11BoardRecordSchema>,
-): BoardRecord {
-  const persistent: Record<string, unknown> = { ...record };
-  delete persistent.publishCommitSha;
-  delete persistent.publishContentHash;
-  delete persistent.publishedUrl;
-  return boardRecordSchema.parse({
-    ...persistent,
-    column: "stored",
-  });
 }
