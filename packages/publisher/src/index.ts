@@ -1,8 +1,7 @@
-import type { ContentItemId } from "@notion-kanban-blog/domain";
-
 export {
   createMarkdownArtifact,
   type PublishBlock,
+  type PublishBlockWith,
   type PublishDocument,
   type PublishRichText,
 } from "./markdown.js";
@@ -27,23 +26,9 @@ export interface PublisherManifest {
   templateVersion: 2;
 }
 
-export interface PublishSource {
-  contentItemId: ContentItemId;
-  markdown: string;
-  slug: string;
-  version: number;
-}
-
 export interface PublishArtifact {
   bytes: Uint8Array;
   path: string;
-}
-
-export interface ContentPublisher {
-  createArtifacts(
-    manifest: PublisherManifest,
-    source: PublishSource,
-  ): Promise<readonly PublishArtifact[]>;
 }
 
 export function createAstroTemplateManifest(

@@ -1,3 +1,5 @@
+// 사용자 OAuth token으로 `<login>.github.io` 저장소를 읽고 게시 commit을 만드는 GitHub REST client.
+// HTTP 요청·응답 검증은 #send·#json·#optional 세 곳만 거친다.
 import type { SessionCodec } from "@notion-kanban-blog/auth";
 import type {
   GitHubArtifact,
@@ -12,109 +14,63 @@ import { z } from "zod";
 
 import { createGitHubAuthDependencies } from "../auth/github";
 import { errorResponse, readSession } from "../auth/session";
-import {
-  parseRetryAfter,
-  providerRequest,
-  ProviderTransportError,
-} from "../operations/provider-request";
+import { parseRetryAfter, providerRequest, ProviderTransportError } from "../operations/provider-request";
 import type { LogSink } from "../operations/structured-log";
 
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const loginSchema = z
-  .string()
-  .regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/);
-const numericIdSchema = z.string().regex(/^[1-9]\d{0,19}$/);
-const environmentSchema = z.object({
-  GITHUB_API_VERSION: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-});
-const repositorySchema = z
-  .object({
-    default_branch: z.string().min(1).max(255),
-    full_name: z.string().min(3).max(255),
-    id: z.number().int().safe().positive(),
-    name: z.string().min(1).max(255),
-    owner: z
-      .object({
-        id: z.number().int().safe().positive(),
-        login: z.string().min(1).max(255),
-        type: z.literal("User"),
-      })
-      .passthrough(),
-    permissions: z
-      .object({
-        push: z.boolean(),
-      })
-      .passthrough(),
-    private: z.boolean(),
-  })
-  .passthrough();
-const gitShaSchema = z.string().regex(/^[a-f0-9]{40,64}$/);
-const gitRefSchema = z
-  .object({ object: z.object({ sha: gitShaSchema }).passthrough() })
-  .passthrough();
-const gitCommitSchema = z
-  .object({
-    sha: gitShaSchema,
-    tree: z.object({ sha: gitShaSchema }).passthrough(),
-  })
-  .passthrough();
-const gitObjectSchema = z.object({ sha: gitShaSchema }).passthrough();
-const workflowRunsSchema = z
-  .object({
-    workflow_runs: z.array(
-      z
-        .object({
-          conclusion: z.string().nullable(),
-          head_sha: gitShaSchema,
-          html_url: z.string().url(),
-          status: z.string(),
-        })
-        .passthrough(),
-    ),
-  })
-  .passthrough();
-const pagesDeploymentSchema = z
-  .object({ status: z.string() })
-  .passthrough();
-const pagesSettingsSchema = z
-  .object({ build_type: z.string() })
-  .passthrough();
-const gitTreePathSchema = z.string().min(1).max(1_024).refine(
-  (path) =>
-    !path.startsWith("/") &&
-    path
-      .split("/")
-      .every(
-        (segment) =>
-          segment.length > 0 && segment !== "." && segment !== "..",
-      ),
-);
-const gitTreeSchema = z
-  .object({
-    tree: z.array(
-      z.discriminatedUnion("type", [
-        z
-          .object({
-            mode: z.literal("100644"),
-            path: gitTreePathSchema,
-            sha: gitShaSchema,
-            type: z.literal("blob"),
-          })
-          .passthrough(),
-        z
-          .object({
-            mode: z.literal("040000"),
-            path: gitTreePathSchema,
-            sha: gitShaSchema,
-            type: z.literal("tree"),
-          })
-          .passthrough(),
-      ]),
-    ),
-    truncated: z.boolean(),
-  })
-  .passthrough();
+const MAX_ARTIFACTS = 200;
+const MAX_ARTIFACT_BYTES = 20 * 1024 * 1024;
 
+const apiVersionSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const loginSchema = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/);
+const repositoryNameSchema = z.string().regex(/^[A-Za-z0-9._-]{1,100}$/);
+const numericIdSchema = z.string().regex(/^[1-9]\d{0,19}$/);
+const gitShaSchema = z.string().regex(/^[a-f0-9]{40,64}$/);
+const gitPathSchema = z
+  .string()
+  .min(1)
+  .max(1_024)
+  .refine((path) => path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== ".."));
+
+const repositorySchema = z.object({
+  default_branch: z.string().min(1).max(255),
+  full_name: z.string().min(3).max(255),
+  id: z.number().int().safe().positive(),
+  name: z.string().min(1).max(255),
+  owner: z.object({
+    id: z.number().int().safe().positive(),
+    login: z.string().min(1).max(255),
+    type: z.literal("User"),
+  }),
+  permissions: z.object({ push: z.boolean() }),
+  private: z.boolean(),
+});
+const gitObjectSchema = z.object({ sha: gitShaSchema });
+const gitRefSchema = z.object({ object: gitObjectSchema });
+const gitCommitSchema = z.object({ sha: gitShaSchema, tree: gitObjectSchema });
+const gitTreeSchema = z.object({
+  tree: z.array(
+    z.discriminatedUnion("type", [
+      z.object({ mode: z.literal("100644"), path: gitPathSchema, sha: gitShaSchema, type: z.literal("blob") }),
+      z.object({ mode: z.literal("040000"), path: gitPathSchema, sha: gitShaSchema, type: z.literal("tree") }),
+    ]),
+  ),
+  truncated: z.boolean(),
+});
+const workflowRunsSchema = z.object({
+  workflow_runs: z.array(
+    z.object({
+      conclusion: z.string().nullable(),
+      head_sha: gitShaSchema,
+      html_url: z.string().url(),
+      status: z.string(),
+    }),
+  ),
+});
+const pagesDeploymentSchema = z.object({ status: z.string() });
+const pagesSettingsSchema = z.object({ build_type: z.string() });
+
+// 관리 표식이 없는 저장소에서도 덮어써도 되는 v1 template 파일과 글.
 const MANAGED_MARKER_PATH = ".notion-kanban-blog/managed.json";
 const LEGACY_V1_PATHS = new Set([
   ".github/workflows/deploy.yml",
@@ -130,433 +86,8 @@ const LEGACY_V1_PATHS = new Set([
   "tsconfig.json",
 ]);
 const LEGACY_BLOG_POST_PATH = /^src\/content\/blog\/[^/]+\.md$/;
-
-export interface GitHubPagesDependencies {
-  client: GitHubRepositoryAdapter;
-  sessionCodec: SessionCodec;
-}
-
-interface GitHubPagesClientOptions {
-  accessToken: string;
-  apiVersion: string;
-  fetch?: typeof fetch;
-  log?: LogSink;
-  timeoutMs?: number;
-}
-
-export class GitHubPagesClient implements GitHubRepositoryAdapter {
-  readonly #accessToken: string;
-  readonly #apiVersion: string;
-  readonly #fetch: typeof fetch;
-  readonly #log: LogSink | undefined;
-  readonly #timeoutMs: number | undefined;
-
-  constructor(options: GitHubPagesClientOptions) {
-    this.#accessToken = z.string().min(1).max(4096).parse(options.accessToken);
-    this.#apiVersion = environmentSchema.shape.GITHUB_API_VERSION.parse(
-      options.apiVersion,
-    );
-    this.#fetch = options.fetch ?? fetch;
-    this.#log = options.log;
-    this.#timeoutMs = options.timeoutMs;
-  }
-
-  async getPagesRepository(
-    ownerUserId: string,
-    ownerLogin: string,
-  ): Promise<GitHubRepository> {
-    const parsedOwnerId = numericIdSchema.parse(ownerUserId);
-    const parsedLogin = loginSchema.parse(ownerLogin);
-    const repositoryName = `${parsedLogin}.github.io`;
-    const response = await this.#request(
-      `${GITHUB_API_ORIGIN}/repos/${encodeURIComponent(parsedLogin)}/${encodeURIComponent(repositoryName)}`,
-      {
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${this.#accessToken}`,
-          "user-agent": "notion-kanban-blog",
-          "x-github-api-version": this.#apiVersion,
-        },
-      },
-      "repository.get",
-    );
-    if (!response.ok) {
-      throw providerError(response);
-    }
-    if (!hasPublishingScopes(response.headers.get("x-oauth-scopes"))) {
-      throw new GitHubPagesError("oauth_scope_missing");
-    }
-
-    const parsed = repositorySchema.safeParse(await safeJson(response));
-    if (!parsed.success) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    const repository = parsed.data;
-    if (
-      String(repository.owner.id) !== parsedOwnerId ||
-      repository.owner.login.toLowerCase() !== parsedLogin.toLowerCase() ||
-      repository.name.toLowerCase() !== repositoryName.toLowerCase() ||
-      repository.full_name.toLowerCase() !==
-        `${parsedLogin}/${repositoryName}`.toLowerCase()
-    ) {
-      throw new GitHubPagesError("repository_owner_mismatch");
-    }
-    if (repository.private) {
-      throw new GitHubPagesError("repository_must_be_public");
-    }
-    if (!repository.permissions.push) {
-      throw new GitHubPagesError("repository_write_denied");
-    }
-    return {
-      defaultBranch: repository.default_branch,
-      fullName: repository.full_name,
-      isPrivate: repository.private,
-      providerRepositoryId: String(repository.id),
-    };
-  }
-
-  async commitArtifacts(
-    repository: GitHubRepository,
-    artifacts: readonly GitHubArtifact[],
-    message: string,
-  ): Promise<GitHubCommitResult> {
-    const target = repositoryTarget(repository);
-    const parsedMessage = z.string().trim().min(1).max(250).parse(message);
-    const parsedArtifacts = parseArtifacts(artifacts);
-    const encodedBranch = encodeURIComponent(repository.defaultBranch);
-    const reference = await this.#optionalJson(
-      `${GITHUB_API_ORIGIN}/repos/${target}/git/ref/heads/${encodedBranch}`,
-      gitRefSchema,
-      new Set([404, 409]),
-    );
-    const headCommit =
-      reference === null
-        ? null
-        : await this.#json(
-            `/repos/${target}/git/commits/${reference.object.sha}`,
-            gitCommitSchema,
-          );
-    const treeEntries = await Promise.all(
-      parsedArtifacts.map(async (artifact) => {
-        const blob = await this.#json(
-          `/repos/${target}/git/blobs`,
-          gitObjectSchema,
-          {
-            body: JSON.stringify({
-              content: Buffer.from(artifact.bytes).toString("base64"),
-              encoding: "base64",
-            }),
-            method: "POST",
-          },
-        );
-        return {
-          mode: "100644",
-          path: artifact.path,
-          sha: blob.sha,
-          type: "blob",
-        };
-      }),
-    );
-    const tree = await this.#json(
-      `/repos/${target}/git/trees`,
-      gitObjectSchema,
-      {
-        body: JSON.stringify({
-          ...(headCommit === null ? {} : { base_tree: headCommit.tree.sha }),
-          tree: treeEntries,
-        }),
-        method: "POST",
-      },
-    );
-    const commit = await this.#json(
-      `/repos/${target}/git/commits`,
-      gitCommitSchema,
-      {
-        body: JSON.stringify({
-          message: parsedMessage,
-          ...(headCommit === null ? {} : { parents: [headCommit.sha] }),
-          tree: tree.sha,
-        }),
-        method: "POST",
-      },
-    );
-    if (headCommit === null) {
-      await this.#json(
-        `/repos/${target}/git/refs`,
-        gitRefSchema,
-        {
-          body: JSON.stringify({
-            ref: `refs/heads/${repository.defaultBranch}`,
-            sha: commit.sha,
-          }),
-          method: "POST",
-        },
-        true,
-      );
-    } else {
-      await this.#json(
-        `/repos/${target}/git/refs/heads/${encodedBranch}`,
-        gitRefSchema,
-        {
-          body: JSON.stringify({ force: false, sha: commit.sha }),
-          method: "PATCH",
-        },
-        true,
-      );
-    }
-    return { commitSha: commit.sha, created: true };
-  }
-
-  async getRepositoryReadiness(
-    repository: GitHubRepository,
-    managedPaths: readonly string[],
-  ): Promise<GitHubPagesReadiness> {
-    const target = repositoryTarget(repository);
-    const paths = parseManagedPaths(managedPaths);
-    const pagesSettingsUrl = repositoryPagesSettingsUrl(repository);
-    const encodedBranch = encodeURIComponent(repository.defaultBranch);
-    const [reference, pages] = await Promise.all([
-      this.#optionalJson(
-        `${GITHUB_API_ORIGIN}/repos/${target}/git/ref/heads/${encodedBranch}`,
-        gitRefSchema,
-        new Set([404, 409]),
-      ),
-      this.#optionalJson(
-        `${GITHUB_API_ORIGIN}/repos/${target}/pages`,
-        pagesSettingsSchema,
-      ),
-    ]);
-
-    let conflictingPaths: string[] = [];
-    if (reference !== null) {
-      const headCommit = await this.#json(
-        `/repos/${target}/git/commits/${reference.object.sha}`,
-        gitCommitSchema,
-      );
-      const treeUrl = new URL(
-        `${GITHUB_API_ORIGIN}/repos/${target}/git/trees/${headCommit.tree.sha}`,
-      );
-      treeUrl.searchParams.set("recursive", "1");
-      const response = await this.#request(
-        treeUrl,
-        { headers: this.#headers() },
-        "repository.tree",
-      );
-      if (!response.ok) {
-        throw providerError(response, "git_resource_not_found");
-      }
-      const parsedTree = gitTreeSchema.safeParse(await safeJson(response));
-      if (
-        !parsedTree.success ||
-        parsedTree.data.truncated ||
-        hasDuplicateTreePaths(parsedTree.data.tree)
-      ) {
-        return {
-          conflictingPaths: [],
-          managedPaths: paths,
-          pagesSettingsUrl,
-          state: "repository_not_managed",
-        };
-      }
-      const blobs = parsedTree.data.tree
-        .filter((entry) => entry.type === "blob")
-        .map((entry) => entry.path);
-      const hasMarker = blobs.includes(MANAGED_MARKER_PATH);
-      if (!hasMarker) {
-        conflictingPaths = blobs
-          .filter(
-            (path) =>
-              !LEGACY_V1_PATHS.has(path) && !LEGACY_BLOG_POST_PATH.test(path),
-          )
-          .sort((left, right) => left.localeCompare(right));
-      }
-    }
-
-    if (conflictingPaths.length > 0) {
-      return {
-        conflictingPaths,
-        managedPaths: paths,
-        pagesSettingsUrl,
-        state: "repository_not_managed",
-      };
-    }
-    return {
-      conflictingPaths: [],
-      managedPaths: paths,
-      pagesSettingsUrl,
-      state:
-        pages?.build_type === "workflow" ? "ready" : "pages_setup_required",
-    };
-  }
-
-  async getDeploymentStatus(
-    repository: GitHubRepository,
-    commitSha: string,
-  ): Promise<GitHubDeploymentStatus> {
-    const target = repositoryTarget(repository);
-    const sha = gitShaSchema.parse(commitSha);
-    const workflowUrl = new URL(
-      `${GITHUB_API_ORIGIN}/repos/${target}/actions/workflows/deploy.yml/runs`,
-    );
-    workflowUrl.searchParams.set("event", "push");
-    workflowUrl.searchParams.set("head_sha", sha);
-    workflowUrl.searchParams.set("per_page", "10");
-    const [workflow, pages] = await Promise.all([
-      this.#optionalJson(workflowUrl, workflowRunsSchema),
-      this.#optionalJson(
-        `${GITHUB_API_ORIGIN}/repos/${target}/pages/deployments/${sha}`,
-        pagesDeploymentSchema,
-      ),
-    ]);
-    const run =
-      workflow?.workflow_runs.find((candidate) => candidate.head_sha === sha) ??
-      null;
-    const pageUrl = `https://${repository.fullName.split("/")[0]}.github.io/`;
-
-    if (pages?.status === "succeed") {
-      return {
-        actionsUrl: safeActionsUrl(repository, run?.html_url),
-        pageUrl,
-        state: "succeeded",
-      };
-    }
-    if (
-      pages !== null &&
-      ["cancelled", "error", "errored", "failed"].includes(pages.status)
-    ) {
-      return {
-        actionsUrl: safeActionsUrl(repository, run?.html_url),
-        pageUrl,
-        state: "failed",
-      };
-    }
-    if (
-      run?.status === "completed" &&
-      run.conclusion !== "success" &&
-      run.conclusion !== "neutral" &&
-      run.conclusion !== "skipped"
-    ) {
-      return {
-        actionsUrl: safeActionsUrl(repository, run.html_url),
-        pageUrl,
-        state: "failed",
-      };
-    }
-    if (run?.status === "completed" && run.conclusion === "success") {
-      return {
-        actionsUrl: safeActionsUrl(repository, run.html_url),
-        pageUrl,
-        state: "in_progress",
-      };
-    }
-    return {
-      actionsUrl: safeActionsUrl(repository, run?.html_url),
-      pageUrl,
-      state: run?.status === "in_progress" ? "in_progress" : "queued",
-    };
-  }
-
-  async #json<T>(
-    path: string,
-    schema: z.ZodType<T>,
-    init: RequestInit = {},
-    conflictOnFailure = false,
-  ): Promise<T> {
-    const response = await this.#request(
-      path.startsWith("https:") ? path : `${GITHUB_API_ORIGIN}${path}`,
-      {
-        ...init,
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${this.#accessToken}`,
-          "content-type": "application/json",
-          "user-agent": "notion-kanban-blog",
-          "x-github-api-version": this.#apiVersion,
-          ...init.headers,
-        },
-      },
-      init.method === undefined || init.method === "GET"
-        ? "git.read"
-        : "git.write",
-    );
-    if (!response.ok) {
-      if (
-        conflictOnFailure &&
-        (response.status === 409 || response.status === 422)
-      ) {
-        throw new GitHubPagesError("conflict");
-      }
-      throw providerError(response, "git_resource_not_found");
-    }
-    const parsed = schema.safeParse(await safeJson(response));
-    if (!parsed.success) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    return parsed.data;
-  }
-
-  async #optionalJson<T>(
-    input: string | URL,
-    schema: z.ZodType<T>,
-    absentStatuses: ReadonlySet<number> = new Set([404]),
-  ): Promise<T | null> {
-    const response = await this.#request(
-      input,
-      {
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${this.#accessToken}`,
-          "user-agent": "notion-kanban-blog",
-          "x-github-api-version": this.#apiVersion,
-        },
-      },
-      "git.read",
-    );
-    if (absentStatuses.has(response.status)) {
-      return null;
-    }
-    if (!response.ok) {
-      throw providerError(response, "git_resource_not_found");
-    }
-    const parsed = schema.safeParse(await safeJson(response));
-    if (!parsed.success) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    return parsed.data;
-  }
-
-  #headers(): HeadersInit {
-    return {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${this.#accessToken}`,
-      "user-agent": "notion-kanban-blog",
-      "x-github-api-version": this.#apiVersion,
-    };
-  }
-
-  async #request(
-    input: RequestInfo | URL,
-    init: RequestInit,
-    operation: string,
-  ): Promise<Response> {
-    try {
-      return await providerRequest({
-        fetch: this.#fetch,
-        init,
-        input,
-        log: this.#log,
-        operation,
-        provider: "github",
-        timeoutMs: this.#timeoutMs,
-      });
-    } catch (error) {
-      if (error instanceof ProviderTransportError) {
-        throw new GitHubPagesError(error.code);
-      }
-      throw error;
-    }
-  }
-}
+const FAILED_PAGES_STATUSES = new Set(["cancelled", "error", "errored", "failed"]);
+const OK_RUN_CONCLUSIONS = new Set(["neutral", "skipped", "success"]);
 
 export class GitHubPagesError extends Error {
   override readonly name = "GitHubPagesError";
@@ -581,215 +112,380 @@ export class GitHubPagesError extends Error {
   }
 }
 
+type NotFoundCode = "git_resource_not_found" | "repository_not_found";
+
+export class GitHubPagesClient implements GitHubRepositoryAdapter {
+  readonly #accessToken: string;
+  readonly #apiVersion: string;
+  readonly #fetch: typeof fetch;
+  readonly #log: LogSink | undefined;
+  readonly #timeoutMs: number | undefined;
+
+  constructor(options: {
+    accessToken: string;
+    apiVersion: string;
+    fetch?: typeof fetch;
+    log?: LogSink;
+    timeoutMs?: number;
+  }) {
+    this.#accessToken = z.string().min(1).max(4096).parse(options.accessToken);
+    this.#apiVersion = apiVersionSchema.parse(options.apiVersion);
+    this.#fetch = options.fetch ?? fetch;
+    this.#log = options.log;
+    this.#timeoutMs = options.timeoutMs;
+  }
+
+  /** 세션 사용자 소유의 공개 `<login>.github.io`이고 push 권한과 게시 scope가 있을 때만 돌려준다. */
+  async getPagesRepository(ownerUserId: string, ownerLogin: string): Promise<GitHubRepository> {
+    const ownerId = numericIdSchema.parse(ownerUserId);
+    const login = loginSchema.parse(ownerLogin);
+    const name = `${login}.github.io`;
+    const response = await this.#send(`/repos/${encodeURIComponent(login)}/${encodeURIComponent(name)}`, "repository.get");
+    if (!response.ok) {
+      throw providerError(response, "repository_not_found");
+    }
+    if (!hasPublishingScopes(response.headers.get("x-oauth-scopes"))) {
+      throw new GitHubPagesError("oauth_scope_missing");
+    }
+    const repository = await parseBody(response, repositorySchema);
+    const same = (left: string, right: string) => left.toLowerCase() === right.toLowerCase();
+    if (
+      String(repository.owner.id) !== ownerId ||
+      !same(repository.owner.login, login) ||
+      !same(repository.name, name) ||
+      !same(repository.full_name, `${login}/${name}`)
+    ) {
+      throw new GitHubPagesError("repository_owner_mismatch");
+    }
+    if (repository.private) {
+      throw new GitHubPagesError("repository_must_be_public");
+    }
+    if (!repository.permissions.push) {
+      throw new GitHubPagesError("repository_write_denied");
+    }
+    return {
+      defaultBranch: repository.default_branch,
+      fullName: repository.full_name,
+      isPrivate: repository.private,
+      providerRepositoryId: String(repository.id),
+    };
+  }
+
+  /** 기본 branch에 artifact 전체를 commit 하나로 올린다. 빈 저장소면 branch를 만든다. force push는 하지 않는다. */
+  async commitArtifacts(
+    repository: GitHubRepository,
+    artifacts: readonly GitHubArtifact[],
+    message: string,
+  ): Promise<GitHubCommitResult> {
+    const repo = repositoryPath(repository);
+    const commitMessage = z.string().trim().min(1).max(250).parse(message);
+    assertArtifacts(artifacts);
+    const head = await this.#headCommit(repository);
+    const tree = await Promise.all(
+      artifacts.map(async (artifact) => {
+        const blob = await this.#json(`${repo}/git/blobs`, gitObjectSchema, {
+          content: Buffer.from(artifact.bytes).toString("base64"),
+          encoding: "base64",
+        });
+        return { mode: "100644", path: artifact.path, sha: blob.sha, type: "blob" };
+      }),
+    );
+    const newTree = await this.#json(`${repo}/git/trees`, gitObjectSchema, {
+      ...(head === null ? {} : { base_tree: head.tree.sha }),
+      tree,
+    });
+    const commit = await this.#json(`${repo}/git/commits`, gitCommitSchema, {
+      message: commitMessage,
+      ...(head === null ? {} : { parents: [head.sha] }),
+      tree: newTree.sha,
+    });
+    if (head === null) {
+      await this.#json(`${repo}/git/refs`, gitRefSchema, {
+        ref: `refs/heads/${repository.defaultBranch}`,
+        sha: commit.sha,
+      });
+    } else {
+      await this.#json(
+        `${repo}/git/refs/heads/${encodeURIComponent(repository.defaultBranch)}`,
+        gitRefSchema,
+        { force: false, sha: commit.sha },
+        "PATCH",
+      );
+    }
+    return { commitSha: commit.sha, created: true };
+  }
+
+  /**
+   * Pages가 GitHub Actions 빌드로 설정됐는지, 덮어쓸 수 없는 남의 파일이 있는지 본다.
+   * 관리 표식이 있으면 우리 저장소로 보고, 없으면 v1 template·글 밖의 파일을 충돌로 돌려준다.
+   */
+  async getRepositoryReadiness(
+    repository: GitHubRepository,
+    managedPaths: readonly string[],
+  ): Promise<GitHubPagesReadiness> {
+    const repo = repositoryPath(repository);
+    const paths = parseManagedPaths(managedPaths);
+    const [owner, name] = repository.fullName.split("/");
+    const base = { managedPaths: paths, pagesSettingsUrl: `https://github.com/${owner}/${name}/settings/pages` };
+    const [head, pages] = await Promise.all([
+      this.#headCommit(repository),
+      this.#optional(`${repo}/pages`, pagesSettingsSchema),
+    ]);
+
+    if (head !== null) {
+      const response = await this.#send(`${repo}/git/trees/${head.tree.sha}?recursive=1`, "repository.tree");
+      if (!response.ok) {
+        throw providerError(response, "git_resource_not_found");
+      }
+      const tree = gitTreeSchema.safeParse(await response.json().catch(() => null));
+      const entries = tree.success ? tree.data.tree : [];
+      if (!tree.success || tree.data.truncated || new Set(entries.map((entry) => entry.path)).size !== entries.length) {
+        return { ...base, conflictingPaths: [], state: "repository_not_managed" };
+      }
+      const blobs = entries.filter((entry) => entry.type === "blob").map((entry) => entry.path);
+      const conflictingPaths = blobs.includes(MANAGED_MARKER_PATH)
+        ? []
+        : blobs
+            .filter((path) => !LEGACY_V1_PATHS.has(path) && !LEGACY_BLOG_POST_PATH.test(path))
+            .sort((left, right) => left.localeCompare(right));
+      if (conflictingPaths.length > 0) {
+        return { ...base, conflictingPaths, state: "repository_not_managed" };
+      }
+    }
+    return {
+      ...base,
+      conflictingPaths: [],
+      state: pages?.build_type === "workflow" ? "ready" : "pages_setup_required",
+    };
+  }
+
+  /** commit의 Pages 배포 상태. Pages 배포 결과를 먼저 보고, 없으면 deploy.yml workflow run으로 판단한다. */
+  async getDeploymentStatus(repository: GitHubRepository, commitSha: string): Promise<GitHubDeploymentStatus> {
+    const repo = repositoryPath(repository);
+    const sha = gitShaSchema.parse(commitSha);
+    const [workflow, pages] = await Promise.all([
+      this.#optional(
+        `${repo}/actions/workflows/deploy.yml/runs?event=push&head_sha=${sha}&per_page=10`,
+        workflowRunsSchema,
+      ),
+      this.#optional(`${repo}/pages/deployments/${sha}`, pagesDeploymentSchema),
+    ]);
+    const run = workflow?.workflow_runs.find((candidate) => candidate.head_sha === sha);
+    const state: GitHubDeploymentStatus["state"] =
+      pages?.status === "succeed"
+        ? "succeeded"
+        : pages !== null && FAILED_PAGES_STATUSES.has(pages.status)
+          ? "failed"
+          : run?.status === "completed"
+            ? run.conclusion !== null && OK_RUN_CONCLUSIONS.has(run.conclusion)
+              ? run.conclusion === "success"
+                ? "in_progress" // 빌드는 끝났고 Pages 배포를 기다린다.
+                : "queued"
+              : "failed"
+            : run?.status === "in_progress"
+              ? "in_progress"
+              : "queued";
+    return {
+      actionsUrl: safeActionsUrl(repository, run?.html_url),
+      pageUrl: `https://${repository.fullName.split("/")[0]}.github.io/`,
+      state,
+    };
+  }
+
+  /** 기본 branch의 최신 commit. branch가 없는 빈 저장소(404·409)면 null. */
+  async #headCommit(repository: GitHubRepository) {
+    const repo = repositoryPath(repository);
+    const reference = await this.#optional(
+      `${repo}/git/ref/heads/${encodeURIComponent(repository.defaultBranch)}`,
+      gitRefSchema,
+      [404, 409],
+    );
+    if (reference === null) {
+      return null;
+    }
+    const response = await this.#send(`${repo}/git/commits/${reference.object.sha}`, "git.read");
+    if (!response.ok) {
+      throw providerError(response, "git_resource_not_found");
+    }
+    return parseBody(response, gitCommitSchema);
+  }
+
+  /** 쓰기 요청. branch ref 갱신의 409·422는 그 사이 branch가 움직인 것이므로 conflict로 본다. */
+  async #json<T>(path: string, schema: z.ZodType<T>, body: unknown, method = "POST"): Promise<T> {
+    const response = await this.#send(path, "git.write", { body: JSON.stringify(body), method });
+    if (path.includes("/git/refs") && (response.status === 409 || response.status === 422)) {
+      throw new GitHubPagesError("conflict");
+    }
+    if (!response.ok) {
+      throw providerError(response, "git_resource_not_found");
+    }
+    return parseBody(response, schema);
+  }
+
+  /** 없을 수 있는 자원 읽기. `absent` 상태면 null. */
+  async #optional<T>(path: string, schema: z.ZodType<T>, absent = [404]): Promise<T | null> {
+    const response = await this.#send(path, "git.read");
+    if (absent.includes(response.status)) {
+      return null;
+    }
+    if (!response.ok) {
+      throw providerError(response, "git_resource_not_found");
+    }
+    return parseBody(response, schema);
+  }
+
+  async #send(path: string, operation: string, init: { body?: string; method?: string } = {}): Promise<Response> {
+    try {
+      return await providerRequest({
+        fetch: this.#fetch,
+        init: {
+          ...init,
+          headers: {
+            accept: "application/vnd.github+json",
+            authorization: `Bearer ${this.#accessToken}`,
+            ...(init.body === undefined ? {} : { "content-type": "application/json" }),
+            "user-agent": "notion-kanban-blog",
+            "x-github-api-version": this.#apiVersion,
+          },
+        },
+        input: `${GITHUB_API_ORIGIN}${path}`,
+        log: this.#log,
+        operation,
+        provider: "github",
+        timeoutMs: this.#timeoutMs,
+      });
+    } catch (error) {
+      throw error instanceof ProviderTransportError ? new GitHubPagesError(error.code) : error;
+    }
+  }
+}
+
+/** `/api/github/pages-repository`: 게시 대상 저장소와 준비 상태. token은 응답에 넣지 않는다. */
 export async function getGitHubPagesRepository(
   request: Request,
-  dependencies: Omit<GitHubPagesDependencies, "client"> & {
-    createClient: (accessToken: string) => GitHubRepositoryAdapter;
-  },
+  dependencies: { createClient: (accessToken: string) => GitHubRepositoryAdapter; sessionCodec: SessionCodec },
 ): Promise<Response> {
   const session = await readSession(request, dependencies.sessionCodec);
   if (session === null) {
     return errorResponse(401, "authentication_required");
   }
-
   try {
     const client = dependencies.createClient(session.accessToken);
-    const repository = await client.getPagesRepository(
-      session.userId,
-      session.githubLogin,
-    );
+    const repository = await client.getPagesRepository(session.userId, session.githubLogin);
     const [owner = "", name = ""] = repository.fullName.split("/");
     const managedPaths = createAstroTemplateManifest({
       defaultBranch: repository.defaultBranch,
       owner,
       repository: name,
     }).artifacts.map((artifact) => artifact.path);
-    const readiness = await client.getRepositoryReadiness(
-      repository,
-      managedPaths,
-    );
-    return Response.json(
-      { readiness, repository },
-      { headers: { "cache-control": "no-store" } },
-    );
+    const readiness = await client.getRepositoryReadiness(repository, managedPaths);
+    return Response.json({ readiness, repository }, { headers: { "cache-control": "no-store" } });
   } catch (error) {
     if (!(error instanceof GitHubPagesError)) {
       return errorResponse(502, "github_pages_unavailable");
     }
-    const status =
-      error.code === "repository_not_found"
-        ? 404
-        : error.code === "rate_limited"
-          ? 429
-          : error.code === "timeout"
-            ? 504
-          : error.code === "unavailable" ||
-              error.code === "invalid_response"
-            ? 502
-            : 403;
-    return errorResponse(
-      status,
-      error.code === "timeout" ? "github_timeout" : error.code,
-      error.retryAfterSeconds === null
-        ? {}
-        : { "retry-after": String(error.retryAfterSeconds) },
-    );
+    // 이 route만 접두어 없는 code를 쓴다(timeout 제외). 화면이 이 code로 복구 안내를 고른다.
+    return gitHubErrorResponse(error, error.code === "timeout" ? "github_timeout" : error.code);
   }
 }
 
-export function createGitHubPagesDependencies(
-  environment: NodeJS.ProcessEnv = process.env,
-) {
-  const parsed = environmentSchema.parse(environment);
-  const auth = createGitHubAuthDependencies(environment);
+export function createGitHubPagesDependencies(environment: NodeJS.ProcessEnv = process.env) {
+  const apiVersion = apiVersionSchema.parse(environment.GITHUB_API_VERSION);
   return {
-    createClient: (accessToken: string) =>
-      new GitHubPagesClient({
-        accessToken,
-        apiVersion: parsed.GITHUB_API_VERSION,
-      }),
-    sessionCodec: auth.sessionCodec,
+    createClient: (accessToken: string) => new GitHubPagesClient({ accessToken, apiVersion }),
+    sessionCodec: createGitHubAuthDependencies(environment).sessionCodec,
   };
 }
 
-function hasPublishingScopes(value: string | null): boolean {
-  if (value === null) {
-    return false;
-  }
-  const scopes = new Set(
-    value
-      .split(",")
-      .map((scope) => scope.trim())
-      .filter(Boolean),
+const GITHUB_ERROR_STATUS: Record<GitHubPagesError["code"], number> = {
+  access_denied: 403,
+  conflict: 409,
+  git_resource_not_found: 502,
+  invalid_response: 502,
+  oauth_scope_missing: 403,
+  rate_limited: 429,
+  repository_must_be_public: 403,
+  repository_not_found: 404,
+  repository_owner_mismatch: 403,
+  repository_write_denied: 403,
+  timeout: 504,
+  unavailable: 502,
+};
+
+/** GitHubPagesError → HTTP 응답. rate limit이면 retry-after를 붙인다. */
+export function gitHubErrorResponse(error: GitHubPagesError, code = `github_${error.code}`): Response {
+  return errorResponse(
+    GITHUB_ERROR_STATUS[error.code],
+    code,
+    error.retryAfterSeconds === null ? {} : { "retry-after": String(error.retryAfterSeconds) },
   );
-  return (scopes.has("public_repo") || scopes.has("repo")) &&
-    scopes.has("workflow");
 }
 
-function repositoryTarget(repository: GitHubRepository): string {
-  const [owner, name, ...rest] = repository.fullName.split("/");
+function hasPublishingScopes(value: string | null): boolean {
+  const scopes = new Set((value ?? "").split(",").map((scope) => scope.trim()));
+  return (scopes.has("public_repo") || scopes.has("repo")) && scopes.has("workflow");
+}
+
+/** `/repos/<owner>/<name>`. fullName이 GitHub 이름 규칙을 벗어나면 URL에 넣지 않는다. */
+function repositoryPath(repository: GitHubRepository): string {
+  const [owner = "", name = "", ...rest] = repository.fullName.split("/");
+  if (rest.length > 0 || !loginSchema.safeParse(owner).success || !repositoryNameSchema.safeParse(name).success) {
+    throw new GitHubPagesError("invalid_response");
+  }
+  return `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+}
+
+/** 저장소에 쓰기 전 마지막 경계: 개수·총 크기·경로가 저장소 안인지·중복을 확인한다. */
+function assertArtifacts(artifacts: readonly GitHubArtifact[]): void {
+  const paths = artifacts.map((artifact) => artifact.path);
+  const totalBytes = artifacts.reduce((sum, artifact) => sum + artifact.bytes.byteLength, 0);
   if (
-    owner === undefined ||
-    name === undefined ||
-    rest.length > 0 ||
-    !loginSchema.safeParse(owner).success ||
-    !z
-      .string()
-      .regex(/^[A-Za-z0-9._-]{1,100}$/)
-      .safeParse(name).success
+    artifacts.length === 0 ||
+    artifacts.length > MAX_ARTIFACTS ||
+    totalBytes > MAX_ARTIFACT_BYTES ||
+    new Set(paths).size !== paths.length ||
+    artifacts.some((artifact) => !(artifact.bytes instanceof Uint8Array) || !gitPathSchema.safeParse(artifact.path).success)
   ) {
     throw new GitHubPagesError("invalid_response");
   }
-  return `${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
-}
-
-function parseArtifacts(
-  artifacts: readonly GitHubArtifact[],
-): GitHubArtifact[] {
-  if (artifacts.length === 0 || artifacts.length > 200) {
-    throw new GitHubPagesError("invalid_response");
-  }
-  let totalBytes = 0;
-  const seen = new Set<string>();
-  return artifacts.map((artifact) => {
-    if (
-      artifact.path.length === 0 ||
-      artifact.path.startsWith("/") ||
-      artifact.path.length > 1_024 ||
-      artifact.path
-        .split("/")
-        .some(
-          (segment) =>
-            segment.length === 0 || segment === "." || segment === "..",
-        ) ||
-      seen.has(artifact.path)
-    ) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    if (!(artifact.bytes instanceof Uint8Array)) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    seen.add(artifact.path);
-    totalBytes += artifact.bytes.byteLength;
-    if (totalBytes > 20 * 1024 * 1024) {
-      throw new GitHubPagesError("invalid_response");
-    }
-    return artifact;
-  });
 }
 
 function parseManagedPaths(paths: readonly string[]): string[] {
-  if (paths.length === 0 || paths.length > 200) {
+  if (paths.length === 0 || paths.length > MAX_ARTIFACTS || new Set(paths).size !== paths.length) {
     throw new GitHubPagesError("invalid_response");
   }
-  const parsed = paths.map((path) => gitTreePathSchema.parse(path));
-  if (new Set(parsed).size !== parsed.length) {
-    throw new GitHubPagesError("invalid_response");
-  }
-  return parsed.sort((left, right) => left.localeCompare(right));
+  return paths.map((path) => gitPathSchema.parse(path)).sort((left, right) => left.localeCompare(right));
 }
 
-function hasDuplicateTreePaths(
-  entries: readonly { path: string }[],
-): boolean {
-  return new Set(entries.map((entry) => entry.path)).size !== entries.length;
-}
-
-function repositoryPagesSettingsUrl(repository: GitHubRepository): string {
-  const [owner, name] = repository.fullName.split("/");
-  return `https://github.com/${owner}/${name}/settings/pages`;
-}
-
-function safeActionsUrl(
-  repository: GitHubRepository,
-  candidate: string | undefined,
-): string | null {
-  if (candidate === undefined) {
+/** workflow run URL은 이 저장소의 github.com Actions 경로일 때만 화면에 넘긴다. */
+function safeActionsUrl(repository: GitHubRepository, candidate: string | undefined): string | null {
+  if (candidate === undefined || !URL.canParse(candidate)) {
     return null;
   }
-  try {
-    const url = new URL(candidate);
-    const [owner, name] = repository.fullName.split("/");
-    const requiredPrefix = `/${owner}/${name}/actions/`.toLowerCase();
-    return url.origin === "https://github.com" &&
-      url.username === "" &&
-      url.password === "" &&
-      url.pathname.toLowerCase().startsWith(requiredPrefix)
-      ? url.href
-      : null;
-  } catch {
-    return null;
-  }
+  const url = new URL(candidate);
+  const prefix = `/${repository.fullName}/actions/`.toLowerCase();
+  return url.origin === "https://github.com" &&
+    url.username === "" &&
+    url.password === "" &&
+    url.pathname.toLowerCase().startsWith(prefix)
+    ? url.href
+    : null;
 }
 
-function providerError(
-  response: Response,
-  notFoundCode: "git_resource_not_found" | "repository_not_found" =
-    "repository_not_found",
-): GitHubPagesError {
-  if (
-    response.status === 429 ||
-    (response.status === 403 &&
-      response.headers.get("x-ratelimit-remaining") === "0")
-  ) {
-    return new GitHubPagesError(
-      "rate_limited",
-      parseRetryAfter(response.headers),
-    );
+function providerError(response: Response, notFound: NotFoundCode): GitHubPagesError {
+  if (response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")) {
+    return new GitHubPagesError("rate_limited", parseRetryAfter(response.headers));
   }
   if (response.status === 404) {
-    return new GitHubPagesError(notFoundCode);
+    return new GitHubPagesError(notFound);
   }
-  if (response.status === 401 || response.status === 403) {
-    return new GitHubPagesError("access_denied");
-  }
-  return new GitHubPagesError("unavailable");
+  return new GitHubPagesError(response.status === 401 || response.status === 403 ? "access_denied" : "unavailable");
 }
 
-async function safeJson(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
+async function parseBody<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
+  const parsed = schema.safeParse(await response.json().catch(() => null));
+  if (!parsed.success) {
+    throw new GitHubPagesError("invalid_response");
   }
+  return parsed.data;
 }

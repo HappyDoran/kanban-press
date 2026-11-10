@@ -47,50 +47,29 @@ const richTextSchema = z
 
 export type PublishRichText = z.infer<typeof richTextSchema>;
 
-export type PublishBlock =
-  | {
-      children: PublishBlock[];
-      icon: string | null;
-      kind: "callout";
-      richText: PublishRichText[];
-    }
+/** 게시 문서 블록. 단계마다 image 블록 모양만 다르다(Notion 원본 URL → 저장소 자산 경로). */
+export type PublishBlockWith<Image> =
+  | { children: PublishBlockWith<Image>[]; icon: string | null; kind: "callout"; richText: PublishRichText[] }
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
   | { expression: string; kind: "equation" }
   | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
-  | { assetPath: string; caption: PublishRichText[]; kind: "image" }
+  | Image
   | {
-      children: PublishBlock[];
+      children: PublishBlockWith<Image>[];
       kind: "listItem";
       richText: PublishRichText[];
       style: "bulleted" | "numbered";
     }
   | { caption: PublishRichText[]; kind: "linkCard"; url: string }
-  | {
-      caption: PublishRichText[];
-      kind: "media";
-      mediaType: "audio" | "file" | "pdf" | "video";
-      url: string | null;
-    }
+  | { caption: PublishRichText[]; kind: "media"; mediaType: "audio" | "file" | "pdf" | "video"; url: string | null }
   | { kind: "paragraph"; richText: PublishRichText[] }
   | { kind: "quote"; richText: PublishRichText[] }
-  | {
-      hasColumnHeader: boolean;
-      hasRowHeader: boolean;
-      kind: "table";
-      rows: PublishRichText[][][];
-    }
-  | {
-      checked: boolean;
-      children: PublishBlock[];
-      kind: "toDo";
-      richText: PublishRichText[];
-    }
-  | {
-      kind: "toggle";
-      children: PublishBlock[];
-      summary: PublishRichText[];
-    };
+  | { hasColumnHeader: boolean; hasRowHeader: boolean; kind: "table"; rows: PublishRichText[][][] }
+  | { checked: boolean; children: PublishBlockWith<Image>[]; kind: "toDo"; richText: PublishRichText[] }
+  | { children: PublishBlockWith<Image>[]; kind: "toggle"; summary: PublishRichText[] };
+
+export type PublishBlock = PublishBlockWith<{ assetPath: string; caption: PublishRichText[]; kind: "image" }>;
 
 const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
   z.discriminatedUnion("kind", [

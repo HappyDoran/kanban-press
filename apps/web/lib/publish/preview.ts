@@ -219,14 +219,15 @@ export type PublishPreviewResponse = z.infer<
   typeof publishPreviewResponseSchema
 >;
 
+/** 게시 문서를 프리뷰 응답으로 바꾼다. 이미지 원본 URL(Notion 서명 URL)은 넣지 않고 자리표시자로 둔다. */
 export function createPublishPreviewResponse(
   document: PublishSourceDocument,
   sourceLastEditedAt: string,
 ): PublishPreviewResponse {
-  const projection = projectBlocks(document.blocks, 0);
+  const seen = { image: false };
   const preview = publishPreviewResponseSchema.parse({
     document: {
-      blocks: projection.blocks,
+      blocks: projectBlocks(document.blocks, 0, seen),
       category: document.category,
       description: document.description,
       publishedAt: document.publishedAt,
@@ -238,28 +239,22 @@ export function createPublishPreviewResponse(
     previewSchemaVersion: 1,
     sourceLastEditedAt,
     templateVersion: 2,
-    warnings: projection.hasImage
+    warnings: seen.image
       ? [
           {
             code: "image_placeholder",
-            message:
-              "이미지 주소는 안전을 위해 프리뷰에 포함하지 않으며 자리표시자로 보여줍니다.",
+            message: "이미지 주소는 안전을 위해 프리뷰에 포함하지 않으며 자리표시자로 보여줍니다.",
           },
         ]
       : [],
   });
-  if (
-    new TextEncoder().encode(JSON.stringify(preview)).byteLength >
-    MAX_PREVIEW_RESPONSE_BYTES
-  ) {
+  if (new TextEncoder().encode(JSON.stringify(preview)).byteLength > MAX_PREVIEW_RESPONSE_BYTES) {
     throw new Error("Preview response exceeds the safe size limit");
   }
   return preview;
 }
 
-export function parsePublishPreviewResponse(
-  value: unknown,
-): PublishPreviewResponse | null {
+export function parsePublishPreviewResponse(value: unknown): PublishPreviewResponse | null {
   const result = publishPreviewResponseSchema.safeParse(value);
   return result.success ? result.data : null;
 }
@@ -267,57 +262,33 @@ export function parsePublishPreviewResponse(
 function projectBlocks(
   blocks: readonly PublishSourceBlock[],
   depth: number,
-): { blocks: PreviewBlock[]; hasImage: boolean } {
+  seen: { image: boolean },
+): PreviewBlock[] {
   if (depth > MAX_BLOCK_DEPTH) {
     throw new Error("Preview block depth exceeds the safe limit");
   }
-  let hasImage = false;
-  const projected = blocks.map((block): PreviewBlock => {
+  const children = (items: readonly PublishSourceBlock[]) => projectBlocks(items, depth + 1, seen);
+  return blocks.map((block): PreviewBlock => {
     switch (block.kind) {
-      case "callout": {
-        const children = projectBlocks(block.children, depth + 1);
-        hasImage ||= children.hasImage;
-        return {
-          children: children.blocks,
-          icon: block.icon,
-          kind: "callout",
-          richText: projectRichText(block.richText),
-        };
-      }
       case "code":
-        return { code: block.code, kind: "code", language: block.language };
       case "divider":
-        return { kind: "divider" };
       case "equation":
-        return { expression: block.expression, kind: "equation" };
+        return block;
       case "heading":
-        return {
-          kind: "heading",
-          level: block.level,
-          richText: projectRichText(block.richText),
-        };
+      case "paragraph":
+      case "quote":
+        return { ...block, richText: projectRichText(block.richText) };
+      case "callout":
+      case "listItem":
+      case "toDo":
+        return { ...block, children: children(block.children), richText: projectRichText(block.richText) };
+      case "toggle":
+        return { children: children(block.children), kind: "toggle", summary: projectRichText(block.summary) };
       case "image":
-        hasImage = true;
-        return {
-          caption: projectRichText(block.caption),
-          kind: "image",
-        };
-      case "listItem": {
-        const children = projectBlocks(block.children, depth + 1);
-        hasImage ||= children.hasImage;
-        return {
-          children: children.blocks,
-          kind: "listItem",
-          richText: projectRichText(block.richText),
-          style: block.style,
-        };
-      }
+        seen.image = true;
+        return { caption: projectRichText(block.caption), kind: "image" };
       case "linkCard":
-        return {
-          caption: projectRichText(block.caption),
-          href: safePreviewHref(block.url),
-          kind: "linkCard",
-        };
+        return { caption: projectRichText(block.caption), href: safePreviewHref(block.url), kind: "linkCard" };
       case "media":
         return {
           caption: projectRichText(block.caption),
@@ -325,43 +296,10 @@ function projectBlocks(
           kind: "media",
           mediaType: block.mediaType,
         };
-      case "paragraph":
-      case "quote":
-        return {
-          kind: block.kind,
-          richText: projectRichText(block.richText),
-        };
       case "table":
-        return {
-          hasColumnHeader: block.hasColumnHeader,
-          hasRowHeader: block.hasRowHeader,
-          kind: "table",
-          rows: block.rows.map((row) =>
-            row.map((cell) => projectRichText(cell)),
-          ),
-        };
-      case "toDo": {
-        const children = projectBlocks(block.children, depth + 1);
-        hasImage ||= children.hasImage;
-        return {
-          checked: block.checked,
-          children: children.blocks,
-          kind: "toDo",
-          richText: projectRichText(block.richText),
-        };
-      }
-      case "toggle": {
-        const children = projectBlocks(block.children, depth + 1);
-        hasImage ||= children.hasImage;
-        return {
-          children: children.blocks,
-          kind: "toggle",
-          summary: projectRichText(block.summary),
-        };
-      }
+        return { ...block, rows: block.rows.map((row) => row.map(projectRichText)) };
     }
   });
-  return { blocks: projected, hasImage };
 }
 
 function projectRichText(parts: readonly PublishRichText[]): PreviewRichText[] {

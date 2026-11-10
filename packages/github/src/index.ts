@@ -52,7 +52,3 @@ export interface GitHubRepositoryAdapter {
     commitSha: string,
   ): Promise<GitHubDeploymentStatus>;
 }
-
-export interface GitHubAdapterFactory {
-  forOAuthCredential(accessToken: string): GitHubRepositoryAdapter;
-}

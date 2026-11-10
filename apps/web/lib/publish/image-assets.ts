@@ -1,6 +1,6 @@
 import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
 
 import type {
   PublishArtifact,
@@ -105,16 +105,8 @@ export async function materializePublishImages(
         });
         continue;
       }
-      if (
-        block.kind === "toggle" ||
-        block.kind === "listItem" ||
-        block.kind === "toDo" ||
-        block.kind === "callout"
-      ) {
-        converted.push({
-          ...block,
-          children: await convertBlocks(block.children, depth + 1),
-        });
+      if ("children" in block) {
+        converted.push({ ...block, children: await convertBlocks(block.children, depth + 1) });
         continue;
       }
       converted.push(block);
@@ -148,84 +140,32 @@ export function createPublishImageDependencies(): PublishImageDependencies {
   };
 }
 
+// 공개 unicast 주소만 허용한다. IPv4는 사설·예약 대역을 막고, IPv6는 2000::/3 안에서 특수 대역을 뺀다.
+// IPv4-mapped IPv6(::ffff:127.0.0.1)는 2000::/3 밖이라 막힌다.
+const blockedIPv4 = new BlockList();
+for (const [network, prefix] of [
+  ["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
+  ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16],
+  ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4],
+] as const) {
+  blockedIPv4.addSubnet(network, prefix, "ipv4");
+}
+const globalIPv6 = new BlockList();
+globalIPv6.addSubnet("2000::", 3, "ipv6");
+const blockedIPv6 = new BlockList();
+for (const [network, prefix] of [["2001::", 23], ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20]] as const) {
+  blockedIPv6.addSubnet(network, prefix, "ipv6");
+}
+
 export function isPublicImageAddress(address: string): boolean {
-  const family = isIP(address);
-  if (family === 4) {
-    const parts = address.split(".").map(Number);
-    if (
-      parts.length !== 4 ||
-      parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
-    ) {
+  switch (isIP(address)) {
+    case 4:
+      return !blockedIPv4.check(address, "ipv4");
+    case 6:
+      return globalIPv6.check(address, "ipv6") && !blockedIPv6.check(address, "ipv6");
+    default:
       return false;
-    }
-    const value = parts.reduce(
-      (result, part) => (result << 8n) | BigInt(part),
-      0n,
-    );
-    return ![
-      ["0.0.0.0", 8],
-      ["10.0.0.0", 8],
-      ["100.64.0.0", 10],
-      ["127.0.0.0", 8],
-      ["169.254.0.0", 16],
-      ["172.16.0.0", 12],
-      ["192.0.0.0", 24],
-      ["192.0.2.0", 24],
-      ["192.88.99.0", 24],
-      ["192.168.0.0", 16],
-      ["198.18.0.0", 15],
-      ["198.51.100.0", 24],
-      ["203.0.113.0", 24],
-      ["224.0.0.0", 4],
-      ["240.0.0.0", 4],
-    ].some(([network, prefix]) =>
-      matchesPrefix(value, ipv4Value(network as string), prefix as number, 32),
-    );
   }
-  if (family === 6) {
-    const value = ipv6Value(address);
-    if (value === null) {
-      return false;
-    }
-    const globalUnicast = matchesPrefix(
-      value,
-      ipv6Value("2000::") ?? 0n,
-      3,
-      128,
-    );
-    const special2001 = matchesPrefix(
-      value,
-      ipv6Value("2001::") ?? 0n,
-      23,
-      128,
-    );
-    const sixToFour = matchesPrefix(
-      value,
-      ipv6Value("2002::") ?? 0n,
-      16,
-      128,
-    );
-    const documentation = matchesPrefix(
-      value,
-      ipv6Value("2001:db8::") ?? 0n,
-      32,
-      128,
-    );
-    const documentation2024 = matchesPrefix(
-      value,
-      ipv6Value("3fff::") ?? 0n,
-      20,
-      128,
-    );
-    return (
-      globalUnicast &&
-      !special2001 &&
-      !sixToFour &&
-      !documentation &&
-      !documentation2024
-    );
-  }
-  return false;
 }
 
 async function downloadImage(
@@ -321,12 +261,7 @@ async function downloadImage(
         if (declaredLength !== null && declaredLength !== length) {
           throw new InvalidPublishImageError("content_length_mismatch");
         }
-        const bytes = new Uint8Array(length);
-        let offset = 0;
-        for (const chunk of chunks) {
-          bytes.set(chunk, offset);
-          offset += chunk.byteLength;
-        }
+        const bytes = new Uint8Array(Buffer.concat(chunks));
         if (!matchesImageSignature(bytes, mime!)) {
           throw new InvalidPublishImageError("mime_content_mismatch");
         }
@@ -375,15 +310,7 @@ function countImages(
   }
   return blocks.reduce(
     (count, block) =>
-      count +
-      (block.kind === "image"
-        ? 1
-        : block.kind === "toggle" ||
-            block.kind === "listItem" ||
-            block.kind === "toDo" ||
-            block.kind === "callout"
-          ? countImages(block.children, depth + 1)
-          : 0),
+      count + (block.kind === "image" ? 1 : "children" in block ? countImages(block.children, depth + 1) : 0),
     0,
   );
 }
@@ -482,48 +409,4 @@ async function abortable<T>(
       );
     }),
   ]);
-}
-
-function matchesPrefix(
-  value: bigint,
-  network: bigint,
-  prefix: number,
-  bits: number,
-): boolean {
-  const shift = BigInt(bits - prefix);
-  return value >> shift === network >> shift;
-}
-
-function ipv4Value(address: string): bigint {
-  return address
-    .split(".")
-    .map(Number)
-    .reduce((result, part) => (result << 8n) | BigInt(part), 0n);
-}
-
-function ipv6Value(address: string): bigint | null {
-  if (address.includes(".")) {
-    return null;
-  }
-  const halves = address.toLowerCase().split("::");
-  if (halves.length > 2) {
-    return null;
-  }
-  const left = halves[0] ? halves[0].split(":") : [];
-  const right = halves[1] ? halves[1].split(":") : [];
-  const missing = 8 - left.length - right.length;
-  if ((halves.length === 1 && missing !== 0) || missing < 0) {
-    return null;
-  }
-  const groups = [...left, ...Array<string>(missing).fill("0"), ...right];
-  if (
-    groups.length !== 8 ||
-    groups.some((group) => !/^[a-f0-9]{1,4}$/.test(group))
-  ) {
-    return null;
-  }
-  return groups.reduce(
-    (result, group) => (result << 16n) | BigInt(`0x${group}`),
-    0n,
-  );
 }

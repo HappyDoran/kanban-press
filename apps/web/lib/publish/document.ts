@@ -6,6 +6,7 @@ import type {
   NotionPageProperty,
 } from "@notion-kanban-blog/notion";
 import type {
+  PublishBlockWith,
   PublishDocument,
   PublishRichText,
 } from "@notion-kanban-blog/publisher";
@@ -36,50 +37,8 @@ export interface BlogMetadata {
   tags: string[];
 }
 
-export type PublishSourceBlock =
-  | {
-      children: PublishSourceBlock[];
-      icon: string | null;
-      kind: "callout";
-      richText: PublishRichText[];
-    }
-  | { code: string; kind: "code"; language: string }
-  | { kind: "divider" }
-  | { expression: string; kind: "equation" }
-  | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
-  | { caption: PublishRichText[]; kind: "image"; sourceUrl: string }
-  | {
-      children: PublishSourceBlock[];
-      kind: "listItem";
-      richText: PublishRichText[];
-      style: "bulleted" | "numbered";
-    }
-  | { caption: PublishRichText[]; kind: "linkCard"; url: string }
-  | {
-      caption: PublishRichText[];
-      kind: "media";
-      mediaType: "audio" | "file" | "pdf" | "video";
-      url: string | null;
-    }
-  | { kind: "paragraph"; richText: PublishRichText[] }
-  | { kind: "quote"; richText: PublishRichText[] }
-  | {
-      hasColumnHeader: boolean;
-      hasRowHeader: boolean;
-      kind: "table";
-      rows: PublishRichText[][][];
-    }
-  | {
-      checked: boolean;
-      children: PublishSourceBlock[];
-      kind: "toDo";
-      richText: PublishRichText[];
-    }
-  | {
-      children: PublishSourceBlock[];
-      kind: "toggle";
-      summary: PublishRichText[];
-    };
+/** Notion에서 막 읽은 게시 블록. image는 아직 원본 URL을 들고 있고 image-assets.ts가 자산 경로로 바꾼다. */
+export type PublishSourceBlock = PublishBlockWith<{ caption: PublishRichText[]; kind: "image"; sourceUrl: string }>;
 
 export interface PublishSourceDocument
   extends Omit<PublishDocument, "blocks"> {

@@ -14,7 +14,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@notion-kanban-blog/domain": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {
