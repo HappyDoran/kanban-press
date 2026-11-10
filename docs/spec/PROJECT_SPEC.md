@@ -434,8 +434,9 @@ URL allowlist escape를 거친다. 프리뷰 DTO와 최종 Astro HTML은 동일�
 Astro HTML 모두 세 단계가 본문보다 크고 `heading 1 > heading 2 > heading 3 > 본문` 순서를
 유지해야 하며, 브라우저 user-agent heading 기본값에 의존하지 않는다.
 
-slug는 정규화한 Notion 제목과 page ID의 앞 12자리 hex를 조합해 같은 제목과 한글
-제목에서도 안정적이고 충돌 없이 생성한다. template artifact와 문서 artifact를
+slug는 정규화한 Notion 제목과 하이픈을 뺀 page ID 32자리 hex를 조합해 같은 제목과 한글
+제목에서도 안정적이고 충돌 없이 생성한다. Notion page ID는 앞부분이 워크스페이스와 생성 시점마다
+거의 같아 일부만 쓰면 다른 글과 겹치므로 ID 전체를 쓴다. template artifact와 문서 artifact를
 경로순으로 정렬하고 각 경로와 byte content를 SHA-256에 넣어 content hash를 만든다.
 
 GitHub 반영은 기본 branch의 현재 commit/tree를 읽고 artifact별 blob과 base tree를
@@ -511,18 +512,19 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 ### R8 블로그 글 관리
 
-- **옛 글 정리(결함 수정)**: 글 파일명은 `<제목 slug>-<page ID 앞 12자>.md`라 제목을 바꿔 다시 게시하면
+- **옛 글 정리(결함 수정)**: 글 파일명은 `<제목 slug>-<page ID 32자>.md`라 제목을 바꿔 다시 게시하면
   옛 파일이 남아 같은 글이 둘이 됐다. 게시 commit은 같은 page ID 접미사를 가진 파일
   (`src/content/blog/*.md`, `src/assets/blog/<slug>/`, `public/posts/<slug>/index.html`) 중 이번에 쓰지 않는
   것을 지운다. 이미지가 줄어 남은 옛 이미지도 지워진다. 옛 slug에는 `public/posts/<옛 slug>/index.html`
   안내 page를 남긴다(D4: JavaScript 없이 상대 주소 `../<새 slug>/`로 이동, canonical은 새 글 절대 주소,
-  `noindex`). 접미사가 없는 v1 글은 건드리지 않는다.
+  `noindex`). 접미사가 없는 v1 글과 page ID 앞 12자를 접미사로 쓰던 옛 글은 어느 page의 것인지
+  알 수 없으므로 건드리지 않는다.
 - **블로그에서 내리기**(`POST /api/publish/unpublish`): `게시 완료` 카드에서 확인 dialog(D1)를 거쳐
   실행한다. 서버는 같은 origin, 세션, GitHub 저장소 소유권·쓰기 권한, 요청한 Notion 연결 소유권을 다시
   확인한 뒤 그 page ID 접미사의 글·이미지·옛 주소 안내 page만 지우는 commit 하나를 만든다. Notion 원문은
   읽지 않는다. 관리 표식이 없는 저장소는 `409 github_repository_not_managed`로 거절한다. Notion 원문과 IndexedDB record는 지우지 않고 카드는
   `보관 중`으로 돌아간다. 지울 파일이 없으면 commit하지 않고 `404 blog_post_not_found`를 준다.
-- **게시 완료 열 복원**(`GET /api/publish/posts`): 칸반을 열 때 저장소 tree의 `src/content/blog/*-<12자>.md`를
+- **게시 완료 열 복원**(`GET /api/publish/posts`): 칸반을 열 때 저장소 tree의 `src/content/blog/*-<32자>.md`를
   읽어 접미사와 글 주소만 돌려주고, 접미사가 같은 카드를 `게시 완료`로 보여준다(§4). 이 값은 저장하지 않는다.
 - 완료 조건: 제목 변경 재게시 후 글 파일이 하나뿐이다. 내리기 commit에 다른 글·template 파일 변경이
   없다. 다른 사용자 저장소나 남의 page ID 파일을 지울 수 없다. 새로고침 뒤에도 게시 완료 카드가 보인다.

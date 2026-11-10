@@ -195,7 +195,7 @@ describe("publish orchestration", () => {
       contentHash: expect.stringMatching(CONTENT_HASH),
       created: true,
       pageUrl:
-        "https://octocat.github.io/posts/notion-9188c6a57381/",
+        "https://octocat.github.io/posts/notion-9188c6a57381452fb3dcd4865aa89bdf/",
     });
     expect(context.getPageContent).toHaveBeenCalledWith(PAGE_ID);
     expect(context.getPagesRepository).toHaveBeenCalledWith(
@@ -206,7 +206,7 @@ describe("publish orchestration", () => {
       expect.objectContaining({ fullName: "octocat/octocat.github.io" }),
       expect.arrayContaining([
         "package.json",
-        "src/content/blog/notion-9188c6a57381.md",
+        "src/content/blog/notion-9188c6a57381452fb3dcd4865aa89bdf.md",
       ]),
     );
     expect(createMarkdownArtifact).toHaveBeenCalledWith(
@@ -215,7 +215,7 @@ describe("publish orchestration", () => {
         description: "최신 본문",
         publishedAt: "2026-07-18T09:00:00.000Z",
         schemaVersion: 2,
-        slug: "notion-9188c6a57381",
+        slug: "notion-9188c6a57381452fb3dcd4865aa89bdf",
         tags: [],
       }),
     );
@@ -228,7 +228,7 @@ describe("publish orchestration", () => {
           path: ".kanban-press/managed.json",
         }),
         expect.objectContaining({
-          path: "src/content/blog/notion-9188c6a57381.md",
+          path: "src/content/blog/notion-9188c6a57381452fb3dcd4865aa89bdf.md",
         }),
       ]),
     );
@@ -301,7 +301,7 @@ describe("publish orchestration", () => {
         blocks: [
           {
             assetPath:
-              "../../assets/blog/notion-9188c6a57381/image-001.png",
+              "../../assets/blog/notion-9188c6a57381452fb3dcd4865aa89bdf/image-001.png",
             caption: [],
             kind: "image",
           },
@@ -315,14 +315,14 @@ describe("publish orchestration", () => {
       expect.arrayContaining([
         {
           bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]),
-          path: "src/assets/blog/notion-9188c6a57381/image-001.png",
+          path: "src/assets/blog/notion-9188c6a57381452fb3dcd4865aa89bdf/image-001.png",
         },
       ]),
     );
     expect(context.getRepositoryReadiness).toHaveBeenCalledWith(
       expect.anything(),
       expect.arrayContaining([
-        "src/assets/blog/notion-9188c6a57381/image-001.png",
+        "src/assets/blog/notion-9188c6a57381452fb3dcd4865aa89bdf/image-001.png",
       ]),
     );
     const commitMessage = context.commitArtifacts.mock.calls[0]?.[2];
@@ -556,10 +556,10 @@ describe("publish orchestration", () => {
 
   it("builds stable collision-resistant slugs and artifact hashes", () => {
     expect(pageSlug("한글 제목", PAGE_ID)).toBe(
-      "notion-9188c6a57381",
+      "notion-9188c6a57381452fb3dcd4865aa89bdf",
     );
     expect(pageSlug("Hello, World!", PAGE_ID)).toBe(
-      "hello-world-9188c6a57381",
+      "hello-world-9188c6a57381452fb3dcd4865aa89bdf",
     );
     const artifacts = [
       { bytes: new TextEncoder().encode("b"), path: "b.txt" },
@@ -629,7 +629,7 @@ describe("preview orchestration", () => {
       document: {
         blocks: [{ caption: expect.any(Array), kind: "image" }],
         category: { name: "개발" },
-        slug: "notion-9188c6a57381",
+        slug: "notion-9188c6a57381452fb3dcd4865aa89bdf",
         title: "한글 게시 글",
       },
       previewSchemaVersion: 1,

@@ -74,12 +74,12 @@ describe("toKanbanRecords", () => {
 describe("toKanbanRecords with blog posts", () => {
   it("puts visible cards whose page is on the blog in published with the blog URL, unless a publish is in flight", () => {
     const onBlog = record({ providerPageId: "9188c6a5-7381-452f-b3dc-d4865aa89bdf" });
-    const blog = new Map([["9188c6a57381", "https://octocat.github.io/posts/notion-9188c6a57381/"]]);
+    const blog = new Map([["9188c6a57381452fb3dcd4865aa89bdf", "https://octocat.github.io/posts/notion-9188c6a57381452fb3dcd4865aa89bdf/"]]);
 
     expect(toKanbanRecords([onBlog, record({ isVisible: false, providerPageId: "9188c6a5-7381-452f-b3dc-000000000000" })], {}, {}, blog)).toEqual([
       expect.objectContaining({
         column: "published",
-        publishedUrl: "https://octocat.github.io/posts/notion-9188c6a57381/",
+        publishedUrl: "https://octocat.github.io/posts/notion-9188c6a57381452fb3dcd4865aa89bdf/",
       }),
     ]);
     const [publishing] = toKanbanRecords(

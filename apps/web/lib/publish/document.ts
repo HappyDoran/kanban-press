@@ -188,7 +188,7 @@ export function categorySlug(name: string): string {
 }
 
 /**
- * 글 주소 `<앞부분>-<page ID 앞 12자>`. 앞부분은 `Blog Slug`가 있으면 그 값, 없으면 제목에서 영문·숫자만 남긴 값이다.
+ * 글 주소 `<앞부분>-<하이픈 뺀 page ID 32자>`. 앞부분은 `Blog Slug`가 있으면 그 값, 없으면 제목에서 영문·숫자만 남긴 값이다.
  * 접미사는 늘 page ID라 주소를 바꿔도 같은 글로 찾고 옛 주소 안내 page를 남긴다(R8·R11).
  */
 export function pageSlug(title: string, providerPageId: string, custom: string | null = null): string {

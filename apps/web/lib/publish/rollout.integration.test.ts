@@ -76,7 +76,7 @@ describe("preview/category/template v2 rollout", () => {
     expect(publishResult).toMatchObject({
       commitSha: COMMIT_SHA,
       created: true,
-      pageUrl: "https://octocat.github.io/posts/rollout-post-9188c6a57381/",
+      pageUrl: "https://octocat.github.io/posts/rollout-post-9188c6a57381452fb3dcd4865aa89bdf/",
     });
     expect(context.getPageContent).toHaveBeenCalledTimes(2);
     expect(context.getPagesRepository).toHaveBeenCalledOnce();
@@ -86,7 +86,7 @@ describe("preview/category/template v2 rollout", () => {
     const artifacts = committedArtifacts(context);
     const markdown = textArtifact(
       artifacts,
-      "src/content/blog/rollout-post-9188c6a57381.md",
+      "src/content/blog/rollout-post-9188c6a57381452fb3dcd4865aa89bdf.md",
     );
     expect(markdown).toContain("schemaVersion: 2");
     expect(markdown).toContain('category: "Release"');
@@ -96,7 +96,7 @@ describe("preview/category/template v2 rollout", () => {
     expect(markdown).toContain('tags: ["latest", "v2"]');
     expect(markdown).toContain("최신 &lt;본문&gt;");
     expect(markdown).toContain(
-      "../../assets/blog/rollout-post-9188c6a57381/image-001.png",
+      "../../assets/blog/rollout-post-9188c6a57381452fb3dcd4865aa89bdf/image-001.png",
     );
     expect(markdown).not.toContain("preview-only");
     expect(markdown).not.toContain("프리뷰 본문");
@@ -110,7 +110,7 @@ describe("preview/category/template v2 rollout", () => {
         }),
         {
           bytes: PNG,
-          path: "src/assets/blog/rollout-post-9188c6a57381/image-001.png",
+          path: "src/assets/blog/rollout-post-9188c6a57381452fb3dcd4865aa89bdf/image-001.png",
         },
       ]),
     );

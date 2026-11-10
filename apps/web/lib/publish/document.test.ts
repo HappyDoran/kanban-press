@@ -76,7 +76,7 @@ describe("shared publish document assembly", () => {
       description: "설명 본문",
       publishedAt: "2026-07-01T00:30:00.000Z",
       schemaVersion: 2,
-      slug: "notion-9188c6a57381",
+      slug: "notion-9188c6a57381452fb3dcd4865aa89bdf",
       tags: ["release", "TypeScript Guide"],
       title: "한글 게시 글",
       updatedAt: "2026-07-19T10:00:00.000Z",
@@ -248,10 +248,10 @@ describe("pinned and series metadata (R10)", () => {
 describe("custom post address (R11 Blog Slug)", () => {
   it("uses Blog Slug before the page ID suffix and falls back to the title when empty", () => {
     expect(buildPublishDocument(page({ "Blog Slug": { kind: "rich_text", plainText: " astro-notes " } })).slug).toBe(
-      "astro-notes-9188c6a57381",
+      "astro-notes-9188c6a57381452fb3dcd4865aa89bdf",
     );
     expect(buildPublishDocument(page({ "Blog Slug": { kind: "rich_text", plainText: "" } })).slug).toBe(
-      "notion-9188c6a57381",
+      "notion-9188c6a57381452fb3dcd4865aa89bdf",
     );
   });
 

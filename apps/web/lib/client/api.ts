@@ -58,7 +58,7 @@ const publishResultSchema = z.object({
 const blogPostsSchema = z.object({
   posts: z.array(
     z.object({
-      pageIdSuffix: z.string().regex(/^[a-f0-9]{12}$/),
+      pageIdSuffix: z.string().regex(/^[a-f0-9]{32}$/),
       pageUrl: z.url({ protocol: /^https$/ }),
     }),
   ),

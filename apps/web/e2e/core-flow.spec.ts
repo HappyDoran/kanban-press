@@ -36,7 +36,7 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
     route.fulfill({
       json: {
         posts: onBlog
-          ? [{ pageIdSuffix: "9188c6a57381", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/" }]
+          ? [{ pageIdSuffix: "9188c6a57381452fb3dcd4865aa89bdf", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/" }]
           : [],
       },
     }),
@@ -395,7 +395,7 @@ async function installAppRoutes(
           category: { name: "테스트", slug: "test-e2e00001" },
           description: "E2E 설명",
           publishedAt: LAST_EDITED_AT,
-          slug: "e2e-post-9188c6a57381",
+          slug: "e2e-post-9188c6a57381452fb3dcd4865aa89bdf",
           tags: ["E2E"],
           title: "E2E 게시 문서",
           updatedAt: LAST_EDITED_AT,
@@ -414,7 +414,7 @@ async function installAppRoutes(
         commitSha: "a".repeat(40),
         contentHash: "b".repeat(64),
         created: true,
-        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/",
+        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/",
       },
     });
   });
@@ -424,7 +424,7 @@ async function installAppRoutes(
         actionsUrl:
           "https://github.com/HappyDoran/HappyDoran.github.io/actions/runs/123",
         commitSha: "a".repeat(40),
-        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381/",
+        pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/",
         state: "succeeded",
       },
     }),
