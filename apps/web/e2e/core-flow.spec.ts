@@ -126,18 +126,18 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
   expect(storedVisibility).toBe(true);
   onBlog = true;
   await page.reload();
-  await expect(page.getByText("게시 완료 1개")).toBeVisible();
+  await expect(page.getByText("게시 완료 1편")).toBeVisible();
   await expect(page.getByText("게시된 글 보기")).toBeVisible();
 
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "블로그에서 내리기" }).click();
   await expect.poll(() => unpublishCalls).toBe(1);
-  await expect(page.getByText("보관 중 1개")).toBeVisible();
-  await expect(page.getByText("게시 완료 0개")).toBeVisible();
+  await expect(page.getByText("보관 중 1편")).toBeVisible();
+  await expect(page.getByText("게시 완료 0편")).toBeVisible();
 
   userId = "90000001";
   await page.reload();
-  await expect(page.getByText("보관 중 1개")).toBeVisible();
+  await expect(page.getByText("보관 중 1편")).toBeVisible();
   const isolatedDatabases = await page.evaluate(async () =>
     (await indexedDB.databases()).map((database) => database.name),
   );

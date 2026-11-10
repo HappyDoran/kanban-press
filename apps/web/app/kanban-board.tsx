@@ -295,7 +295,7 @@ function KanbanColumn({
     >
       <header>
         <h2>{COLUMN_LABELS[column]}</h2>
-        <span aria-hidden="true">{records.length}</span>
+        <span aria-hidden="true">{records.length}편</span>
       </header>
       <SortableContext
         items={records.map(recordId)}
@@ -426,14 +426,20 @@ export function BoardCard({
     !overlay && !disabled && record.column !== "publishing";
   return (
     <article
-      className={
-        overlay
-          ? "boardCard overlay"
-          : draggable
-            ? "boardCard draggable"
-            : "boardCard"
-      }
+      className={[
+        "boardCard",
+        overlay ? "overlay" : draggable ? "draggable" : null,
+        record.column === "published" ? "published" : null,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
+      {/* 교료 도장(디자인 기획 2.4): 장식이라 읽지 않는다. 상태는 열 이름이 알린다. */}
+      {record.column === "published" ? (
+        <span aria-hidden="true" className="proofStamp">
+          교료
+        </span>
+      ) : null}
       <div className="boardCardTopline">
         <span>{connectionName}</span>
         {!overlay && draggable ? (

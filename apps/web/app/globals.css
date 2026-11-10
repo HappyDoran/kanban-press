@@ -1,30 +1,11 @@
-/* A 작업대형 토큰 — 값과 이름은 docs/planning/BLOG_EXPERIENCE_DESIGN.md 10절이 정본이다. */
+/* 색·모양 토큰은 publisher의 DESIGN_TOKENS_CSS가 정본이고 app/layout.tsx가 넣는다(디자인 기획 10절).
+   여기에는 앱 글꼴 토큰만 둔다. */
 :root {
   color-scheme: light;
 
-  --color-bg-canvas: #f6f7f9;
-  --color-bg-surface: #ffffff;
-  --color-bg-column: #eceff4;
-  --color-bg-selected: #eef2fb;
-  --color-text-primary: #1c2230;
-  --color-text-secondary: #5b6475;
-  --color-border: #e3e6ec;
-  --color-border-strong: #d5dae3;
-  --color-accent: #2453c7;
-  --color-accent-hover: #1a3d96;
-  --color-focus: #2453c7;
-  --color-success: #1a7a43;
-  --color-danger: #b42318;
-  --color-warning-bg: #fff4d6;
-
-  --font-sans: var(--font-plex-sans), "IBM Plex Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, Menlo, monospace;
-
-  --radius-control: 6px;
-  --radius-card: 8px;
-  --radius-column: 10px;
-  --shadow-dialog: 0 16px 48px rgb(28 34 48 / 18%);
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font-title: var(--font-hahmlet), "Hahmlet", "Noto Serif KR", serif;
+  --font-sans: var(--font-noto-sans), "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, Menlo, monospace;
 }
 
 *,
@@ -103,7 +84,7 @@ button:disabled {
   white-space: nowrap;
 }
 
-/* 주 행동은 강조색 하나(파랑)로 쓴다(디자인 기획 10.1). */
+/* 주 행동은 잉크 검정으로 채운다(디자인 기획 2.4·10.1). */
 .buttonPrimary {
   min-height: 2.75rem;
   padding: 0.625rem 1.25rem;
@@ -196,7 +177,7 @@ button:disabled {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.25rem;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-text-primary);
   background: var(--color-bg-surface);
 }
 
@@ -206,14 +187,16 @@ button:disabled {
   align-items: center;
   gap: 0.625rem;
   color: var(--color-text-primary);
-  font-weight: 600;
+  font-family: var(--font-title);
+  font-size: 1.0625rem;
+  font-weight: 700;
   text-decoration: none;
 }
 
 .brandMark {
   display: block;
   flex: none;
-  width: 1.75rem;
+  width: 3rem;
   height: 1.75rem;
 }
 
@@ -333,6 +316,7 @@ button:disabled {
 }
 
 .intro h1 {
+  font-family: var(--font-title);
   font-size: clamp(2rem, 6vw, 3rem);
   line-height: 1.2;
 }
@@ -393,7 +377,7 @@ button:disabled {
   position: relative;
   flex: 0 0 1px;
   align-self: stretch;
-  background: var(--color-border);
+  background: var(--color-guide);
   cursor: col-resize;
   touch-action: none;
 }
@@ -408,8 +392,8 @@ button:disabled {
 .sidebarResizer:hover,
 .sidebarResizer:focus-visible,
 .sidebarResizer:active {
-  background: var(--color-accent);
-  box-shadow: 0 0 0 1px var(--color-accent);
+  background: var(--color-focus);
+  box-shadow: 0 0 0 1px var(--color-focus);
 }
 
 .sidebarResizer:focus-visible {
@@ -440,8 +424,10 @@ button:disabled {
   justify-content: space-between;
   padding: 0 0.5rem;
   color: var(--color-text-secondary);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .sidebarHeading a {
@@ -608,9 +594,8 @@ button:disabled {
 
 /* 칸반에 표시 중: 같은 버튼 모양에 색을 채워 "추가"와 상태 차이를 분명히 한다. */
 .rowButton.onBoard {
-  border-color: var(--color-bg-selected);
-  background: var(--color-bg-selected);
-  color: var(--color-accent);
+  background: var(--color-text-primary);
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -627,6 +612,8 @@ button:disabled {
   gap: 1.125rem;
   min-width: 0;
   padding: 1.5rem 1.75rem;
+  /* 교정지 기준선(디자인 기획 10.3) */
+  background: repeating-linear-gradient(to bottom, transparent 0 23px, var(--color-guide-soft) 23px 24px);
 }
 
 .boardHeading {
@@ -643,7 +630,8 @@ button:disabled {
 }
 
 .boardHeading h1 {
-  font-size: 1.375rem;
+  font-family: var(--font-title);
+  font-size: 1.5rem;
 }
 
 .boardHeading p,
@@ -660,8 +648,8 @@ button:disabled {
 .kanbanBoard {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.75rem), 1fr));
-  gap: 0.875rem;
-  align-items: start;
+  gap: 1rem 0;
+  align-items: stretch;
 }
 
 /* 한 줄로 자르는 카드 윗줄(워크스페이스 이름) 때문에 열·카드가 넓어지지 않도록 grid 칸 최소 폭을 0으로 둔다. */
@@ -675,40 +663,74 @@ button:disabled {
   min-width: 0;
 }
 
+/* 열은 회색 패널 대신 교정지의 단처럼 연필 파랑 세로 안내선으로 나눈다(디자인 기획 2.4). */
 .kanbanColumn {
   min-width: 0;
   display: grid;
+  align-content: start;
   gap: 0.625rem;
   min-height: 12rem;
-  padding: 0.75rem;
-  border: 2px solid transparent;
-  border-radius: var(--radius-column);
-  background: var(--color-bg-column);
-  transition: border-color 120ms var(--ease);
+  padding: 0 1rem 1rem;
+  border-left: 1px solid var(--color-guide);
+  transition: background-color 120ms var(--ease);
+}
+
+.kanbanColumn:first-child {
+  border-left-color: transparent;
+}
+
+/* 세로로 쌓이는 좁은 화면에서는 단 구분선이 필요 없다. */
+@media (max-width: 37.4375rem) {
+  .kanbanColumn {
+    border-left-color: transparent;
+  }
 }
 
 .kanbanColumn.over {
-  border-color: var(--color-accent);
+  background: var(--color-bg-selected);
 }
 
 .kanbanColumn > header {
   display: flex;
   justify-content: space-between;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
 }
 
 .kanbanColumn h2 {
-  font-size: 0.8125rem;
+  font-size: inherit;
+  font-weight: 600;
 }
 
 .kanbanColumn > header span {
-  color: var(--color-text-secondary);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .kanbanCards {
   display: grid;
-  gap: 0.625rem;
+  gap: 1.125rem;
+  padding-top: 0.5rem;
+}
+
+/* 재단선: 카드·drop 영역 네 모서리 바깥의 짧은 연필 파랑 선(디자인 기획 10.3). */
+.boardCard::before,
+.dropZone::before {
+  position: absolute;
+  inset: -9px;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(var(--color-guide), var(--color-guide)) 0 8px / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 8px 0 / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 100% 8px / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) calc(100% - 8px) 0 / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 0 calc(100% - 8px) / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 8px 100% / 1px 6px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) 100% calc(100% - 8px) / 6px 1px no-repeat,
+    linear-gradient(var(--color-guide), var(--color-guide)) calc(100% - 8px) 100% / 1px 6px no-repeat;
 }
 
 .sortableCard.dragging {
@@ -716,6 +738,7 @@ button:disabled {
 }
 
 .boardCard {
+  position: relative;
   min-width: 0;
   display: grid;
   gap: 0.375rem;
@@ -735,6 +758,7 @@ button:disabled {
   justify-content: space-between;
   gap: 0.5rem;
   color: var(--color-text-secondary);
+  font-family: var(--font-mono);
   font-size: 0.6875rem;
 }
 
@@ -770,7 +794,9 @@ button:disabled {
 .boardCard h3 {
   display: -webkit-box;
   overflow: hidden;
+  font-family: var(--font-title);
   font-size: 0.9375rem;
+  font-weight: 700;
   line-height: 1.4;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
@@ -797,7 +823,31 @@ button:disabled {
 
 .cardMeta {
   color: var(--color-text-secondary);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+}
+
+/* 교료 도장: 게시 완료 카드에만 찍는 장식(디자인 기획 2.4·10.3). 제목이 도장 밑으로 가지 않게 오른쪽을 비운다. */
+.boardCard.published h3 {
+  padding-right: 3.75rem;
+}
+
+.proofStamp {
+  position: absolute;
+  top: 2.25rem;
+  right: 0.75rem;
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-content: center;
+  border: 2px solid var(--color-proof);
+  border-radius: 50%;
+  color: var(--color-proof);
+  font-family: var(--font-title);
+  font-size: 0.875rem;
+  font-weight: 700;
+  pointer-events: none;
+  transform: rotate(-9deg);
 }
 
 .cardActions {
@@ -819,23 +869,22 @@ button:disabled {
 .publishStatus {
   display: grid;
   gap: 0.375rem;
-  color: var(--color-accent);
+  color: var(--color-proof);
   font-size: 0.75rem;
 }
 
+/* 게시 중은 교정 붉은색 한 줄이 지나간다. */
 .progress {
   position: relative;
-  height: 4px;
+  height: 1px;
   overflow: hidden;
-  border-radius: 2px;
-  background: var(--color-bg-selected);
+  background: var(--color-guide-soft);
 }
 
 .progress::after {
   position: absolute;
-  inset: 0 60% 0 0;
-  border-radius: 2px;
-  background: var(--color-accent);
+  inset: 0 70% 0 0;
+  background: var(--color-proof);
   animation: progress 1.4s var(--ease) infinite;
   content: "";
 }
@@ -866,11 +915,17 @@ button:disabled {
 .dropZone,
 .emptyColumn {
   padding: 1.125rem 0.75rem;
-  border: 1.5px dashed var(--color-border-strong);
-  border-radius: var(--radius-card);
   color: var(--color-text-secondary);
   font-size: 0.75rem;
   text-align: center;
+}
+
+/* 게시 중 열의 빈 자리: 재단선만 있는 판(점선 업로드 칸처럼 보이지 않게). */
+.dropZone {
+  position: relative;
+  padding-block: 1.75rem;
+  color: var(--color-guide-text);
+  font-family: var(--font-mono);
 }
 
 .columnHint {

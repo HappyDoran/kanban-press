@@ -6,8 +6,10 @@ export {
   type PublishRichText,
 } from "./markdown.js";
 export { BLOG_CSS } from "./blog-css.js";
+export { DESIGN_TOKENS_CSS } from "./design-tokens.js";
 
 import { BLOG_CSS } from "./blog-css.js";
+import { DESIGN_TOKENS_CSS } from "./design-tokens.js";
 
 const ASTRO_VERSION = "7.1.1";
 const encoder = new TextEncoder();
@@ -537,24 +539,10 @@ const section = pathname === base
     <meta name="twitter:card" content="summary" />
     <link rel="alternate" type="application/rss+xml" title={siteName} href={pathFor("rss.xml")} />
     <style is:global>
+${DESIGN_TOKENS_CSS}
       :root {
-        --color-bg-canvas: #f6f7f9;
-        --color-bg-surface: #ffffff;
-        --color-text-primary: #1c2230;
-        --color-text-secondary: #5b6475;
-        --color-border: #e3e6ec;
-        --color-border-strong: #d5dae3;
-        --color-accent: #2453c7;
-        --color-accent-hover: #1a3d96;
-        --color-focus: #2453c7;
         --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
         --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-        --radius-control: 6px;
-        --radius-card: 8px;
-        --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-        --shell-max: 67.5rem;
-        --reading-max: 45rem;
-        --toc-width: 13.75rem;
         color: var(--color-text-primary);
         background: var(--color-bg-surface);
         font-family: var(--font-sans);

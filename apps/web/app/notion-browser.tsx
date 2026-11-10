@@ -173,10 +173,10 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
             <div className="boardHeading">
               <div>
                 <h1>게시 칸반</h1>
-                <p>카드를 게시 중으로 끌어 놓으면 최신 Notion 원문으로 게시합니다.</p>
+                <p>교정 끝난 원고를 게시 중으로 넘기면 Notion 최신본으로 찍어 냅니다.</p>
               </div>
               <p className="boardCounts">
-                보관 중 {count("stored")}개 · 게시 중 {count("publishing")}개 · 게시 완료 {count("published")}개
+                보관 중 {count("stored")}편 · 게시 중 {count("publishing")}편 · 게시 완료 {count("published")}편
               </p>
             </div>
             {board.boardState === "error" ? (

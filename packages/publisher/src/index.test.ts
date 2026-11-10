@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createAstroTemplateManifest } from "./index.js";
+import { createAstroTemplateManifest, DESIGN_TOKENS_CSS } from "./index.js";
 
 const decoder = new TextDecoder();
 
@@ -74,7 +74,8 @@ describe("createAstroTemplateManifest", () => {
     expect(blogLib).toContain('title: siteOwner + ".log"');
     expect(blogLib).toContain('[".kanban-press", ".notion-kanban-blog"]');
     expect(layout).toContain("const siteName = site.title;");
-    expect(layout).toContain("--color-accent: #2453c7");
+    // 앱과 블로그가 같은 토큰 문자열을 쓴다(디자인 기획 10절).
+    expect(layout).toContain(DESIGN_TOKENS_CSS);
     expect(layout).not.toContain("Gowun Batang");
     expect(layout).toContain('href={githubUrl} rel="me"');
     expect(layout).toContain(">주제</a>");
