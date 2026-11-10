@@ -1,7 +1,7 @@
 ---
 title: AI Agent 작업 지원 체계
 kind: design
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # AI Agent 작업 지원 체계
@@ -43,7 +43,7 @@ AGENTS.md (= CLAUDE.md)  →  작업 범위·완료 조건 확인(gap-analysis) 
 | AI 프롬프트 | nkb-prompt-engineer | 해당 없음(모델 호출 없음, AI 처리 요구가 생기면 경로를 먼저 등록) | AI 처리 요구, 계약 |
 | 사업 | nkb-business | 없음(제안만) | 기획의 방향·남은 결정 |
 
-README.md·TECH_RULES.md·AGENTS.md·`tooling/`·`.github/` 같은 공통 파일은 변경한 역할이 자기 사실만 고치고, 겹치는 변경은 병합 담당이 정리한다. 루트 단일 사용자 프로토타입(`src/`, `scripts/`, `astro.config.mjs`)은 어느 역할도 확장하지 않는다.
+README.md·TECH_RULES.md·AGENTS.md·`tooling/`·`.github/` 같은 공통 파일은 변경한 역할이 자기 사실만 고치고, 겹치는 변경은 병합 담당이 정리한다.
 
 ## 자동 검사와 한계
 

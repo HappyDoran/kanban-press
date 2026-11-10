@@ -1,18 +1,20 @@
 ---
 title: 요구사항 대비 현재 상태와 백로그
 kind: spec
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # 요구사항 대비 현재 상태와 백로그
 
 요구사항 번호(R1~R7)와 계약 절(§)은 [제품 명세](PROJECT_SPEC.md)가 소유한다. 이 문서는 지금 어디까지 왔고 다음에 무엇을 하는지만 적는다. 항목을 끝내면 상태를 바꾸고, 확정된 결정은 [TECH_RULES.md](../../TECH_RULES.md)나 [아키텍처](../architecture/ARCHITECTURE.md)·[ADR](../adr/)로 옮긴 뒤 여기서 지운다. 상태는 실제 검증 결과와 일치해야 한다.
 
-## 판정 요약 (2026-11-07)
+## 판정 요약 (2026-11-10)
 
 - 완료: P0~P5의 38개 항목. 마지막 전체 검증 기록은 2026-08-26 lint, typecheck, unit 261개, integration 17개, production Chromium E2E 6개(desktop/320px), production build 통과다.
 - 실제 provider: 2026-08-12 read-only smoke 통과(아래 P3 rollout 행). 이후 실제 provider 재확인은 하지 않았다.
-- 남은 일: 루트 단일 사용자 Astro 프로토타입 제거(대기).
+- 2026-11-10 재검증: lint, typecheck, build, unit 261개, integration 17개, production Chromium E2E 6개 통과. 루트 script의 `corepack pnpm` 호출을 `pnpm`으로 바꿔 `mise exec -- pnpm` 실행을 복구했다.
+- 루트 단일 사용자 Astro 프로토타입은 2026-11-10 사용자 결정으로 제거했다(재작성 Q0).
+- 진행 중: 요구사항(R1~R7)과 기술 스택을 유지한 코드 재작성(아래 재작성 백로그).
 - 자동 테스트 명령: [README.md](../../README.md) 검증 절 기준.
 
 ### 구현 현황
@@ -73,7 +75,6 @@ last_verified: 2026-11-07
   readiness, credential/provider URL 비잔존을 확인했으며 commit, ref update, Pages mutation은
   발생하지 않았다. 실행 뒤 GitHub classic PAT와 Notion 테스트 integration을 삭제하고 임시
   Notion page를 휴지통으로 이동해 외부 release gate를 완료했다.
-- 루트의 기존 Astro 단일 사용자 프로토타입은 신규 구조로 대체 후 제거할 예정이다.
 
 ## 백로그 (우선순위 순)
 
@@ -119,10 +120,32 @@ last_verified: 2026-11-07
 | P5 Notion 게시 충실도 | Notion 의미 구조와 최종 HTML 충실도 강화 | R6, §5 게시 | 글머리·번호 목록, 할 일, callout, table, 수식, 링크·미디어 카드와 중첩 자식을 일반 문단으로 평탄화하지 않고 provider 독립 block union에 보존한다.<br>게시 전 프리뷰와 Markdown/Astro 최종 HTML이 같은 의미 구조를 렌더링한다.<br>사용자 text·link·table cell의 HTML 주입을 차단하고 기존 이미지·깊이·크기 제한을 중첩 block에도 동일하게 적용한다.<br>대표 Notion fixture, 결정적 Markdown, Astro semantic HTML build를 검증한다. | 완료 (검증: 2026-08-22 lint, typecheck, unit 261개, integration 17개, production Chromium E2E 6개와 production build를 통과했다.) |
 | P5 Notion 게시 충실도 | Notion 제목 시각 계층 일치 | R6, §5 게시 | 글 `h1`과 Notion heading의 의미 레벨을 유지하면서 프리뷰와 최종 HTML의 Notion heading 1·2·3에 동일한 시각 계층을 적용한다.<br>세 heading 단계가 모두 본문보다 크고 단계별 크기가 역전되지 않는다.<br>desktop과 320px에서 계산된 font-size와 기존 접근성·overflow 회귀를 검증한다. | 완료 (검증: 2026-08-26 lint, typecheck, unit 261개, integration 17개, production Chromium E2E 6개(desktop/320px)와 production build를 통과했다.) |
 | P5 Notion 게시 충실도 | GitHub owner 기반 개인 블로그 UI 개편 | R6, §5 게시 | 홈·전체 글·주제·GitHub 메뉴와 owner 기반 브랜드를 모든 route에서 제공한다.<br>홈은 소개, 글·주제 수, 최신 글을 명확한 우선순위로 보여준다.<br>상세 글 목차는 mobile에서 본문 앞, desktop에서 sticky 보조 탐색으로 동작한다.<br>빈 블로그와 실제 글 fixture 모두 320px, keyboard, 접근성, base path build를 통과한다. | 완료 (검증: 2026-08-26 빈 `HappyDoran.github.io` production build와 user/project fixture, lint, typecheck, unit 261개, integration 17개, production Chromium E2E 6개 및 전체 build를 통과했다.) |
-| 정리 | 루트 단일 사용자 Astro 프로토타입(`src/`, `scripts/`, `astro.config.mjs`) 제거 | 구현 현황 마지막 항목 | 신규 앱과 package가 프로토타입을 import하지 않음을 확인한 뒤 제거하고 lint·typecheck·test·build가 통과한다. | 대기 |
+| 정리 | 루트 단일 사용자 Astro 프로토타입(`src/`, `scripts/`, `astro.config.mjs`) 제거 | 구현 현황 마지막 항목 | 신규 앱과 package가 프로토타입을 import하지 않음을 확인한 뒤 제거하고 lint·typecheck·test·build가 통과한다. | 완료 (재작성 Q0에서 처리) |
+
+## 재작성 백로그 (2026-11-10 착수)
+
+요구사항(R1~R7)·계약(§3~§6)·기술 스택(Next.js `apps/web` 단일 서버, 별도 backend 없음)은 바꾸지 않고 코드를 다시 쓴다. 목적은 칸반 앱과 게시 블로그의 UI·UX 개편, 코드 단순화·축소, 사용자가 단계마다 읽고 이해할 수 있는 크기의 교체다. 2026-11-10 사용자 결정:
+
+- 방식: `apps/web`과 `packages/*` 자리에서 단계별로 교체한다. 단계가 끝날 때마다 dev에서 전체 검증이 통과해야 하며 이전 구현은 같은 단계에서 지운다.
+- 판정 기준: `apps/web/e2e/`와 `test:integration`은 동작 판정 기준으로 유지한다. UI 개편으로 selector·문구만 바꿀 때는 검증하는 동작을 줄이지 않고, 바꾼 이유를 커밋 본문에 적는다. unit 테스트는 새 코드 구조에 맞춰 다시 쓴다.
+- 게시 결과물: 생성 블로그는 `HappyDoran.github.io` repository다(2026-11-10 원격 기준 초기 commit만 있고 게시 글 0개). template은 `packages/publisher`가 생성하며 블로그 repository를 직접 고치지 않는다.
+- 학습 단위: 한 단계는 사용자가 한 번에 검토할 수 있는 크기로 나누고, 사용자 검토 뒤 다음 단계로 넘어간다.
+
+모든 Q 단계의 공통 완료 조건: README.md 전체 검증 통과, 교체 범위의 이전 코드 제거, 교체 전후 소스 줄 수 보고, IndexedDB v12 기존 데이터 읽기 유지, AGENTS.md 안전 조건 유지.
+
+| 단계 | 내용 | 교체 범위 | 역할 | 완료 조건 | 상태 |
+|---|---|---|---|---|---|
+| Q0 준비 | 실행 환경 복구와 루트 프로토타입 제거 | 루트 script, `src/`, `scripts/`, `astro.config.mjs` | 병합 담당 | `mise exec -- pnpm` 검증이 동작한다.<br>프로토타입과 관련 규칙 문구가 없다. | 완료 (2026-11-10 lint, typecheck, build, unit 261개, integration 17개, E2E 6개 통과) |
+| Q1 UI·UX 방향 | 칸반 앱과 게시 블로그의 새 화면 기준 | docs/planning/BLOG_EXPERIENCE_DESIGN.md, 앱 화면 기준 | designer, planner | 화면별 정보 계층·상태(loading/empty/error)·320px·접근성 기준이 문서에 있다.<br>사용자가 방향을 승인한다. | 대기 |
+| Q2 인증 기반 | 쿠키 codec, GitHub OAuth, 세션 | `packages/auth`·`domain`·`validation`, `apps/web/app/auth`, `apps/web/lib/auth`, `/api/me` | backend | OAuth state 위조·만료·재사용과 잘못된 redirect 거절, AEAD tamper 거절을 unit으로 증명한다. | 대기 |
+| Q3 Notion 서버 경계 | Notion 연결·workspace·page tree·block outline | `packages/notion`, `apps/web/lib/notion`, `apps/web/app/api/notion` | backend | 연결 개수·쿠키 크기 상한 거절, pagination·rate limit·권한 철회 처리를 테스트한다. | 대기 |
+| Q4 칸반 화면 | IndexedDB repository와 칸반·Notion 탐색 UI | `apps/web/lib/board`, `kanban-board`, `notion-browser`, `board-drop`, `page.tsx`, `globals.css` | frontend, designer | Q1 기준을 충족한다.<br>v12 기존 record를 그대로 읽고 GitHub user ID 격리를 유지한다.<br>keyboard drag와 320px E2E가 통과한다. | 대기 (Q1 필요) |
+| Q5 게시 서버 경로 | GitHub repository 검증, 문서 조립, Markdown·image artifact, commit | `packages/github`·`publisher`(template 제외), `apps/web/lib/github`·`publish`, `apps/web/app/api/publish` | backend | 요청마다 Notion·GitHub 권한을 재검증한다.<br>provider URL·token이 artifact·로그에 남지 않는다.<br>publisher integration이 통과한다. | 대기 |
+| Q6 블로그 template·preview | 생성 Astro template와 게시 전 preview UI | `packages/publisher` template, `publish-preview`, `github-pages-target` | designer, frontend | Q1 기준을 충족한다.<br>user/project base path build와 v1·v2 글 호환이 유지된다.<br>preview와 최종 HTML의 의미 구조가 같다. | 대기 (Q1 필요) |
+| Q7 신뢰성·마감 | timeout·재시도 UX, 구조화 로그, 문서 동기화 | `apps/web/lib/operations`, `retry-action`, 아키텍처·하네스 문서 | backend, frontend | §6.1 계약 테스트가 통과한다.<br>문서의 경로·역할 표가 새 구조와 맞다.<br>실제 provider smoke는 사용자가 실행한다. | 대기 |
 
 ## 미결 결정
 
 | 결정 | 선택지 | 막는 단계 | 결정자 |
 |---|---|---|---|
-| 루트 프로토타입 제거 시점 | 지금 제거 / 참고용으로 계속 보존 | 정리 | 사용자 |
+| 칸반 앱·블로그 UI·UX 방향 | Q1 디자인 안 중 선택 | Q4, Q6 | 사용자 |

@@ -1,7 +1,7 @@
 ---
 title: 저장소 작업 규범
 kind: rule
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # Notion Kanban Blog
@@ -55,7 +55,6 @@ last_verified: 2026-11-07
 - 파일·브랜치 삭제, 이력 재작성(`push --force`, `reset --hard`), 원격 리소스·외부 계정 설정 변경은 사용자 승인 없이 하지 않는다.
 - 빈 문서·TBD 자리 문서·과제용 프롬프트 기록을 만들지 않는다.
 - 문서와 사용자 문구는 한국어로 쓴다. 코드 식별자·프레임워크 용어는 원문을 유지한다.
-- 기존 단일 사용자 Astro 프로토타입(루트 `src/`, `scripts/`, `astro.config.mjs`)은 참고만 하며 신규 앱에서 import하지 않는다.
 
 ### 고정 아키텍처
 

@@ -164,6 +164,3 @@ packages/
 ├── publisher/       # 결정적 게시 artifact 계약과 GitHub Pages용 Astro 블로그 생성
 └── validation/      # 외부 입력 schema
 ```
-
-루트의 기존 `src/`, `scripts/`, `astro.config.mjs`는 교체 전까지 보존하는
-단일 사용자 프로토타입입니다. 신규 앱에서 import하지 않습니다.
