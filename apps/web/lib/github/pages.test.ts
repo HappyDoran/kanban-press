@@ -547,12 +547,57 @@ describe("GitHubPagesClient", () => {
             ],
           }),
         )
-        .mockResolvedValueOnce(Response.json({ status: "failed" })),
+        .mockResolvedValueOnce(Response.json({ status: "failed" }))
+        .mockResolvedValueOnce(Response.json({ object: { sha: commitSha } })),
     });
 
     await expect(
       client.getDeploymentStatus(REPOSITORY, commitSha),
     ).resolves.toMatchObject({ actionsUrl: null, state: "failed" });
+  });
+
+  it("follows the branch head when a cancelled deployment was superseded by a later commit", async () => {
+    const commitSha = "5".repeat(40);
+    const headSha = "6".repeat(40);
+    const run = (sha: string, conclusion: string) =>
+      Response.json({
+        workflow_runs: [
+          {
+            conclusion,
+            head_sha: sha,
+            html_url: "https://github.com/octocat/octocat.github.io/actions/runs/2",
+            status: "completed",
+          },
+        ],
+      });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(run(commitSha, "cancelled"))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ object: { sha: headSha } }))
+      .mockResolvedValueOnce(Response.json({ status: "ahead" }))
+      .mockResolvedValueOnce(run(headSha, "success"))
+      .mockResolvedValueOnce(Response.json({ status: "succeed" }));
+    const client = new GitHubPagesClient({ accessToken: "secret", apiVersion: "2026-03-10", fetch: fetchMock });
+
+    await expect(client.getDeploymentStatus(REPOSITORY, commitSha)).resolves.toMatchObject({ state: "succeeded" });
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain(`/compare/${commitSha}...${headSha}`);
+  });
+
+  it("keeps a failure when the branch head does not contain the commit", async () => {
+    const commitSha = "5".repeat(40);
+    const client = new GitHubPagesClient({
+      accessToken: "secret",
+      apiVersion: "2026-03-10",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ workflow_runs: [] }))
+        .mockResolvedValueOnce(Response.json({ status: "failed" }))
+        .mockResolvedValueOnce(Response.json({ object: { sha: "6".repeat(40) } }))
+        .mockResolvedValueOnce(Response.json({ status: "diverged" })),
+    });
+
+    await expect(client.getDeploymentStatus(REPOSITORY, commitSha)).resolves.toMatchObject({ state: "failed" });
   });
 });
 

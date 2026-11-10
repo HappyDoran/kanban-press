@@ -48,6 +48,7 @@ const repositorySchema = z.object({
 const gitObjectSchema = z.object({ sha: gitShaSchema });
 const gitRefSchema = z.object({ object: gitObjectSchema });
 const gitCommitSchema = z.object({ sha: gitShaSchema, tree: gitObjectSchema });
+const compareSchema = z.object({ status: z.string() });
 const gitTreeSchema = z.object({
   tree: z.array(
     z.discriminatedUnion("type", [
@@ -287,8 +288,31 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     };
   }
 
-  /** commit의 Pages 배포 상태. Pages 배포 결과를 먼저 보고, 없으면 deploy.yml workflow run으로 판단한다. */
+  /**
+   * commit의 Pages 배포 상태. Pages 배포 결과를 먼저 보고, 없으면 deploy.yml workflow run으로 판단한다.
+   * 연달아 게시하면 workflow의 concurrency가 기다리던 중간 배포를 취소하므로, 실패한 commit이 기본 branch의
+   * 최신 commit에 포함돼 있으면 그 최신 commit의 배포 상태를 따른다.
+   */
   async getDeploymentStatus(repository: GitHubRepository, commitSha: string): Promise<GitHubDeploymentStatus> {
+    const own = await this.#commitDeploymentStatus(repository, commitSha);
+    if (own.state !== "failed") {
+      return own;
+    }
+    const repo = repositoryPath(repository);
+    const reference = await this.#optional(
+      `${repo}/git/ref/heads/${encodeURIComponent(repository.defaultBranch)}`,
+      gitRefSchema,
+      [404, 409],
+    );
+    const headSha = reference?.object.sha;
+    if (headSha === undefined || headSha === commitSha) {
+      return own;
+    }
+    const comparison = await this.#optional(`${repo}/compare/${commitSha}...${headSha}`, compareSchema);
+    return comparison?.status === "ahead" ? this.#commitDeploymentStatus(repository, headSha) : own;
+  }
+
+  async #commitDeploymentStatus(repository: GitHubRepository, commitSha: string): Promise<GitHubDeploymentStatus> {
     const repo = repositoryPath(repository);
     const sha = gitShaSchema.parse(commitSha);
     const [workflow, pages] = await Promise.all([
