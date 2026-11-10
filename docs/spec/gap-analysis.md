@@ -136,16 +136,14 @@ last_verified: 2026-11-10
 | 단계 | 내용 | 교체 범위 | 역할 | 완료 조건 | 상태 |
 |---|---|---|---|---|---|
 | Q0 준비 | 실행 환경 복구와 루트 프로토타입 제거 | 루트 script, `src/`, `scripts/`, `astro.config.mjs` | 병합 담당 | `mise exec -- pnpm` 검증이 동작한다.<br>프로토타입과 관련 규칙 문구가 없다. | 완료 (2026-11-10 lint, typecheck, build, unit 261개, integration 17개, E2E 6개 통과) |
-| Q1 UI·UX 방향 | 칸반 앱과 게시 블로그의 새 화면 기준 | docs/planning/BLOG_EXPERIENCE_DESIGN.md, 앱 화면 기준 | designer, planner | 화면별 정보 계층·상태(loading/empty/error)·320px·접근성 기준이 문서에 있다.<br>사용자가 방향을 승인한다. | 대기 |
+| Q1 UI·UX 방향 | 칸반 앱과 게시 블로그의 새 화면 기준 | docs/planning/BLOG_EXPERIENCE_DESIGN.md, 앱 화면 기준 | designer, planner | 화면별 정보 계층·상태(loading/empty/error)·320px·접근성 기준이 문서에 있다.<br>사용자가 방향을 승인한다. || 완료 (2026-11-10 시안 3안 비교 후 사용자가 A 작업대형 승인. 기준: [디자인 기획](../planning/BLOG_EXPERIENCE_DESIGN.md) 2.3·6.4·10절) |
 | Q2 인증 기반 | 쿠키 codec, GitHub OAuth, 세션 | `packages/auth`·`domain`·`validation`, `apps/web/app/auth`, `apps/web/lib/auth`, `/api/me` | backend | OAuth state 위조·만료·재사용과 잘못된 redirect 거절, AEAD tamper 거절을 unit으로 증명한다. | 대기 |
 | Q3 Notion 서버 경계 | Notion 연결·workspace·page tree·block outline | `packages/notion`, `apps/web/lib/notion`, `apps/web/app/api/notion` | backend | 연결 개수·쿠키 크기 상한 거절, pagination·rate limit·권한 철회 처리를 테스트한다. | 대기 |
-| Q4 칸반 화면 | IndexedDB repository와 칸반·Notion 탐색 UI | `apps/web/lib/board`, `kanban-board`, `notion-browser`, `board-drop`, `page.tsx`, `globals.css` | frontend, designer | Q1 기준을 충족한다.<br>v12 기존 record를 그대로 읽고 GitHub user ID 격리를 유지한다.<br>keyboard drag와 320px E2E가 통과한다. | 대기 (Q1 필요) |
+| Q4 칸반 화면 | IndexedDB repository와 칸반·Notion 탐색 UI | `apps/web/lib/board`, `kanban-board`, `notion-browser`, `board-drop`, `page.tsx`, `globals.css` | frontend, designer | Q1 기준을 충족한다.<br>v12 기존 record를 그대로 읽고 GitHub user ID 격리를 유지한다.<br>keyboard drag와 320px E2E가 통과한다. | 대기 |
 | Q5 게시 서버 경로 | GitHub repository 검증, 문서 조립, Markdown·image artifact, commit | `packages/github`·`publisher`(template 제외), `apps/web/lib/github`·`publish`, `apps/web/app/api/publish` | backend | 요청마다 Notion·GitHub 권한을 재검증한다.<br>provider URL·token이 artifact·로그에 남지 않는다.<br>publisher integration이 통과한다. | 대기 |
-| Q6 블로그 template·preview | 생성 Astro template와 게시 전 preview UI | `packages/publisher` template, `publish-preview`, `github-pages-target` | designer, frontend | Q1 기준을 충족한다.<br>user/project base path build와 v1·v2 글 호환이 유지된다.<br>preview와 최종 HTML의 의미 구조가 같다. | 대기 (Q1 필요) |
+| Q6 블로그 template·preview | 생성 Astro template와 게시 전 preview UI | `packages/publisher` template, `publish-preview`, `github-pages-target` | designer, frontend | Q1 기준을 충족한다.<br>user/project base path build와 v1·v2 글 호환이 유지된다.<br>preview와 최종 HTML의 의미 구조가 같다. | 대기 |
 | Q7 신뢰성·마감 | timeout·재시도 UX, 구조화 로그, 문서 동기화 | `apps/web/lib/operations`, `retry-action`, 아키텍처·하네스 문서 | backend, frontend | §6.1 계약 테스트가 통과한다.<br>문서의 경로·역할 표가 새 구조와 맞다.<br>실제 provider smoke는 사용자가 실행한다. | 대기 |
 
 ## 미결 결정
 
-| 결정 | 선택지 | 막는 단계 | 결정자 |
-|---|---|---|---|
-| 칸반 앱·블로그 UI·UX 방향 | Q1 디자인 안 중 선택 | Q4, Q6 | 사용자 |
+없음.

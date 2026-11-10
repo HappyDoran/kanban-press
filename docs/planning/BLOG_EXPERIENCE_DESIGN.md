@@ -1,14 +1,14 @@
 ---
 title: GitHub Pages 블로그 제품·UX·UI 디자인 기획
 kind: design
-last_verified: 2026-08-09
+last_verified: 2026-11-10
 ---
 
 # GitHub Pages 블로그 제품·UX·UI 디자인 기획
 
-> 상태: 제품/디자인 제안
+> 상태: 블로그 경험 MVP는 P3·P5에서 구현됨. 2.3절과 6.4절, 10절은 재작성 Q1에서 승인된 A 작업대형 기준(2026-11-10)이다.
 >
-> 대상: `packages/publisher`가 생성하는 Astro 기반 GitHub Pages 블로그와 게시 전 프리뷰
+> 대상: `packages/publisher`가 생성하는 Astro 기반 GitHub Pages 블로그, 게시 전 프리뷰, 게시 앱 칸반 화면
 >
 > 기준 문서: `docs/spec/PROJECT_SPEC.md`, `TECH_RULES.md`, `docs/architecture/ARCHITECTURE.md`
 >
@@ -62,6 +62,15 @@ Notion Kanban Blog의 게시 결과를 단순한 글 목록에서 **읽기 쉽�
 | 브랜드 | 고정 `Notion Blog` | 최소 사이트 제목·소개 설정 | 설정 저장 계약 별도 필요 |
 
 카테고리, 태그, 프리뷰는 현행 publisher 입력 계약에 없다. 따라서 아래의 “경험 MVP”는 기존 제품 MVP 위에 얹는 다음 제품 범위이며, 구현할 때 `PROJECT_SPEC`와 publisher 계약을 먼저 갱신해야 한다. 이 문서만으로 브라우저가 Markdown이나 provider 결과를 게시 요청에 대신 전달하도록 해서는 안 된다.
+
+### 2.3 재작성 시각 방향: A 작업대형 (2026-11-10 승인)
+
+재작성 Q1에서 세 방향(A 작업대형, B 편집국형, C 집중형) 시안을 비교했고 사용자가 앱과 블로그 모두 A를 골랐다. A는 작업 도구처럼 차분하게 보이는 것을 목표로 한다.
+
+- 게시 앱: 왼쪽에 Notion 문서 트리를 고정하고 나머지 폭 전체를 3열 칸반으로 쓴다. 게시 대상 repository 상태는 상단 바의 상태 표시 하나로 줄인다(6.4절).
+- 블로그: 장식 없는 개발 블로그. 글은 한 열로 읽고, desktop에서는 목차를 옆에 붙인다. 날짜·분류 같은 메타 정보는 mono 글꼴로 본문과 구분한다.
+- 시각 언어: 흰 surface와 옅은 회색 바탕, 강조색은 파랑 하나만 쓴다. serif 제목, 종이색 배경, 그림자 강조는 쓰지 않는다. 토큰은 10절에 둔다.
+- 현행에서 고칠 문제: 칸반이 탐색 패널 안에 들어가 있음, 미리보기 버튼 중복, 게시 대상 정보가 페이지 끝에 떨어져 있음, 320px에서 제목과 버튼이 잘림.
 
 ## 3. 사용자와 핵심 요구
 
@@ -138,7 +147,7 @@ Notion Kanban Blog의 게시 결과를 단순한 글 목록에서 **읽기 쉽�
 - breadcrumb는 `홈 / 카테고리 / 글`의 계층을 표현하되 카테고리가 없으면 `홈 / 글`로 축약한다.
 - 외부 링크는 새 탭을 강제하지 않는다. 새 탭을 쓰는 게시 앱의 “실제 블로그 열기”에는 새 창임을 접근 가능한 이름으로 알린다.
 
-## 6. 프리뷰 화면
+## 6. 게시 앱 화면
 
 ### 6.1 진입과 목적
 
@@ -176,12 +185,40 @@ Notion Kanban Blog의 게시 결과를 단순한 글 목록에서 **읽기 쉽�
 | 변환 실패 | 안전한 오류 요약과 block 종류 | Notion에서 수정, 다시 시도 |
 | 오프라인 | 캐시된 본문을 보여주지 않음 | 연결 복구 후 다시 시도 |
 
+### 6.4 칸반 앱 화면 (A 작업대형)
+
+화면은 위에서부터 상단 바, 문서 사이드바, 칸반 순서로 구성한다. DOM 순서도 이와 같다.
+
+| 영역 | 내용 | 규칙 |
+|---|---|---|
+| 상단 바 | 앱 이름, 게시 대상 상태(`<login>.github.io · 게시 준비 완료` 등), 계정 메뉴(Notion 연결·로그아웃) | 게시 대상 상태는 점과 문구를 함께 써서 색에만 의존하지 않는다. 준비가 안 된 상태에서 누르면 복구 안내(Pages 설정 링크, Actions 로그)를 펼친다. |
+| 문서 사이드바 (`nav`) | 워크스페이스 선택과 `+ 연결`, 제목 검색, Notion 계층 트리 | 문서 행에는 상태 하나만 표시한다: `칸반`(이미 있음), `추가`(버튼), `폴더`(컨테이너, 펼치기만 가능), `구조 확인 중…`, `구조 다시 확인`(판별 실패). 미리보기는 사이드바에 두지 않는다. |
+| 칸반 (`main`) | h1 `게시 칸반`, 한 줄 사용법, 열별 개수 요약, 3열(보관 중·게시 중·게시 완료) | 카드 하나에 행동은 `미리보기`, `칸반에서 빼기(✕)`만 둔다. 게시 중 카드는 진행 문구와 진행 막대, 완료 카드는 `게시된 글 보기` 링크를 보여준다. 게시 중 열에는 항상 `여기에 놓으면 게시` drop 영역을 둔다. |
+
+상태별 화면:
+
+| 상태 | 화면 |
+|---|---|
+| 로그인 전 | 상단 바와 한 화면짜리 소개, `GitHub로 시작` 하나. 칸반 모양 장식은 쓰지 않는다. |
+| Notion 미연결 | 사이드바 자리에 `Notion 워크스페이스 연결` 안내와 버튼 하나. 칸반은 빈 열 3개를 보여준다. |
+| 트리 로딩 | 사이드바 행 skeleton과 `role=status` 문구 |
+| 빈 칸반 | 보관 중 열에 `왼쪽 문서 목록에서 추가하세요` |
+| provider 오류·429 | 해당 영역 안에서 원인, 게시 여부, 다시 시도 버튼(대기 시간 동안 비활성)을 보여준다. 전체 화면을 막지 않는다. |
+| 게시 실패 | 카드를 보관 중으로 되돌리고 카드 안에 실패 원인과 Actions 로그 링크를 둔다. |
+
+반응형:
+
+- 900px 이상: 사이드바 260–300px 고정 폭, 칸반 3열.
+- 600–899px: 사이드바가 칸반 위로 올라가고 기본으로 접힌다(`문서 목록` 토글). 칸반은 2열부터 자동으로 줄바꿈한다.
+- 320–599px: 칸반 열이 세로로 쌓인다. 카드 제목은 말줄임 없이 줄바꿈하고 버튼은 44px 이상 높이를 유지한다. 가로 스크롤이 생기지 않는다.
+- keyboard drag(Space로 들고 방향키, Space로 놓기, Escape 취소)와 현재 위치 안내 `role=status`는 모든 폭에서 유지한다.
+
 ## 7. 공개 블로그 화면 설계
 
 ### 7.1 공통 셸
 
 - Skip link: `본문으로 건너뛰기`
-- header: 사이트명, `홈`, `전체 글`, `카테고리`; 현재 위치는 `aria-current="page"`
+- header: 사이트명(owner login, 홈 링크), `전체 글`, `주제`, `GitHub`; 현재 위치는 `aria-current="page"`
 - main: 화면별 단일 `h1`
 - footer: 저작권 문구와 `GitHub Pages로 게시됨`; MVP에는 소셜 링크 없음
 - 콘텐츠 최대 폭: shell 1120px, 본문 720px
@@ -270,44 +307,47 @@ CSS는 mobile-first로 구현하고 콘텐츠에 따라 자연스럽게 흐르�
 
 ## 10. 디자인 토큰
 
-현행의 따뜻한 종이색 인상을 유지하되 상태와 focus 토큰을 보강한다. 아래 값은 light theme의 기준값이다. dark theme는 후속 범위다.
+A 작업대형 기준값이다(2026-11-10). 게시 앱 `apps/web/app/globals.css`와 블로그 template이 같은 이름과 값을 쓴다. dark theme는 후속 범위다.
 
 ### 10.1 색상
 
 | 토큰 | 값 | 용도 |
 |---|---|---|
-| `--color-bg-canvas` | `#F7F4EE` | 페이지 배경 |
-| `--color-bg-surface` | `#FFFCF7` | 카드, 프리뷰 surface |
-| `--color-bg-subtle` | `#EFE9DE` | code 외곽, 선택 보조 |
-| `--color-text-primary` | `#211F1B` | 제목·본문 |
-| `--color-text-secondary` | `#625C53` | 날짜·설명 |
-| `--color-border` | `#D9D2C6` | 기본 경계 |
-| `--color-border-strong` | `#9B9285` | 강조 경계 |
-| `--color-accent` | `#315C47` | 링크·선택·주 행동 |
-| `--color-accent-hover` | `#244736` | hover/active |
-| `--color-focus` | `#1769E0` | focus ring |
-| `--color-danger` | `#A33131` | 오류 텍스트·경계 |
-| `--color-warning-bg` | `#FFF0C2` | 경고 배경 |
-| `--color-success` | `#2F6B45` | 성공 상태 |
+| `--color-bg-canvas` | `#F6F7F9` | 앱 바탕, 블로그 code 외곽 |
+| `--color-bg-surface` | `#FFFFFF` | 상단 바, 사이드바, 카드, 블로그 바탕 |
+| `--color-bg-column` | `#ECEFF4` | 칸반 열 |
+| `--color-bg-selected` | `#EEF2FB` | 선택된 사이드바 행 |
+| `--color-text-primary` | `#1C2230` | 제목·본문 |
+| `--color-text-secondary` | `#5B6475` | 날짜·설명·보조 문구(`#ECEFF4` 위에서도 4.5:1 이상) |
+| `--color-border` | `#E3E6EC` | 영역 경계 |
+| `--color-border-strong` | `#D5DAE3` | 버튼·입력 경계 |
+| `--color-accent` | `#2453C7` | 링크, 주 행동, 게시 중 강조 |
+| `--color-accent-hover` | `#1A3D96` | hover/active |
+| `--color-focus` | `#2453C7` | focus ring(2px, offset 2px) |
+| `--color-success` | `#1A7A43` | 준비 완료·게시 완료 |
+| `--color-danger` | `#B42318` | 오류 텍스트·경계 |
+| `--color-warning-bg` | `#FFF4D6` | 경고 배경 |
 
 ### 10.2 타이포그래피
 
 | 토큰 | 값 |
 |---|---|
-| `--font-sans` | `Inter, Pretendard, system-ui, -apple-system, sans-serif` |
-| `--font-mono` | `ui-monospace, SFMono-Regular, Menlo, monospace` |
-| `--text-xs/sm/base/lg` | `0.75 / 0.875 / 1 / 1.125rem` |
-| `--text-h3/h2/h1` | `1.25 / clamp(1.5rem, 3vw, 2rem) / clamp(2rem, 5vw, 3.25rem)` |
-| 본문 행간 | `1.75` |
-| 제목 행간 | `1.15–1.3` |
+| `--font-sans` | 앱: `IBM Plex Sans KR`(`next/font`), 블로그: `system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif`(외부 글꼴 요청 없음) |
+| `--font-mono` | 앱: `IBM Plex Mono`, 블로그: `ui-monospace, SFMono-Regular, Menlo, monospace` |
+| `--text-xs/sm/base/lg` | `0.75 / 0.875 / 1 / 1.125rem` (앱 본문 0.875rem, 블로그 본문 1rem) |
+| 블로그 제목 | 글 h1 `clamp(1.75rem, 4vw, 2.125rem)`, Notion heading 1·2·3 = `1.5 / 1.25 / 1.125rem` |
+| 본문 행간 | 블로그 `1.75`, 앱 `1.5` |
+| 제목 행간 | `1.3` |
+
+serif 글꼴(`Gowun Batang` 등)은 쓰지 않는다.
 
 ### 10.3 공간·모양·동작
 
-- spacing: 4px 기준 `--space-1` 4, `2` 8, `3` 12, `4` 16, `5` 24, `6` 32, `7` 48, `8` 64
-- radius: `--radius-sm` 6px, `--radius-md` 12px, pill은 999px
-- shadow: 기본 카드에는 사용하지 않고 dialog에만 `0 16px 48px rgb(33 31 27 / 18%)`
-- duration: 120ms/200ms, easing `cubic-bezier(.2,.8,.2,1)`
-- 레이아웃: `--shell-max` 70rem, `--reading-max` 45rem
+- spacing: 4px 기준 `--space-1` 4, `2` 8, `3` 12, `4` 16, `5` 24, `6` 32, `7` 48
+- radius: 버튼·입력 6px, 카드 8px, 칸반 열 10px
+- shadow: 쓰지 않는다. dialog만 `0 16px 48px rgb(28 34 48 / 18%)`
+- duration: 120ms/200ms, easing `cubic-bezier(.2,.8,.2,1)`. `prefers-reduced-motion: reduce`에서 이동 효과 제거
+- 레이아웃: 블로그 shell 최대 1080px, 본문 최대 720px, 목차 220px. 앱은 최대 폭 없이 화면을 채운다.
 
 ## 11. 컴포넌트 명세
 
