@@ -19,7 +19,7 @@ describe("createAstroTemplateManifest", () => {
 
     expect(first).toEqual(second);
     expect(first.basePath).toBe("/");
-    expect(first.siteUrl).toBe("https://HappyDoran.github.io");
+    expect(first.siteUrl).toBe("https://happydoran.github.io");
     expect(first.schemaVersion).toBe(1);
     expect(first.templateVersion).toBe(2);
     expect(readArtifact(first.artifacts, "astro.config.mjs")).toContain(

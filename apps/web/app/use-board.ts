@@ -38,6 +38,8 @@ export interface PublishFailure {
 
 // 화면에 보이는 미확인 page의 구조 판별은 동시에 3개까지만 Notion에 요청한다.
 const INSPECTION_CONCURRENCY = 3;
+// 429에 Retry-After가 없을 때 줄 서 있는 구조 확인을 늦추는 시간.
+const DEFAULT_RATE_LIMIT_WAIT_MS = 20_000;
 
 export function pageKey(record: { connectionId: string; providerPageId: string }): string {
   return `${record.connectionId}:${record.providerPageId}`;
@@ -236,10 +238,17 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
       }
       const inspection = limiter.current
         .run(async () => {
-          const outline = filterRenderableOutline(
-            await fetchOutline(connectionId, page.providerPageId),
-            pageList.pages,
-          );
+          let fetched: NotionOutlineNode[];
+          try {
+            fetched = await fetchOutline(connectionId, page.providerPageId);
+          } catch (error) {
+            // 실패한 이 요청은 사용자가 "구조 다시 확인"으로 다시 보낸다(§6.1). 줄 서 있는 나머지만 늦춘다.
+            if (error instanceof ApiError && error.code === "notion_rate_limited") {
+              limiter.current.pauseUntil(error.retryAt ?? Date.now() + DEFAULT_RATE_LIMIT_WAIT_MS);
+            }
+            throw error;
+          }
+          const outline = filterRenderableOutline(fetched, pageList.pages);
           const hasDiscoveredChildren =
             page.hasChildren || pageList.pages.some((candidate) => candidate.parentPageId === page.providerPageId);
           setRecords(

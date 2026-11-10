@@ -41,7 +41,8 @@ export function createAstroTemplateManifest(
   const repository = parseGitHubName(target.repository, "repository");
   const defaultBranch = parseDefaultBranch(target.defaultBranch);
   const userSite = repository.toLowerCase() === `${owner.toLowerCase()}.github.io`;
-  const siteUrl = `https://${owner}.github.io`;
+  // 호스트는 대소문자를 가리지 않지만 canonical·sitemap·RSS 주소를 한 모양으로 맞추려고 소문자로 쓴다.
+  const siteUrl = `https://${owner.toLowerCase()}.github.io`;
   const basePath = userSite ? "/" : `/${repository}`;
   const artifacts = Object.entries(
     templateFiles({ basePath, defaultBranch, owner, siteUrl }),

@@ -152,7 +152,7 @@ export async function listPublishedPosts(request: Request, dependencies: Publish
     const github = dependencies.createGitHubAdapter(session.accessToken);
     const repository = await github.getPagesRepository(session.userId, session.githubLogin);
     const readiness = await github.getRepositoryReadiness(repository, templatePaths(repository, session.githubLogin));
-    const siteUrl = `https://${session.githubLogin}.github.io`;
+    const siteUrl = `https://${session.githubLogin.toLowerCase()}.github.io`;
     const posts = publishedPosts(readiness.contentPaths).map(({ slug, suffix }) => ({
       pageIdSuffix: suffix,
       pageUrl: `${siteUrl}/posts/${slug}/`,

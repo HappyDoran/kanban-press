@@ -315,7 +315,6 @@ describe("GitHubPagesClient", () => {
   it("creates one Git commit and updates the default branch without force", async () => {
     const headSha = "1".repeat(40);
     const baseTreeSha = "2".repeat(40);
-    const blobSha = "3".repeat(40);
     const treeSha = "4".repeat(40);
     const commitSha = "5".repeat(40);
     const fetchMock = vi
@@ -324,7 +323,6 @@ describe("GitHubPagesClient", () => {
       .mockResolvedValueOnce(
         Response.json({ sha: headSha, tree: { sha: baseTreeSha } }),
       )
-      .mockResolvedValueOnce(Response.json({ sha: blobSha }))
       .mockResolvedValueOnce(Response.json({ sha: treeSha }))
       .mockResolvedValueOnce(
         Response.json({ sha: commitSha, tree: { sha: treeSha } }),
@@ -350,7 +348,12 @@ describe("GitHubPagesClient", () => {
         "Publish hello",
       ),
     ).resolves.toEqual({ commitSha, created: true });
-    expect(JSON.parse(String(fetchMock.mock.calls[5]?.[1]?.body))).toEqual({
+    // 텍스트 파일은 blob 요청 없이 tree 요청에 내용을 넣는다.
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      base_tree: baseTreeSha,
+      tree: [{ content: "hello", mode: "100644", path: "hello.md", type: "blob" }],
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({
       force: false,
       sha: commitSha,
     });
@@ -366,7 +369,6 @@ describe("GitHubPagesClient", () => {
       .mockResolvedValueOnce(
         Response.json({ sha: headSha, tree: { sha: baseTreeSha } }),
       )
-      .mockResolvedValueOnce(Response.json({ sha: "3".repeat(40) }))
       .mockResolvedValueOnce(Response.json({ sha: baseTreeSha }))
       .mockResolvedValueOnce(
         Response.json({
@@ -395,17 +397,15 @@ describe("GitHubPagesClient", () => {
         "Publish same",
       ),
     ).resolves.toEqual({ commitSha, created: true });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("creates the first branch ref for an empty Pages repository", async () => {
-    const blobSha = "3".repeat(40);
     const treeSha = "4".repeat(40);
     const commitSha = "5".repeat(40);
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 409 }))
-      .mockResolvedValueOnce(Response.json({ sha: blobSha }))
       .mockResolvedValueOnce(Response.json({ sha: treeSha }))
       .mockResolvedValueOnce(
         Response.json({ sha: commitSha, tree: { sha: treeSha } }),
@@ -431,24 +431,60 @@ describe("GitHubPagesClient", () => {
         "Initial publish",
       ),
     ).resolves.toEqual({ commitSha, created: true });
-    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
-      tree: [
-        {
-          mode: "100644",
-          path: "first.md",
-          sha: blobSha,
-          type: "blob",
-        },
-      ],
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      tree: [{ content: "first", mode: "100644", path: "first.md", type: "blob" }],
     });
-    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
       message: "Initial publish",
       tree: treeSha,
     });
-    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body))).toEqual({
+    expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
       ref: "refs/heads/main",
       sha: commitSha,
     });
+  });
+
+  it("uploads binary files one at a time as blobs and inlines text", async () => {
+    const sha = (digit: string) => digit.repeat(40);
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const responses = [
+      Response.json({ object: { sha: sha("1") } }),
+      Response.json({ sha: sha("1"), tree: { sha: sha("2") } }),
+      Response.json({ sha: sha("6") }),
+      Response.json({ sha: sha("7") }),
+      Response.json({ sha: sha("4") }),
+      Response.json({ sha: sha("5"), tree: { sha: sha("4") } }),
+      Response.json({ object: { sha: sha("5") } }),
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+      return responses.shift()!;
+    });
+    const client = new GitHubPagesClient({ accessToken: "secret", apiVersion: "2026-03-10", fetch: fetchMock });
+    const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 0]);
+
+    await client.commitArtifacts(
+      { defaultBranch: "main", fullName: "octocat/octocat.github.io", isPrivate: false, providerRepositoryId: "1" },
+      [
+        { bytes: png, path: "a.png" },
+        { bytes: new TextEncoder().encode("글"), path: "post.md" },
+        { bytes: new Uint8Array([0xff, 0xfe]), path: "b.bin" },
+      ],
+      "Publish",
+    );
+
+    expect(maxInFlight).toBe(1);
+    expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/git/blobs");
+    expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/git/blobs");
+    expect(JSON.parse(String(fetchMock.mock.calls[4]?.[1]?.body)).tree).toEqual([
+      { mode: "100644", path: "a.png", sha: sha("6"), type: "blob" },
+      { content: "글", mode: "100644", path: "post.md", type: "blob" },
+      { mode: "100644", path: "b.bin", sha: sha("7"), type: "blob" },
+    ]);
   });
 
   it("combines Actions and Pages state for a commit", async () => {

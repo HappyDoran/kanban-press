@@ -194,15 +194,21 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     if (head === null && deletePaths.length > 0) {
       throw new GitHubPagesError("git_resource_not_found");
     }
-    const written = await Promise.all(
-      artifacts.map(async (artifact) => {
-        const blob = await this.#json(`${repo}/git/blobs`, gitObjectSchema, {
-          content: Buffer.from(artifact.bytes).toString("base64"),
-          encoding: "base64",
-        });
-        return { mode: "100644", path: artifact.path, sha: blob.sha, type: "blob" };
-      }),
-    );
+    // GitHub는 동시에 몰리는 쓰기 요청을 제한한다(secondary rate limit). 그래서 UTF-8 텍스트는 tree 요청에
+    // 내용을 함께 넣고(blob 요청 없음), 이미지 같은 바이너리만 blob을 하나씩 차례로 만든다.
+    const written: { content?: string; mode: string; path: string; sha?: string; type: string }[] = [];
+    for (const artifact of artifacts) {
+      const text = utf8Text(artifact.bytes);
+      if (text !== null) {
+        written.push({ content: text, mode: "100644", path: artifact.path, type: "blob" });
+        continue;
+      }
+      const blob = await this.#json(`${repo}/git/blobs`, gitObjectSchema, {
+        content: Buffer.from(artifact.bytes).toString("base64"),
+        encoding: "base64",
+      });
+      written.push({ mode: "100644", path: artifact.path, sha: blob.sha, type: "blob" });
+    }
     // Git trees API는 base tree 위에서 sha가 null인 항목을 삭제로 본다.
     const tree = [...written, ...deletePaths.map((path) => ({ mode: "100644", path, sha: null, type: "blob" }))];
     const newTree = await this.#json(`${repo}/git/trees`, gitObjectSchema, {
@@ -305,7 +311,7 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
               : "queued";
     return {
       actionsUrl: safeActionsUrl(repository, run?.html_url),
-      pageUrl: `https://${repository.fullName.split("/")[0]}.github.io/`,
+      pageUrl: `https://${repository.fullName.split("/")[0]?.toLowerCase()}.github.io/`,
       state,
     };
   }
@@ -449,6 +455,20 @@ export function gitHubErrorResponse(error: GitHubPagesError, code = `github_${er
     code,
     error.retryAfterSeconds === null ? {} : { "retry-after": String(error.retryAfterSeconds) },
   );
+}
+
+const utf8Decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+/** 올바른 UTF-8이고 NUL이 없으면 텍스트로 본다. 아니면 null(바이너리). */
+function utf8Text(bytes: Uint8Array): string | null {
+  if (bytes.includes(0)) {
+    return null;
+  }
+  try {
+    return utf8Decoder.decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 function hasPublishingScopes(value: string | null): boolean {

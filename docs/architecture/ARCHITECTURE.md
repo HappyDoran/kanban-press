@@ -170,6 +170,10 @@ IndexedDB에 포함하지 않는다.
   `Retry-After`만 브라우저에 전달하고 timeout은 provider별 504 오류로 구분한다.
 - provider 장애 로그는 provider, operation, 안정적인 오류 code, HTTP status,
   bounded retry/소요 시간만 기록하는 allowlist JSON logger를 통한다.
+- GitHub는 동시에 몰리는 쓰기 요청을 제한한다. commit은 UTF-8 텍스트 artifact를 tree 요청에 inline하고
+  이미지 같은 바이너리 blob만 하나씩 차례로 만든다(글 하나 게시 = 이미지 수 + tree·commit·ref 요청).
+- Notion 429를 받으면 브라우저는 아직 보내지 않은 구조 확인을 `Retry-After` 시각까지 멈춘다. 실패한 요청은
+  사용자가 다시 시도한다.
 - commit 이후 응답이 유실된 상태에서 재시도하면 중복 commit이 생길 수 있다.
 - 같은 artifact로 만든 Git tree가 현재 tree와 같아도 새 commit을 만든다.
 - ref update 사이에 다른 변경이 생기면 force push하지 않고 게시 충돌로 반환한다.
