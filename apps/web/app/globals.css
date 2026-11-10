@@ -4,7 +4,7 @@
   color-scheme: light;
 
   --font-title: var(--font-hahmlet), "Hahmlet", "Noto Serif KR", serif;
-  --font-sans: var(--font-noto-sans), "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, Menlo, monospace;
 }
 

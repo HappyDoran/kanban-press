@@ -350,9 +350,9 @@ CSS는 mobile-first로 구현하고 콘텐츠에 따라 자연스럽게 흐르�
 
 | 토큰 | 값 |
 |---|---|
-| `--font-title` | 앱: `Hahmlet`(`next/font`) 600·700. 칸반 h1, 카드 제목, 앱 이름. 블로그: Google Fonts `Hahmlet` 700 한 굵기(결정 D5), 실패하면 `"Noto Serif KR", "AppleMyungjo", "Batang", serif`. 사이트 이름, 페이지·글 h1, 글 카드 제목, 본문 h2·h3, 판권 제목 |
-| `--font-sans` | 앱: `Noto Sans KR`(`next/font`), 블로그: `system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif`(외부 글꼴 요청 없음) |
-| `--font-mono` | 앱: `JetBrains Mono`(`next/font`), 블로그: `ui-monospace, SFMono-Regular, Menlo, monospace` |
+| `--font-title` | 앱: `Hahmlet`(`next/font`, 가변 글꼴 한 벌). 칸반 h1, 카드 제목, 앱 이름. 블로그: Google Fonts `Hahmlet` 700 한 굵기(결정 D5), 실패하면 `"Noto Serif KR", "AppleMyungjo", "Batang", serif`. 사이트 이름, 페이지·글 h1, 글 카드 제목, 본문 h2·h3, 판권 제목 |
+| `--font-sans` | 앱·블로그 모두 시스템 고딕(`system-ui, -apple-system, "Apple SD Gothic Neo", ...`, 외부 글꼴 요청 없음). 앱에 `Noto Sans KR`을 넣었다가 Hahmlet과 함께 한글 웹 글꼴 두 벌의 조각 수백 개를 받다 Vercel build가 실패해 뺐다(2026-11-10) |
+| `--font-mono` | 앱: `JetBrains Mono`(`next/font`, 가변 글꼴), 블로그: `ui-monospace, SFMono-Regular, Menlo, monospace` |
 | `--text-xs/sm/base/lg` | `0.75 / 0.875 / 1 / 1.125rem` (앱 본문 0.875rem, 블로그 본문 1rem) |
 | 블로그 제목 | 글 h1 `clamp(1.75rem, 4vw, 2.125rem)`, Notion heading 1·2·3 = `clamp(1.55rem, 3vw, 1.9rem)` / `clamp(1.3rem, 2.5vw, 1.55rem)` / `clamp(1.18rem, 2vw, 1.3rem)` |
 | 본문 행간 | 블로그 `1.75`, 앱 `1.5` |

@@ -1,5 +1,5 @@
 import { DESIGN_TOKENS_CSS } from "@kanban-press/publisher";
-import { Hahmlet, JetBrains_Mono, Noto_Sans_KR } from "next/font/google";
+import { Hahmlet, JetBrains_Mono } from "next/font/google";
 
 import { APP_NAME } from "./brand-mark";
 
@@ -9,22 +9,16 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 // 교정쇄 × 원고지 글꼴(디자인 기획 10.2). serif(Hahmlet)는 제목에만 쓴다.
+// 본문 고딕은 시스템 글꼴을 쓴다. 한글 웹 글꼴은 굵기마다 unicode-range 조각이 수백 개라
+// 두 벌을 받으면 Vercel build에서 글꼴 다운로드가 실패했다. 가변 글꼴 한 벌(굵기 지정 없음)만 받는다.
 const title = Hahmlet({
   subsets: ["latin"],
   variable: "--font-hahmlet",
-  weight: ["600", "700"],
-});
-
-const sans = Noto_Sans_KR({
-  subsets: ["latin"],
-  variable: "--font-noto-sans",
-  weight: ["400", "500", "600", "700"],
 });
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-jetbrains-mono",
-  weight: ["400", "600"],
 });
 
 export const metadata: Metadata = {
@@ -35,7 +29,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html
-      className={`${title.variable} ${sans.variable} ${mono.variable}`}
+      className={`${title.variable} ${mono.variable}`}
       lang="ko"
       suppressHydrationWarning
     >
