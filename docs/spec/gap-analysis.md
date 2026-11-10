@@ -147,6 +147,24 @@ last_verified: 2026-11-10
 | Q6 블로그 template·preview | 생성 Astro template와 게시 전 preview UI | `packages/publisher` template, `publish-preview`, `github-pages-target` | designer, frontend | Q1 기준을 충족한다.<br>user/project base path build와 v1·v2 글 호환이 유지된다.<br>preview와 최종 HTML의 의미 구조가 같다. | 완료 (2026-11-10 lint, typecheck, build, unit 262개, integration 17개(publisher 14·web 3), E2E 6개 통과. 블로그 CSS를 `BLOG_CSS` 하나로 모아 template과 프리뷰가 함께 쓰고, A 토큰·system 글꼴·mono 메타·목차 왼쪽 고정으로 바꿨다. 프리뷰는 블로그와 같은 class와 h1(글 제목)·h2–h4(본문) 구조로 그리고, 앱 CSS의 프리뷰 전용 본문 스타일을 지웠다. user/project base path·v1/v2 호환은 template integration으로 확인. 샘플 블로그 desktop·320px와 프리뷰 desktop·320px·390 프레임을 스크린샷으로 확인) |
 | Q7 신뢰성·마감 | timeout·재시도 UX, 구조화 로그, 문서 동기화 | `apps/web/lib/operations`, `retry-action`, 아키텍처·하네스 문서 | backend, frontend | §6.1 계약 테스트가 통과한다.<br>문서의 경로·역할 표가 새 구조와 맞다.<br>실제 provider smoke는 사용자가 실행한다. | 완료 (2026-11-10 lint, typecheck, build, unit 262개, integration 17개, E2E 6개 통과. `providerRequest`의 timeout 경쟁·실패 로그를 단순화하고 Notion의 `Retry-After` 해석을 공통 `parseRetryAfter`로 합쳤다. 다시 시도 버튼에 보조 버튼 스타일을 입혔다. 아키텍처 문서에 `apps/web` 층별 코드 위치를, 하네스 역할 표에 `lib/client`·`lib/board`·`blog-css.ts` 소유를 반영했다. §6.1 계약 테스트는 수정 없이 통과. 미실행: `test:smoke`(사용자 실행 대상)) |
 
+## 블로그 기능 확장 백로그 (2026-11-10 기획)
+
+요구와 계약은 [제품 명세 §5.1](PROJECT_SPEC.md#51-블로그-기능-확장-계약-r8r11)이 소유한다. 앞 단계부터 진행하며, 각 단계는 사용자 검토 후 커밋한다.
+
+| 단계 | 내용 | 요구사항 | 역할 | 완료 조건 | 상태 |
+|---|---|---|---|---|---|
+| B1 글 관리 | 옛 글 정리(결함), 블로그에서 내리기, 게시 완료 열 복원 | R8 | backend, frontend | §5.1 R8 완료 조건을 integration·E2E로 증명한다.<br>삭제 commit은 page ID 접미사 파일만 바꾼다. | 대기 |
+| B2 탐색·노출 | 태그·보관함 route, RSS·sitemap·Open Graph | R9 | designer, backend | §5.1 R9 완료 조건을 template integration으로 증명한다. | 대기 |
+| B3 순서·묶음 | `Blog Pinned`·`Blog Series`·`Blog Order` 속성과 홈·시리즈 화면 | R10 | backend, designer | §5.1 R10 완료 조건을 unit·template integration으로 증명한다.<br>프리뷰가 같은 값을 보여준다. | 대기 |
+| B4 주소·사이트 설정 | `Blog Slug` 속성, 사이트 설정 파일 | R11 | backend, frontend | §5.1 R11 완료 조건과 아래 결정 D3·D4가 반영된다. | 대기 |
+
 ## 미결 결정
 
-없음.
+없음. 아래 D1~D4는 2026-11-10 사용자가 권고안대로 진행을 승인했다.
+
+| 번호 | 결정 | 선택지 | 확정 | 적용 단계 |
+|---|---|---|---|---|
+| D1 | 블로그에서 내리기 확인 방식 | 확인 dialog / 버튼 두 번 누르기 | 확인 dialog(글 제목과 "블로그에서 삭제, Notion 원문은 유지" 안내) | B1 |
+| D2 | RSS 본문 범위 | 설명만 / 전체 본문 | 설명만(본문 HTML escape 부담 없음) | B2 |
+| D3 | 사이트 설정 편집 경로 | 앱 설정 화면에서 저장소 파일 commit / Notion 설정 page 예약 속성 | 앱 설정 화면 → `.notion-kanban-blog/site.json` commit | B4 |
+| D4 | 주소가 바뀐 옛 글 | 지우기만 / 옛 주소에 새 주소로 보내는 안내 page 남기기 | 안내 page 남기기(외부 링크 보존, JavaScript 없이 meta refresh + 링크) | B1(정리 규칙), B4 |
