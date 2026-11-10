@@ -1,7 +1,7 @@
 ---
 title: 기술 규칙
 kind: rule
-last_verified: 2026-11-07
+last_verified: 2026-11-10
 ---
 
 # 기술 규칙
@@ -11,7 +11,7 @@ last_verified: 2026-11-07
 ## 런타임과 저장소
 
 - Node.js 22 LTS (`mise`)
-- pnpm 11 + Corepack
+- pnpm 11 (`mise`, `mise exec -- pnpm`으로 실행)
 - TypeScript strict mode
 - pnpm workspace monorepo
 
@@ -41,7 +41,6 @@ apps/web
 - `packages/auth`, `notion`, `github`, `publisher`는 각 외부 경계를 캡슐화한다.
 - package 간 허용 의존성의 정답과 검사는 `tooling/scripts/check-package-boundaries.mjs`가 소유한다. 새 package는 이 스크립트와 위 표를 같은 변경에서 함께 바꾼다.
 - 새 런타임 의존성은 실제 vertical slice에 필요한 시점에만 추가한다.
-- 루트의 `src/`, `scripts/`, `astro.config.mjs`는 단일 사용자 프로토타입이며 신규 앱과 package에서 import하지 않는다.
 
 ## 신뢰 경계
 

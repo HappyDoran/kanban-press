@@ -13,7 +13,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "corepack pnpm build && corepack pnpm start --hostname 127.0.0.1 --port 3100",
+      "pnpm build && pnpm start --hostname 127.0.0.1 --port 3100",
     env: {
       APP_ORIGIN: "http://127.0.0.1:3100",
       COOKIE_ACTIVE_KEY_ID: "e2e",
