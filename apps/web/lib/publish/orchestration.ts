@@ -22,7 +22,7 @@ import {
   LEGACY_MANAGED_MARKER_PATH,
 } from "../github/pages";
 import { NotionProviderError, NotionRestContentAdapter } from "../notion/content";
-import { writePublishRejectedLog } from "../operations/structured-log";
+import { writePublishRejectedLog, writeUnexpectedFailureLog } from "../operations/structured-log";
 
 import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
 import { buildPublishDocument, InvalidBlogMetadataError } from "./document";
@@ -263,6 +263,7 @@ export function pageErrorResponse(error: unknown, fallbackCode: string): Respons
       ...(error.retryAfterSeconds === null ? {} : { "retry-after": String(error.retryAfterSeconds) }),
     });
   }
+  writeUnexpectedFailureLog(fallbackCode, error);
   return errorResponse(502, fallbackCode, NO_STORE_HEADERS);
 }
 

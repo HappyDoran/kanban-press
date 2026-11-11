@@ -25,17 +25,25 @@ const richTextSchema = z.object({
       strikethrough: z.boolean().optional(),
     })
     .optional(),
-  href: z.string().max(4_096).nullable().optional(),
+  href: z.string().nullable().optional(),
   plain_text: z.string(),
 });
 
 type RawRichText = z.infer<typeof richTextSchema>;
 
+// 게시 문서(@kanban-press/publisher)가 받는 URL 최대 길이. 더 긴 링크는 글자만 남기고 주소는 버린다.
+// 넘긴 채로 보내면 게시 문서 검사에서 예외가 나 글 전체가 502로 실패한다.
+const MAX_URL_LENGTH = 2_048;
+
+function safeUrl(url: string | null | undefined): string | null {
+  return typeof url === "string" && url.length <= MAX_URL_LENGTH ? url : null;
+}
+
 function toRichText(parts: readonly RawRichText[]): NotionRichText[] {
   return parts.map((part) => ({
     bold: part.annotations?.bold ?? false,
     code: part.annotations?.code ?? false,
-    href: part.href ?? null,
+    href: safeUrl(part.href),
     italic: part.annotations?.italic ?? false,
     strikethrough: part.annotations?.strikethrough ?? false,
     text: part.plain_text,
@@ -211,6 +219,9 @@ export function toContentBlocks(
       if (typeof value?.url !== "string") {
         return [...children];
       }
+      if (safeUrl(value.url) === null) {
+        return [{ kind: "paragraph", richText: toRichText([{ plain_text: value.url }]) }, ...children];
+      }
       const caption = richTextAt(value, "caption");
       return [
         {
@@ -231,7 +242,7 @@ export function toContentBlocks(
           kind: "media",
           mediaType: block.type,
           // Notion이 호스팅한 파일 URL은 곧 만료되므로 외부 URL만 남긴다.
-          url: value?.type === "external" ? fileUrl(value, ["external"]) : null,
+          url: value?.type === "external" ? safeUrl(fileUrl(value, ["external"])) : null,
         },
         ...children,
       ];

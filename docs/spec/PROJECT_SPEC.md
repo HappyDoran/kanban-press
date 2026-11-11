@@ -387,7 +387,8 @@ artifact를 생성한다. slug는 소문자 영숫자와
 Markdown 제어 문자를 escape하고, 링크는 `https:`, `http:`, `mailto:`만 허용한다.
 이미지는 `src/assets/blog/<slug>/image-<순번>.<확장자>`에서 현재 Markdown 기준
 `../../assets/blog/<slug>/...`로 향하는 정규화된 상대 경로만 허용한다. 허용하지 않는
-링크는 일반 text로 낮추고 provider URL 또는 경로 이탈 이미지는 변환 실패로 처리한다.
+링크는 일반 text로 낮추고 provider URL 또는 경로 이탈 이미지는 변환 실패로 처리한다. 2,048자를 넘는
+링크 주소는 글자만 남기고, 그런 bookmark·embed는 주소 글자만 담은 문단으로 바꾼다.
 code fence 길이는 본문보다 길게 생성하고 language 식별자를
 제한한다. toggle의 `<details>` wrapper만 publisher가 생성한 신뢰 HTML로 허용하며
 summary와 자식 내용은 동일한 escape 규칙을 적용한다.
@@ -581,6 +582,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
   특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다. 예외는 보관 중 목록의 SHA 조건부
   저장이 conflict로 거절된 경우다. 아무것도 쓰이지 않았으므로 같은 요청 안에서 다시 읽어 3번까지 시도한다.
 - 게시 내용 거절(422)은 `publish_content_rejected` 이벤트로 `code`와 고정 `detail`만 남긴다.
+- 분류하지 못한 게시·프리뷰 예외(502)는 `unexpected_failure` 이벤트로 오류 이름과, 검사 오류면 실패한 필드
+  경로(키·번호)만 남긴다. 값과 message는 남기지 않는다.
 - 구조화 운영 로그는 allowlist field만 JSON 한 줄로 기록한다. token, cookie, OAuth code,
   provider URL, 사용자·page·repository 식별자, 임의 오류 message/stack은 기록하지 않는다.
 
