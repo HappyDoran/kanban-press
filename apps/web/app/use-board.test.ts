@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { PageSummary } from "../lib/client/api";
 
-import { boardErrorMessage, pageKey, toKanbanRecords } from "./use-board";
+import { applyBoardChanges, boardErrorMessage, pageKey, toKanbanRecords } from "./use-board";
 
 const CONNECTION = "connection";
 const id = (digit: string) => `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`;
@@ -71,5 +71,15 @@ describe("toKanbanRecords", () => {
 describe("boardErrorMessage", () => {
   it("explains a change made elsewhere", () => {
     expect(boardErrorMessage("github_conflict")).toContain("다른 곳에서");
+  });
+});
+
+describe("applyBoardChanges", () => {
+  it("keeps changes still waiting in this tab on top of an earlier server response", () => {
+    const a = "a".repeat(32);
+    const b = "b".repeat(32);
+    const c = "c".repeat(32);
+    expect(applyBoardChanges([a], new Map([[b, true], [c, true]]))).toEqual([a, b, c]);
+    expect(applyBoardChanges([a, b], new Map([[a, false], [b, true]]))).toEqual([b]);
   });
 });

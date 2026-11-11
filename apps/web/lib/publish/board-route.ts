@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { errorResponse, readSession } from "../auth/session";
-import { GitHubPagesClient } from "../github/pages";
+import { GitHubPagesClient, GitHubPagesError } from "../github/pages";
 
 import { pageIdSuffix } from "./blog-files";
 import {
@@ -17,6 +17,10 @@ import {
 export const BOARD_BRANCH = "kanban-press-board";
 export const BOARD_PATH = "board.json";
 const MAX_PAGES = 2_000;
+// 같은 사용자의 다른 탭·기기가 거의 동시에 바꿔 conflict가 나면, 이 요청 안에서 다시 읽고 다시 쓴다.
+// Contents API는 쓴 직후 잠깐 이전 SHA를 돌려줄 수 있어 짧게 쉬고 다시 읽는다. 끝내 안 되면 409다.
+const CONFLICT_ATTEMPTS = 3;
+const CONFLICT_DELAY_MS = 300;
 
 const boardFileSchema = z.object({
   pageIds: z.array(z.string().regex(/^[a-f0-9]{32}$/)).max(MAX_PAGES),
@@ -27,6 +31,7 @@ type BoardClient = Pick<GitHubPagesClient, "getPagesRepository" | "readBranchFil
 
 export interface BoardDependencies extends PageRequestDependencies {
   createClient: (accessToken: string) => BoardClient;
+  sleep?: (milliseconds: number) => Promise<void>;
 }
 
 /** 파일 내용 → page ID 목록. 형식이 틀리면 빈 목록. */
@@ -59,7 +64,8 @@ export async function getBoard(request: Request, dependencies: BoardDependencies
 
 /**
  * 보관 중에 넣기(`add`)·빼기(`remove`). 같은 origin·세션·연결 소유권(authorizePageRequest)과 저장소 소유권·쓰기 권한을
- * 다시 확인하고, 최신 목록을 읽어 바꾼 뒤 읽은 SHA로 조건부 저장한다. 그 사이 바뀌었으면 409이고 재시도하지 않는다.
+ * 다시 확인하고, 최신 목록을 읽어 바꾼 뒤 읽은 SHA로 조건부 저장한다. 그 사이 바뀌었으면 다시 읽어
+ * `CONFLICT_ATTEMPTS`번까지 시도하고, 그래도 바뀌면 409다. 재시도는 이 요청 안에서만 하고 이력은 남기지 않는다.
  */
 export async function changeBoard(
   request: Request,
@@ -71,32 +77,43 @@ export async function changeBoard(
     return owned;
   }
   const { providerPageId, session } = owned;
+  const sleep = dependencies.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   try {
     const pageId = pageIdSuffix(providerPageId);
     const github = dependencies.createClient(session.accessToken);
     const repository = await github.getPagesRepository(session.userId, session.githubLogin);
-    const file = await github.readBranchFile(repository, BOARD_BRANCH, BOARD_PATH);
-    const current = parseBoard(file?.text ?? null);
-    const next =
-      action === "add"
-        ? current.includes(pageId)
-          ? current
-          : [...current, pageId]
-        : current.filter((id) => id !== pageId);
-    if (next.length > MAX_PAGES) {
-      return errorResponse(422, "board_full", NO_STORE_HEADERS);
+    for (let attempt = 1; ; attempt += 1) {
+      const file = await github.readBranchFile(repository, BOARD_BRANCH, BOARD_PATH);
+      const current = parseBoard(file?.text ?? null);
+      const next =
+        action === "add"
+          ? current.includes(pageId)
+            ? current
+            : [...current, pageId]
+          : current.filter((id) => id !== pageId);
+      if (next.length > MAX_PAGES) {
+        return errorResponse(422, "board_full", NO_STORE_HEADERS);
+      }
+      if (next.length === current.length) {
+        return Response.json({ pageIds: next }, { headers: NO_STORE_HEADERS });
+      }
+      try {
+        await github.writeBranchFile(
+          repository,
+          BOARD_BRANCH,
+          BOARD_PATH,
+          `${JSON.stringify({ pageIds: next, version: 1 }, null, 2)}\n`,
+          file?.sha ?? null,
+          `${action === "add" ? "Add" : "Remove"} ${pageId} ${action === "add" ? "to" : "from"} board`,
+        );
+        return Response.json({ pageIds: next }, { headers: NO_STORE_HEADERS });
+      } catch (error) {
+        if (!(error instanceof GitHubPagesError && error.code === "conflict") || attempt >= CONFLICT_ATTEMPTS) {
+          throw error;
+        }
+        await sleep(CONFLICT_DELAY_MS * attempt);
+      }
     }
-    if (next.length !== current.length) {
-      await github.writeBranchFile(
-        repository,
-        BOARD_BRANCH,
-        BOARD_PATH,
-        `${JSON.stringify({ pageIds: next, version: 1 }, null, 2)}\n`,
-        file?.sha ?? null,
-        `${action === "add" ? "Add" : "Remove"} ${pageId} ${action === "add" ? "to" : "from"} board`,
-      );
-    }
-    return Response.json({ pageIds: next }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return pageErrorResponse(error, "board_unavailable");
   }
