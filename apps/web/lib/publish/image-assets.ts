@@ -207,7 +207,8 @@ async function downloadImage(
       }
 
       const response = await abortable(
-        dependencies.request(current, addresses[0]!, controller.signal),
+        // 서버 함수에는 IPv6 outbound가 없을 수 있어 검증한 주소 중 IPv4를 먼저 쓴다.
+        dependencies.request(current, addresses.find((entry) => entry.family === 4) ?? addresses[0]!, controller.signal),
         controller.signal,
       );
       if (REDIRECT_STATUSES.has(response.status)) {
@@ -325,7 +326,8 @@ async function requestPinnedImage(
       url,
       {
         headers: {
-          accept: "image/avif,image/webp,image/png,image/jpeg,image/gif",
+          // 받을 수 없는 AVIF를 요청하면 협상하는 CDN이 AVIF를 줘 mime_type으로 실패한다.
+          accept: "image/webp,image/png,image/jpeg,image/gif",
           "user-agent": "kanban-press-image-fetch/1",
         },
         lookup: (_hostname, _options, callback) => {

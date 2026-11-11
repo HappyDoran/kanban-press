@@ -263,6 +263,49 @@ test("cards can be published with a button on narrow screens", async ({ page }, 
   await expect(page.getByRole("button", { exact: true, name: "다시 게시" })).toBeVisible();
 });
 
+test("dropping a card keeps the scroll position", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "넓은 화면은 끌어 놓기로 게시한다");
+  await page.setViewportSize({ height: 800, width: 1400 });
+  const pages = Array.from({ length: 30 }, (_, index) => ({
+    ...E2E_PAGE,
+    providerPageId: `9188c6a5-7381-452f-b3dc-${String(index).padStart(12, "0")}`,
+    title: `스크롤 문서 ${index}`,
+  }));
+  let publishCalls = 0;
+  await installAppRoutes(page, () => "52277540", () => {
+    publishCalls += 1;
+  }, pages, {
+    pageIds: pages.map((item) => item.providerPageId.replaceAll("-", "")),
+  });
+  await page.route("**/api/publish/posts", (route) => route.fulfill({ json: { posts: [] } }));
+  await page.goto("/");
+  await expect(page.getByText("보관 중 30편")).toBeVisible();
+  await page.mouse.wheel(0, 1500);
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(1000);
+
+  // 화면 안에 보이는 카드를 게시 중 열로 끈다. 게시 중 카드는 맨 위(화면 밖)에 생긴다.
+  let source = null;
+  for (const item of pages) {
+    const box = await page.getByRole("button", { name: `${item.title} 카드 이동` }).boundingBox();
+    if (box !== null && box.y > 200 && box.y < 600) {
+      source = box;
+      break;
+    }
+  }
+  const target = await page.getByRole("region", { name: /게시 중/ }).boundingBox();
+  expect(source).not.toBeNull();
+  expect(target).not.toBeNull();
+  const before = await page.evaluate(() => Math.round(window.scrollY));
+  const y = source!.y + source!.height / 2;
+  await page.mouse.move(source!.x + source!.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(source!.x + source!.width / 2 + 10, y, { steps: 3 });
+  await page.mouse.move(target!.x + target!.width / 2, y, { steps: 12 });
+  await page.mouse.up();
+  await expect.poll(() => publishCalls).toBe(1);
+  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(before);
+});
+
 const E2E_PAGE = {
   hasChildren: false,
   iconUrl: null,

@@ -5,7 +5,7 @@ import {
   providerRequest,
   ProviderTransportError,
 } from "./provider-request";
-import { writeProviderFailureLog } from "./structured-log";
+import { writeProviderFailureLog, writePublishRejectedLog } from "./structured-log";
 
 describe("providerRequest", () => {
   it("bounds Retry-After and emits only allowlisted structured fields", async () => {
@@ -98,5 +98,17 @@ describe("writeProviderFailureLog", () => {
       operation: "invalid_operation",
     });
     expect(lines[0]).not.toContain("secret");
+  });
+});
+
+describe("writePublishRejectedLog", () => {
+  it("writes the fixed rejection reason and replaces anything that looks like a URL", () => {
+    const lines: string[] = [];
+    writePublishRejectedLog({ code: "invalid_publish_image", detail: "byte_limit" }, (line) => lines.push(line));
+    writePublishRejectedLog({ code: "invalid_publish_image", detail: "https://x.example/?sig=secret" }, (line) => lines.push(line));
+    expect(lines.map((line) => JSON.parse(line) as unknown)).toEqual([
+      { code: "invalid_publish_image", detail: "byte_limit", event: "publish_content_rejected", level: "warn" },
+      { code: "invalid_publish_image", detail: "invalid_detail", event: "publish_content_rejected", level: "warn" },
+    ]);
   });
 });

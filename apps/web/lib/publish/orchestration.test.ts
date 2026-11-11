@@ -368,7 +368,7 @@ describe("publish orchestration", () => {
     const body = await response.json();
 
     expect(response.status).toBe(422);
-    expect(body).toEqual({ error: "invalid_publish_image" });
+    expect(body).toEqual({ detail: "blocked_address", error: "invalid_publish_image" });
     expect(JSON.stringify(body)).not.toContain("notion.example");
     expect(JSON.stringify(body)).not.toContain("provider-secret");
     expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
@@ -522,6 +522,7 @@ describe("publish orchestration", () => {
 
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({
+      detail: "Blog Category",
       error: "invalid_blog_metadata",
     });
     expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
@@ -747,6 +748,7 @@ describe("preview orchestration", () => {
 
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({
+      detail: "Blog Category",
       error: "invalid_blog_metadata",
     });
     expect(context.getPagesRepository).not.toHaveBeenCalled();

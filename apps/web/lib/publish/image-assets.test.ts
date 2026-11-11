@@ -150,6 +150,18 @@ describe("publish image assets", () => {
     },
   );
 
+  it("connects to a verified IPv4 address when DNS also answers IPv6", async () => {
+    const request = vi.fn().mockResolvedValue(response());
+    await materializePublishImages(
+      documentWithImages([SIGNED_URL]),
+      dependencies({
+        request,
+        resolve: vi.fn().mockResolvedValue([{ address: "2606:4700::1", family: 6 }, PUBLIC_ADDRESS]),
+      }),
+    );
+    expect(request.mock.calls[0]?.[1]).toEqual(PUBLIC_ADDRESS);
+  });
+
   it("materializes images nested in structural Notion blocks", async () => {
     const source = documentWithImages([]);
     source.blocks = [

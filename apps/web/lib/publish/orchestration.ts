@@ -22,6 +22,7 @@ import {
   LEGACY_MANAGED_MARKER_PATH,
 } from "../github/pages";
 import { NotionProviderError, NotionRestContentAdapter } from "../notion/content";
+import { writePublishRejectedLog } from "../operations/structured-log";
 
 import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
 import { buildPublishDocument, InvalidBlogMetadataError } from "./document";
@@ -244,7 +245,10 @@ export function templatePaths(repository: { defaultBranch: string; fullName: str
 /** 게시·프리뷰에서 나는 오류 → HTTP 응답. 알 수 없는 오류는 `fallbackCode` 502. */
 export function pageErrorResponse(error: unknown, fallbackCode: string): Response {
   if (error instanceof InvalidBlogMetadataError || error instanceof InvalidPublishImageError) {
-    return errorResponse(422, error.code, NO_STORE_HEADERS);
+    // detail은 고정 값(이미지 거절 이유·예약 속성 이름)이라 URL·본문이 섞이지 않는다.
+    const detail = error instanceof InvalidBlogMetadataError ? error.property : error.reason;
+    writePublishRejectedLog({ code: error.code, detail });
+    return Response.json({ detail, error: error.code }, { headers: NO_STORE_HEADERS, status: 422 });
   }
   if (error instanceof GitHubPagesError) {
     const response = gitHubErrorResponse(error);

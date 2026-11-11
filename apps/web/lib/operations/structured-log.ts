@@ -38,6 +38,17 @@ export function writeProviderFailureLog(
   sink(JSON.stringify(payload));
 }
 
+/** 게시 내용 거절(422). `detail`은 이미지 거절 이유나 예약 속성 이름 같은 고정 값만 받는다. */
+export function writePublishRejectedLog(
+  event: { code: string; detail: string },
+  sink: LogSink = (line) => console.warn(line),
+): void {
+  const safe = (value: string) => (SAFE_DETAIL.test(value) ? value : "invalid_detail");
+  sink(JSON.stringify({ code: safe(event.code), detail: safe(event.detail), event: "publish_content_rejected", level: "warn" }));
+}
+
+const SAFE_DETAIL = /^[A-Za-z][A-Za-z0-9_ .-]{0,63}$/;
+
 function logLevel(code: ProviderFailureLog["code"]): LogLevel {
   return code === "http_error" ? "warn" : "error";
 }

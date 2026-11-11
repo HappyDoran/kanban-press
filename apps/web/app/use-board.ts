@@ -210,7 +210,7 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
       ...current,
       [key]: {
         actionsUrl,
-        message: publishErrorMessage(error instanceof ApiError ? error.code : fallbackCode),
+        message: error instanceof ApiError ? publishErrorMessage(error.code, error.detail) : publishErrorMessage(fallbackCode),
         retryAt: error instanceof ApiError ? error.retryAt : null,
       },
     }));
