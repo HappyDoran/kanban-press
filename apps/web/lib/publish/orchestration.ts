@@ -252,12 +252,15 @@ export function pageErrorResponse(error: unknown, fallbackCode: string): Respons
   }
   if (error instanceof GitHubPagesError) {
     const response = gitHubErrorResponse(error);
+    // HTTP 실패는 provider 요청 로그가 남지만, 응답 형식·경계 검사 실패는 여기서만 알 수 있다.
+    if (response.status >= 500) writeUnexpectedFailureLog(`github_${error.code}`, error);
     for (const [name, value] of Object.entries(NO_STORE_HEADERS)) response.headers.set(name, value);
     return response;
   }
   if (error instanceof NotionProviderError) {
     const status =
       error.code === "access_denied" ? 403 : error.code === "rate_limited" ? 429 : error.code === "timeout" ? 504 : 502;
+    if (status >= 500) writeUnexpectedFailureLog(`notion_${error.code}`, error);
     return errorResponse(status, `notion_${error.code}`, {
       ...NO_STORE_HEADERS,
       ...(error.retryAfterSeconds === null ? {} : { "retry-after": String(error.retryAfterSeconds) }),

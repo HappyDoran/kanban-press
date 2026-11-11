@@ -18,8 +18,10 @@ import { parseRetryAfter, providerRequest, ProviderTransportError } from "../ope
 import type { LogSink } from "../operations/structured-log";
 
 const GITHUB_API_ORIGIN = "https://api.github.com";
-const MAX_ARTIFACTS = 200;
-const MAX_ARTIFACT_BYTES = 20 * 1024 * 1024;
+// commit 하나의 상한. 글 하나는 template(약 30개) + 이미지 최대 100개(64MiB, lib/publish/image-assets.ts) + Markdown에
+// 줄어든 옛 이미지 삭제·옛 주소 안내까지 담으므로 그보다 넉넉히 둔다. 이미지 상한을 올리면 같이 올린다.
+const MAX_ARTIFACTS = 400;
+const MAX_ARTIFACT_BYTES = 72 * 1024 * 1024;
 
 const apiVersionSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const loginSchema = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/);

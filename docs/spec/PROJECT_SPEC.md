@@ -275,7 +275,8 @@ commit, ref update, Pages mutation은 호출하지 않는다. credential, provid
 모든 redirect hop은 DNS를 다시 검증해 loopback, private, link-local, multicast,
 documentation/reserved 주소를 차단하며, 검증한 public IP를 실제 TLS 연결에 고정한다.
 redirect는 최대 3회, 이미지당 timeout은 10초, 이미지당 최대 8 MiB, 문서 전체 최대
-64 MiB, 문서당 최대 100개다. 이미지는 본문 순서를 지키며 4장씩 함께 받는다. `Content-Type`과 파일 signature, `Content-Length`와 실제
+64 MiB, 문서당 최대 100개다. 이미지는 본문 순서를 지키며 4장씩 함께 받는다. GitHub commit 하나는 파일 400개·72 MiB까지
+쓴다(template·Markdown·옛 파일 정리를 포함해 이미지 상한보다 넉넉하게). `Content-Type`과 파일 signature, `Content-Length`와 실제
 stream byte를 모두 검사하고
 허용하지 않는 MIME, 누락된 MIME, redirect downgrade/loop/초과, DNS/IP 오류와 timeout은
 commit 전에 `422 invalid_publish_image`로 실패한다. SVG와 MIME sniff fallback은
@@ -582,7 +583,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
   특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다. 예외는 보관 중 목록의 SHA 조건부
   저장이 conflict로 거절된 경우다. 아무것도 쓰이지 않았으므로 같은 요청 안에서 다시 읽어 3번까지 시도한다.
 - 게시 내용 거절(422)은 `publish_content_rejected` 이벤트로 `code`와 고정 `detail`만 남긴다.
-- 분류하지 못한 게시·프리뷰 예외(502)는 `unexpected_failure` 이벤트로 오류 이름과, 검사 오류면 실패한 필드
+- 분류하지 못한 게시·프리뷰 예외와 HTTP 실패가 아닌 provider 5xx(응답 형식·경계 검사)는 `unexpected_failure` 이벤트로 오류 이름과, 검사 오류면 실패한 필드
   경로(키·번호)만 남긴다. 값과 message는 남기지 않는다.
 - 구조화 운영 로그는 allowlist field만 JSON 한 줄로 기록한다. token, cookie, OAuth code,
   provider URL, 사용자·page·repository 식별자, 임의 오류 message/stack은 기록하지 않는다.
