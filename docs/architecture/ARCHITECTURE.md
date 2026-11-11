@@ -10,7 +10,7 @@ last_verified: 2026-11-11
 
 ```text
 Browser
-  └─ Next.js UI (칸반은 저장하지 않고 Notion 목록 + 블로그 저장소로 계산)
+  └─ Next.js UI (칸반은 브라우저에 저장하지 않음)
           │ HTTPS + HttpOnly encrypted cookies
           ▼
 apps/web (stateless Next.js)
@@ -31,7 +31,8 @@ apps/web (stateless Next.js)
 |---|---|---|
 | GitHub 세션과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
-| 칸반 카드와 문서/컨테이너 역할 | 저장하지 않음. Notion page 목록(하위 page 여부)으로 매번 계산([ADR 0002](../adr/0002-stateless-board.md)) | 열 때마다 Notion API에서 조회 |
+| 보관 중 목록(page ID) | 사용자 GitHub repository `kanban-press-board` branch의 `board.json`([ADR 0003](../adr/0003-board-branch.md)) | 서버가 읽고 zod 검증, blob SHA 조건부 저장 |
+| 칸반 카드와 문서/컨테이너 역할 | 저장하지 않음. Notion page 목록(하위 page 여부)으로 매번 계산 | 열 때마다 Notion API에서 조회 |
 | 게시 중 상태와 실패 안내 | React 메모리 | 새로고침 시 소멸 |
 | 게시 완료 여부와 글 주소 | 사용자 GitHub repository(글 파일의 page ID 접미사) | 열 때마다 GitHub API에서 조회 |
 | 블로그 사이트 설정(이름·소개·링크) | 사용자 GitHub repository `.kanban-press/site.json` | 저장 시 서버 zod 검증, 빌드 시 template이 다시 검증 |
@@ -51,7 +52,7 @@ package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책�
 | 인증 | `lib/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
 | Notion | `lib/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
 | GitHub | `lib/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
-| 게시 | `lib/publish/` | 사이트 설정(`site-settings.ts` 형식, `site-settings-route.ts` 읽기·저장), 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 게시·내리기·게시 글 목록(`orchestration.ts`), 한 글의 저장소 파일 규칙(`blog-files.ts`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
+| 게시 | `lib/publish/` | 보관 중 목록(`board-route.ts` 읽기·추가·빼기), 사이트 설정(`site-settings.ts` 형식, `site-settings-route.ts` 읽기·저장), 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 게시·내리기·게시 글 목록(`orchestration.ts`), 한 글의 저장소 파일 규칙(`blog-files.ts`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
 | provider 공통 | `lib/operations/` | 10초 timeout·`Retry-After`·allowlist 로그 |
 
 ## 4. 요청 경계

@@ -1,22 +1,26 @@
 "use client";
 
-// 선택한 Notion 연결의 문서 계층(탐색 전용). page는 목록의 부모 관계로, page 안의 토글·그룹·database는
-// 펼칠 때 받아 오는 outline으로 그린다. 하위 page가 있는 page는 컨테이너(폴더)로 보이고 칸반에 오르지 않는다.
+// 선택한 Notion 연결의 문서 계층. page는 목록의 부모 관계로, page 안의 토글·그룹·database는 펼칠 때 받아 오는
+// outline으로 그린다. 문서 행의 `추가`로 보관 중에 넣는다. 하위 page가 있는 page는 컨테이너(폴더)라 칸반에 오르지 않는다.
 import type { NotionOutlineNode } from "@kanban-press/notion";
 import { createContext, useContext, useState } from "react";
 
 import { fetchOutline, type PageSummary } from "../lib/client/api";
 import { filterRenderableOutline } from "../lib/notion/outline";
 
-import { isContainer } from "./use-board";
+import { isContainer, pageKey, suffixOf } from "./use-board";
 
 type OutlineState = "error" | "idle" | "loading" | "ready";
 
 interface TreeContextValue {
+  /** 보관 중 목록(하이픈 뺀 page ID). */
+  board: ReadonlySet<string>;
   childPagesByParent: ReadonlyMap<string, PageSummary[]>;
   connectionId: string;
+  onBoardChange: (page: PageSummary, onBoard: boolean) => void;
   pages: readonly PageSummary[];
   pagesById: ReadonlyMap<string, PageSummary>;
+  pendingKeys: ReadonlySet<string>;
 }
 
 const TreeContext = createContext<TreeContextValue | null>(null);
@@ -30,11 +34,13 @@ function useTree(): TreeContextValue {
 }
 
 export function NotionTree({
+  board,
   connectionId,
+  onBoardChange,
   pages,
+  pendingKeys,
   query = "",
-}: {
-  connectionId: string;
+}: Pick<TreeContextValue, "board" | "connectionId" | "onBoardChange" | "pendingKeys"> & {
   pages: PageSummary[];
   /** 제목 검색어. 있으면 계층 대신 제목이 맞는 문서를 평평하게 보여준다(database 행 포함). */
   query?: string;
@@ -58,7 +64,7 @@ export function NotionTree({
 
   return (
     <TreeContext.Provider
-      value={{ childPagesByParent, connectionId, pages, pagesById }}
+      value={{ board, childPagesByParent, connectionId, onBoardChange, pages, pagesById, pendingKeys }}
     >
       {search === "" ? null : (
         <p className="treeSearchStatus" role="status">
@@ -88,6 +94,8 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
   const childPages = tree.childPagesByParent.get(page.providerPageId) ?? [];
   const container = isContainer(page);
   const hasChildren = !ancestors.has(page.providerPageId) && (container || childPages.length > 0);
+  const onBoard = tree.board.has(suffixOf(page.providerPageId));
+  const pending = tree.pendingKeys.has(pageKey({ connectionId: tree.connectionId, providerPageId: page.providerPageId }));
 
   async function loadOutline(): Promise<void> {
     if (outlineState === "loading" || outlineState === "ready") {
@@ -124,6 +132,20 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
             {page.title}
           </span>
         </button>
+        {container ? null : (
+          <span className="pageAction">
+            <button
+              aria-label={`${page.title}을 보관 중에서 ${onBoard ? "빼기" : "넣기"}`}
+              aria-pressed={onBoard}
+              className={onBoard ? "rowButton onBoard" : "rowButton"}
+              disabled={pending}
+              onClick={() => tree.onBoardChange(page, !onBoard)}
+              type="button"
+            >
+              {pending ? "저장 중" : onBoard ? "보관 중" : "추가"}
+            </button>
+          </span>
+        )}
       </div>
       {hasChildren && expanded ? (
         <ul>

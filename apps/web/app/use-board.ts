@@ -1,11 +1,18 @@
 "use client";
 
-// 칸반 상태. 브라우저에 저장하지 않고 열 때마다 계산한다(제품 명세 §4): 카드는 선택한 Notion 연결의 문서 page,
-// 게시 완료 열은 블로그 저장소에 그 글이 있는지(R8), 게시 중과 실패 안내는 이 hook의 메모리다.
-// 그래서 같은 GitHub 계정·같은 Notion 연결이면 어느 브라우저에서 열어도 칸반이 같다.
+// 칸반 상태(제품 명세 §3 칸반·§4). 보관 중 목록은 블로그 저장소의 칸반 branch(`/api/board`), 게시 완료는 블로그
+// 글 파일(`/api/publish/posts`), 게시 중과 실패 안내는 이 hook의 메모리다. 브라우저에는 저장하지 않으므로
+// 같은 GitHub 계정이면 어느 브라우저에서 열어도 칸반이 같다.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ApiError, fetchBlogPosts, type PageSummary, publishErrorMessage } from "../lib/client/api";
+import {
+  ApiError,
+  changeBoard,
+  fetchBlogPosts,
+  fetchBoard,
+  type PageSummary,
+  publishErrorMessage,
+} from "../lib/client/api";
 import { publishAndWatch, unpublishInOrder } from "../lib/client/publish";
 import { pageIdSuffix } from "../lib/publish/blog-files";
 
@@ -32,13 +39,24 @@ export function isContainer(page: Pick<PageSummary, "hasChildren">): boolean {
   return page.hasChildren;
 }
 
+/** 보관 중 목록 변경 실패 문구. */
+export function boardErrorMessage(code: string): string {
+  return code === "github_conflict"
+    ? "다른 곳에서 보관 중 목록이 바뀌었습니다. 새로고침한 뒤 다시 시도해 주세요."
+    : code === "board_full"
+      ? "보관 중에는 문서를 2,000개까지 둘 수 있습니다."
+      : "보관 중 목록을 바꾸지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+}
+
 /**
- * 칸반에 그릴 카드: 연결의 모든 문서 page. 이번 화면의 게시 상태 → 블로그에 있으면 게시 완료 → 아니면 보관 중
- * 순서로 열을 정하고, Notion 수정 시각이 최근인 문서가 위에 온다.
+ * 칸반에 그릴 카드: 연결의 문서 page 중 보관 중 목록에 있거나(`board`, 하이픈 뺀 page ID를 추가한 순서로),
+ * 블로그에 글이 있거나, 이번 화면에서 게시 중인 것. 이번 화면의 게시 상태 → 블로그에 있으면 게시 완료 →
+ * 아니면 보관 중 순서로 열을 정한다. 최근에 보관 중에 넣은 문서가 위에 온다.
  */
 export function toKanbanRecords(
   connectionId: string | null,
   pages: readonly PageSummary[],
+  board: readonly string[],
   views: Readonly<Record<string, PublishView>>,
   failures: Readonly<Record<string, PublishFailure>>,
   blogPosts: ReadonlyMap<string, string> = new Map(),
@@ -46,13 +64,18 @@ export function toKanbanRecords(
   if (connectionId === null) {
     return [];
   }
+  const boardOrder = new Map(board.map((pageId, index) => [pageId, index]));
+  const rank = (providerPageId: string) => boardOrder.get(suffixOf(providerPageId)) ?? -1;
   return pages
-    .filter((page) => !isContainer(page))
-    .map((page): KanbanRecord => {
+    .flatMap((page): KanbanRecord[] => {
       const key = pageKey({ connectionId, providerPageId: page.providerPageId });
       const view = views[key];
-      const blogUrl = blogPosts.get(suffixOf(page.providerPageId)) ?? null;
-      return {
+      const suffix = suffixOf(page.providerPageId);
+      const blogUrl = blogPosts.get(suffix) ?? null;
+      if (isContainer(page) || (!boardOrder.has(suffix) && blogUrl === null && view === undefined)) {
+        return [];
+      }
+      return [{
         column: view?.column ?? (blogUrl === null ? "stored" : "published"),
         connectionId,
         providerPageId: page.providerPageId,
@@ -61,16 +84,18 @@ export function toKanbanRecords(
         publishStartedAt: view?.startedAt ?? null,
         sourceLastEditedAt: page.lastEditedAt,
         title: page.title,
-      };
+      }];
     })
     .sort(
       (left, right) =>
+        rank(right.providerPageId) - rank(left.providerPageId) ||
         right.sourceLastEditedAt.localeCompare(left.sourceLastEditedAt) ||
         left.providerPageId.localeCompare(right.providerPageId),
     );
 }
 
-function suffixOf(providerPageId: string): string {
+/** 보관 중 목록에 쓰는 page ID(하이픈 뺀 32자). 형식이 틀리면 빈 문자열. */
+export function suffixOf(providerPageId: string): string {
   try {
     return pageIdSuffix(providerPageId);
   } catch {
@@ -82,6 +107,9 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
   const [views, setViews] = useState<Readonly<Record<string, PublishView>>>({});
   const [failures, setFailures] = useState<Readonly<Record<string, PublishFailure>>>({});
   const [blogPosts, setBlogPosts] = useState<ReadonlyMap<string, string>>(new Map());
+  const [board, setBoard] = useState<readonly string[]>([]);
+  const [boardError, setBoardError] = useState("");
+  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
   const publishing = useRef(new Set<string>());
   const mounted = useRef(true);
 
@@ -99,6 +127,8 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     setViews({});
     setFailures({});
     setBlogPosts(new Map());
+    setBoard([]);
+    setBoardError("");
   }
 
   // 그 사용자의 블로그 글. 읽지 못하면(저장소 없음·권한 없음 등) 게시 완료 열을 비워 둔다.
@@ -110,8 +140,48 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     fetchBlogPosts(controller.signal)
       .then((posts) => setBlogPosts(posts))
       .catch(() => undefined);
+    fetchBoard(controller.signal)
+      .then((pageIds) => setBoard(pageIds))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setBoardError("보관 중 목록을 불러오지 못했습니다. GitHub Pages 저장소 상태를 확인한 뒤 새로고침해 주세요.");
+        }
+      });
     return () => controller.abort();
   }, [ownerId]);
+
+  /**
+   * 보관 중에 넣기·빼기. 화면을 먼저 바꾸고 서버가 저장한 목록으로 맞춘다. 실패하면 원래 목록으로 돌린다.
+   * 같은 문서의 변경은 동시에 하나만 보낸다.
+   */
+  async function setOnBoard(connectionId: string, providerPageId: string, onBoard: boolean): Promise<void> {
+    const key = pageKey({ connectionId, providerPageId });
+    const suffix = suffixOf(providerPageId);
+    if (pendingKeys.has(key) || suffix === "") {
+      return;
+    }
+    setPendingKeys((current) => new Set(current).add(key));
+    setBoardError("");
+    const previous = board;
+    setBoard((current) =>
+      onBoard ? (current.includes(suffix) ? current : [...current, suffix]) : current.filter((id) => id !== suffix),
+    );
+    try {
+      setBoard(await changeBoard(onBoard ? "add" : "remove", connectionId, providerPageId));
+    } catch (error) {
+      setBoard(previous);
+      setBoardError(boardErrorMessage(error instanceof ApiError ? error.code : ""));
+    } finally {
+      setPendingKeys((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
+    }
+  }
+
+  /** 카드의 ✕: 보관 중 목록에서만 뺀다. Notion 원문과 블로그 글은 그대로다. */
+  const remove = (record: KanbanRecord) => setOnBoard(record.connectionId, record.providerPageId, false);
 
   const clearView = (key: string) => setViews((current) => without(current, key));
   const clearFailure = (key: string) => setFailures((current) => without(current, key));
@@ -138,6 +208,10 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
         return next;
       });
       clearView(key);
+      // 내린 글은 보관 중으로 돌아간다(§4). 목록에 없던 글이면 넣는다.
+      if (!board.includes(suffix)) {
+        await setOnBoard(record.connectionId, record.providerPageId, true);
+      }
     } catch (error) {
       fail(key, error, "unpublish_unavailable");
     }
@@ -197,11 +271,12 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
 
   const { connectionId, pages, state } = pageList;
   const kanbanRecords = useMemo(
-    () => (state === "ready" ? toKanbanRecords(connectionId, pages, views, failures, blogPosts) : []),
-    [connectionId, pages, state, views, failures, blogPosts],
+    () => (state === "ready" ? toKanbanRecords(connectionId, pages, board, views, failures, blogPosts) : []),
+    [connectionId, pages, state, board, views, failures, blogPosts],
   );
+  const boardIds = useMemo(() => new Set(board), [board]);
 
-  return { failures, kanbanRecords, publish, unpublish };
+  return { board: boardIds, boardError, failures, kanbanRecords, pendingKeys, publish, remove, setOnBoard, unpublish };
 }
 
 function without<T>(map: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> {

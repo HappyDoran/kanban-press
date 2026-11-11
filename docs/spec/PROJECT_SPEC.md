@@ -14,15 +14,15 @@ last_verified: 2026-11-11
 승인한 문서를 자신의 GitHub Pages 블로그에 게시한다.
 
 여기서 “다중 사용자”는 여러 사용자가 하나의 팀 공간을 공유한다는 뜻이 아니다.
-각 GitHub 사용자가 완전히 독립된 칸반을 갖는다는 뜻이다. 칸반은 저장하지 않고 그 사용자의
-Notion 연결과 블로그 저장소에서 계산하므로 같은 계정이면 어느 브라우저에서나 같다.
+각 GitHub 사용자가 완전히 독립된 칸반을 갖는다는 뜻이다. 칸반의 보관 중 목록과 게시 완료 여부는
+그 사용자의 블로그 저장소에 있으므로 같은 계정이면 어느 브라우저에서나 같다.
 
 ## 2. MVP 범위
 
 - R1 GitHub OAuth 로그인
 - R2 하나 이상의 Notion 워크스페이스 OAuth 연결
 - R3 허용된 페이지와 하위 페이지 탐색
-- R4 Notion 문서(`보관 중`)·화면 수명 `게시 중`·블로그 저장소 기준 `게시 완료` 칸반 표시
+- R4 직접 고른 문서(`보관 중`)·화면 수명 `게시 중`·블로그 저장소 기준 `게시 완료` 칸반 표시
 - R5 로그인 사용자의 공개 `<GitHub login>.github.io` repository 확인
 - R6 게시 준비 문서를 Astro 콘텐츠로 변환해 repository에 commit
 - R7 GitHub Actions와 Pages 배포 상태 표시
@@ -60,9 +60,22 @@ MVP 범위가 아니다.
 - 쿠키는 `HttpOnly`, `Secure`(production), `SameSite=Lax`, 제한된 `Path`를 사용한다.
 - Notion 연결은 쿠키 예산 내 명시적 개수 상한을 둔다.
 
-### 칸반(저장하지 않음)
+### 칸반(블로그 저장소의 별도 branch)
 
-칸반은 브라우저와 서버 어디에도 저장하지 않고 열 때마다 계산한다([ADR 0002](../adr/0002-stateless-board.md)).
+보관 중 목록만 사용자 블로그 저장소의 `kanban-press-board` branch에 저장한다([ADR 0003](../adr/0003-board-branch.md)).
+나머지 칸반 상태는 저장하지 않고 열 때마다 계산한다.
+
+```text
+kanban-press-board branch / board.json
+  version: 1
+  pageIds: 하이픈 뺀 Notion page ID(소문자 32자) 배열, 중복 없음, 최대 2,000개, 추가한 순서
+```
+
+- 제목·본문·연결 ID·credential은 저장하지 않는다. 연결 ID는 브라우저마다 달라 page ID만 쓴다.
+- branch는 처음 추가할 때 서버가 `board.json` 하나만 있는 부모 없는 commit으로 만든다. 블로그 배포
+  workflow는 기본 branch push에만 돌므로 이 branch의 commit은 배포를 만들지 않는다.
+- 공개 저장소라 page ID 목록은 공개된다. ID만으로 Notion 내용을 읽을 수는 없다.
+- 파일이 없거나 형식이 틀리면 빈 목록으로 본다.
 
 ```text
 KanbanRecord (화면 메모리)
@@ -73,11 +86,10 @@ KanbanRecord (화면 메모리)
   publishedUrl, publishActionsUrl, publishStartedAt: 화면의 게시 상태 또는 블로그 글 주소
 ```
 
-- 카드: 선택한 연결의 page 목록 중 문서 page 전부(최상위·하위 page·database 행·토글 안 page 모두).
-  Notion 수정 시각이 최근인 문서가 위에 온다. 순서를 바꾸거나 카드를 숨기는 기능은 없다.
+- 카드: 선택한 연결의 문서 page 중 보관 중 목록에 있거나, 블로그에 글이 있거나, 이번 화면에서 게시 중인 것.
+  보관 중 열은 최근에 추가한 문서가 위에 온다.
 - 역할: page 목록의 `hasChildren`(직접 하위 page, database 행, 토글 안 page 중 하나라도 있음)이 참이면
   `Legacy` 같은 컨테이너로 탐색 계층만 만들고 칸반·게시 대상이 아니다. 아니면 문서다.
-- 칸반에 올릴 문서는 Notion 연결의 page 공유 범위로 고른다.
 
 token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 않는다. 브라우저 localStorage에는
 문서 사이드바 너비만 둔다.
@@ -85,20 +97,21 @@ token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 �
 ## 4. 상태 흐름
 
 ```text
-Notion page 목록: 문서 page → stored
+보관 중 목록(블로그 저장소 branch): 고른 문서 page → stored
 화면 메모리: stored → publishing → published
                          └ 실패 ──→ 원래 열
 블로그 저장소: 글 파일이 있으면 published, 블로그에서 내리면 stored
 ```
 
-- `stored`는 블로그 저장소에 글이 없는 문서 page다.
+- `stored`는 보관 중 목록에 있고 블로그 저장소에 글이 없는 문서 page다. 문서 목록의 `추가`로 넣고
+  보관 중 카드의 `×`로 뺀다. 빼도 Notion 원문과 블로그 글은 그대로다.
 - `publishing`은 React 메모리에서만 합성하는 화면 상태다.
 - `published`는 사용자 블로그 저장소에 그 page ID 접미사의 글 파일이 있는지로 정한다(§5.1 R8).
   칸반을 열 때마다 `/api/publish/posts`로 GitHub에서 다시 읽고, 읽지 못하면 게시 완료 열을 비운다.
   게시에 성공하면 현재 화면에서 바로 `published`로 옮긴다.
 - `stored`·`published` 카드를 `publishing` column에 놓으면 게시(다시 게시)를 시작한다. 같은 column 안
   이동은 없다. `published` 카드는 `stored`로 끌어 옮길 수 없고 `블로그에서 내리기`(확인 후 실행)로만
-  `stored`로 돌아간다.
+  `stored`로 돌아간다. 내린 문서가 보관 중 목록에 없으면 목록에 넣는다.
 - 상태 선택기는 제공하지 않는다. 게시는 카드를 `publishing`에 놓아 시작한다. 예외로 600px 미만 화면에서는
   게시 중 열까지 멀리 끌기 어려워 `stored`·`published` 카드에 `게시`·`다시 게시` 버튼을 둔다(놓기와 같은 동작).
   `publishing` 카드는 배포가 끝날 때까지 이동할 수 없다.
@@ -175,10 +188,19 @@ data source 행은 해당 child database 아래에 배치하고, outline에서 �
 
 ### 칸반
 
-칸반은 선택한 Notion 연결의 page 목록과 `/api/publish/posts`로 그린다(§3 칸반, §4). GitHub 사용자가
-바뀌면 이전 사용자의 게시 중·실패 화면 상태를 버린다. 문서 목록(계층)은 탐색 전용이며 칸반 표시 버튼이나
-구조 판별 상태를 렌더링하지 않는다. 컨테이너는 폴더 아이콘과 펼치기만 제공한다. 게시 전 프리뷰는 칸반
-카드에서만 연다.
+칸반은 선택한 Notion 연결의 page 목록, `/api/board`(보관 중 목록), `/api/publish/posts`로 그린다
+(§3 칸반, §4). GitHub 사용자가 바뀌면 이전 사용자의 화면 상태를 버린다. 문서 목록(계층)의 문서 행에는
+`추가`(보관 중에 넣기)와 `보관 중`(누르면 빼기) 토글 하나를 둔다. 컨테이너는 폴더 아이콘과 펼치기만
+제공한다. 게시 전 프리뷰는 칸반 카드에서만 연다.
+
+- 보관 중 목록: `GET /api/board` → `{ pageIds }`. branch나 파일이 없으면 빈 배열.
+- 추가·빼기: `POST /api/board`(추가), `DELETE /api/board`(빼기), body `{ connectionId, providerPageId }` 외 필드 거절
+  → 바뀐 `{ pageIds }`.
+
+추가·빼기는 같은 origin, 세션, 요청한 Notion 연결 소유권, `<login>.github.io` 소유권·쓰기 권한을 다시
+확인한 뒤 서버가 최신 `board.json`을 읽어 바꾸고 읽은 blob SHA로 조건부 저장한다. 그 사이 다른 브라우저가
+바꿨으면 `409 github_conflict`로 실패하고 화면은 원래 목록으로 돌아가며, 서버는 재시도하지 않는다. 이미
+목록 상태가 요청과 같으면 commit하지 않는다.
 
 칸반은 dnd-kit의 pointer/keyboard sensor를 제공한다. `publishing` column으로 drop한 동작은 영속 column
 변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다. 새로고침하면 Notion 목록과 블로그 저장소를 다시
@@ -531,8 +553,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 ## 6. 명시적 제약
 
-- 칸반은 저장하지 않으므로 카드 숨김·순서 바꾸기·여러 연결을 합친 칸반은 없다. 칸반은 선택한 연결 하나의
-  문서를 보여 준다.
+- 보관 중 순서 바꾸기와 여러 연결을 합친 칸반은 없다. 칸반은 선택한 연결 하나의 문서를 보여 준다.
+- 보관 중 목록을 바꿀 때마다 블로그 저장소의 `kanban-press-board` branch에 commit이 하나 생긴다.
 - 쿠키를 지우면 GitHub 및 Notion을 다시 연결해야 한다.
 - 쿠키 크기 때문에 연결 가능한 Notion 워크스페이스 수가 제한된다.
 - 서버 측 감사 로그, 영구 배포 이력, 자동 재시도는 없다.

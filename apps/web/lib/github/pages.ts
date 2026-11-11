@@ -75,6 +75,8 @@ const fileContentSchema = z.object({
   type: z.literal("file"),
 });
 const pagesSettingsSchema = z.object({ build_type: z.string() });
+const branchFileSchema = fileContentSchema.extend({ sha: gitShaSchema });
+const branchNameSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,99}$/);
 
 // 관리 표식이 없는 저장소에서도 덮어써도 되는 v1 template 파일과 글.
 const MANAGED_MARKER_PATH = ".kanban-press/managed.json";
@@ -356,6 +358,66 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
     return file === null ? null : Buffer.from(file.content, "base64").toString("utf8");
   }
 
+  /** 기본 branch가 아닌 `branch`의 작은 텍스트 파일과 blob SHA(칸반 보관 중 목록용). branch나 파일이 없으면 null. */
+  async readBranchFile(
+    repository: GitHubRepository,
+    branch: string,
+    path: string,
+  ): Promise<{ sha: string; text: string } | null> {
+    const repo = repositoryPath(repository);
+    const file = await this.#optional(
+      `${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(branchNameSchema.parse(branch))}`,
+      branchFileSchema,
+      [404, 409],
+    );
+    return file === null ? null : { sha: file.sha, text: Buffer.from(file.content, "base64").toString("utf8") };
+  }
+
+  /**
+   * `branch`에 텍스트 파일 하나를 쓴다. `sha`는 읽을 때의 blob SHA(없던 파일이면 null)이고, 그 사이 다른 곳에서
+   * 바뀌었으면 conflict다. branch가 없으면 이 파일 하나만 있는 부모 없는 commit으로 만든다(블로그 코드와 섞지 않는다).
+   */
+  async writeBranchFile(
+    repository: GitHubRepository,
+    branch: string,
+    path: string,
+    text: string,
+    sha: string | null,
+    message: string,
+  ): Promise<void> {
+    const repo = repositoryPath(repository);
+    const name = branchNameSchema.parse(branch);
+    if (sha === null) {
+      const reference = await this.#optional(`${repo}/git/ref/heads/${encodeURIComponent(name)}`, gitRefSchema, [
+        404, 409,
+      ]);
+      if (reference === null) {
+        const tree = await this.#json(`${repo}/git/trees`, gitObjectSchema, {
+          tree: [{ content: text, mode: "100644", path: gitPathSchema.parse(path), type: "blob" }],
+        });
+        const commit = await this.#json(`${repo}/git/commits`, gitCommitSchema, { message, parents: [], tree: tree.sha });
+        await this.#json(`${repo}/git/refs`, gitRefSchema, { ref: `refs/heads/${name}`, sha: commit.sha });
+        return;
+      }
+    }
+    const response = await this.#send(`${repo}/contents/${encodePath(path)}`, "git.write", {
+      body: JSON.stringify({
+        branch: name,
+        content: Buffer.from(text, "utf8").toString("base64"),
+        message,
+        ...(sha === null ? {} : { sha: gitShaSchema.parse(sha) }),
+      }),
+      method: "PUT",
+    });
+    // 409: branch가 움직임, 422: 읽은 SHA와 지금 파일이 다름(또는 없던 파일이 생김).
+    if (response.status === 409 || response.status === 422) {
+      throw new GitHubPagesError("conflict");
+    }
+    if (!response.ok) {
+      throw providerError(response, "git_resource_not_found");
+    }
+  }
+
   /** 기본 branch의 최신 commit. branch가 없는 빈 저장소(404·409)면 null. */
   async #headCommit(repository: GitHubRepository) {
     const repo = repositoryPath(repository);
@@ -502,6 +564,11 @@ function utf8Text(bytes: Uint8Array): string | null {
 function hasPublishingScopes(value: string | null): boolean {
   const scopes = new Set((value ?? "").split(",").map((scope) => scope.trim()));
   return (scopes.has("public_repo") || scopes.has("repo")) && scopes.has("workflow");
+}
+
+/** 저장소 안 파일 경로를 URL 조각으로. `..`·빈 조각은 거절한다. */
+function encodePath(path: string): string {
+  return gitPathSchema.parse(path).split("/").map(encodeURIComponent).join("/");
 }
 
 /** `/repos/<owner>/<name>`. fullName이 GitHub 이름 규칙을 벗어나면 URL에 넣지 않는다. */

@@ -4,7 +4,7 @@
 자신의 GitHub Pages 블로그에 게시하는 애플리케이션입니다.
 
 서버 DB는 사용하지 않습니다. 인증과 Notion 연결은 암호화된 HttpOnly 쿠키에 두고,
-칸반은 저장하지 않고 열 때마다 Notion page 목록과 블로그 저장소에서 계산하므로
+칸반의 보관 중 목록은 내 블로그 저장소의 `kanban-press-board` branch에 page ID로만 두므로
 같은 계정이면 어느 브라우저에서나 같게 보입니다. 게시 중 표시는 현재 화면의 메모리에만
 있고, 게시 완료 여부는 사용자 GitHub repository를 source of truth로 사용합니다.
 

@@ -136,6 +136,28 @@ export async function fetchBlogPosts(signal?: AbortSignal): Promise<ReadonlyMap<
   return new Map(posts.map((post) => [post.pageIdSuffix, post.pageUrl]));
 }
 
+const boardSchema = z.object({ pageIds: z.array(z.string().regex(/^[a-f0-9]{32}$/)) });
+
+/** 보관 중 목록(하이픈 뺀 page ID, 추가한 순서). 블로그 저장소의 칸반 branch에 있다. */
+export async function fetchBoard(signal?: AbortSignal): Promise<string[]> {
+  const response = await fetch("/api/board", { cache: "no-store", ...(signal === undefined ? {} : { signal }) });
+  return parse(boardSchema, await readJson(response)).pageIds;
+}
+
+/** 보관 중에 넣기·빼기. 서버가 저장한 뒤의 목록을 돌려준다. */
+export async function changeBoard(
+  action: "add" | "remove",
+  connectionId: string,
+  providerPageId: string,
+): Promise<string[]> {
+  const response = await fetch("/api/board", {
+    body: JSON.stringify({ connectionId, providerPageId }),
+    headers: { "content-type": "application/json" },
+    method: action === "add" ? "POST" : "DELETE",
+  });
+  return parse(boardSchema, await readJson(response)).pageIds;
+}
+
 /** 블로그에서 내리기. 저장소에서 글 파일을 지우는 commit을 만든다. */
 export async function requestUnpublish(connectionId: string, providerPageId: string): Promise<void> {
   const response = await fetch("/api/publish/unpublish", {

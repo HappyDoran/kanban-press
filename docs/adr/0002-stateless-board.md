@@ -6,7 +6,7 @@ last_verified: 2026-11-11
 
 # ADR 0002: 칸반 상태를 저장하지 않고 Notion과 블로그 저장소에서 계산
 
-- 상태: Accepted
+- 상태: 일부 대체됨([ADR 0003](0003-board-branch.md): 보관 중은 직접 고른 목록)
 - 결정일: 2026-11-11
 - 대체: AGENTS.md 고정 아키텍처의 "사용자별 칸반은 브라우저 IndexedDB에 저장한다"
 
