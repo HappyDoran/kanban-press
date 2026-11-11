@@ -227,7 +227,8 @@ export function KanbanBoard({
               />
             ))}
           </div>
-          <DragOverlay>
+          {/* 기본 드롭 애니메이션은 옮긴 카드가 화면 밖이면 그 위치로 scrollIntoView한다. 보던 자리를 지키려고 끈다. */}
+          <DragOverlay dropAnimation={null}>
             {activeRecord === null ? null : (
               <BoardCard
                 connectionName={

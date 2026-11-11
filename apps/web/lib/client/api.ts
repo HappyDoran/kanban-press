@@ -14,6 +14,8 @@ export class ApiError extends Error {
   constructor(
     readonly code: string,
     readonly retryAt: number | null = null,
+    /** 422 게시 내용 거절의 이유(이미지 거절 이유·예약 속성 이름). */
+    readonly detail: string | null = null,
   ) {
     super(code);
   }
@@ -300,7 +302,33 @@ const PUBLISH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
 };
 
 /** 서버 오류 code → 사용자 문구. `github_`·`notion_` 접두어는 같은 문구를 쓴다. */
-export function publishErrorMessage(code: string): string {
+// 이미지 거절 이유별 안내. 없는 이유는 invalid_publish_image의 일반 문구를 쓴다.
+const IMAGE_ERROR_MESSAGES: Readonly<Record<string, string>> = {
+  byte_limit: "8MB를 넘는 이미지가 있습니다. 크기를 줄여 Notion에 다시 첨부한 뒤 게시해 주세요.",
+  count_limit: "이미지가 20개를 넘습니다. 한 글에는 이미지를 20개까지 넣을 수 있습니다.",
+  document_byte_limit: "이미지 전체 크기가 32MB를 넘습니다. 이미지 크기를 줄인 뒤 게시해 주세요.",
+  mime_content_mismatch: "PNG·JPEG·GIF·WebP가 아닌 이미지(예: HEIC·SVG)가 있습니다. 이 형식으로 바꿔 다시 첨부해 주세요.",
+  mime_type: "PNG·JPEG·GIF·WebP가 아닌 이미지(예: HEIC·SVG)가 있습니다. 이 형식으로 바꿔 다시 첨부해 주세요.",
+  timeout: "이미지를 받는 데 10초를 넘겼습니다. 잠시 뒤 다시 게시해 주세요.",
+};
+const EXTERNAL_IMAGE_REASONS = new Set([
+  "blocked_address", "http_status", "invalid_redirect", "network", "redirect_limit", "redirect_loop", "url",
+]);
+
+/** 게시 실패 문구. `detail`이 있으면 이미지 거절 이유나 잘못된 예약 속성을 짚어 준다. */
+export function publishErrorMessage(code: string, detail: string | null = null): string {
+  if (code === "invalid_blog_metadata") {
+    return detail === null
+      ? "Notion의 Blog 예약 속성 값이 올바르지 않습니다. 속성 형식을 확인한 뒤 다시 게시해 주세요."
+      : `Notion의 "${detail}" 속성 값이 올바르지 않습니다. 형식을 확인한 뒤 다시 게시해 주세요.`;
+  }
+  if (code === "invalid_publish_image" && detail !== null) {
+    const message = IMAGE_ERROR_MESSAGES[detail];
+    if (message !== undefined) return message;
+    if (EXTERNAL_IMAGE_REASONS.has(detail)) {
+      return "외부 주소의 이미지를 받지 못했습니다. 이미지를 Notion에 직접 업로드한 뒤 게시해 주세요.";
+    }
+  }
   return (
     PUBLISH_ERROR_MESSAGES[code.replace(/^(github|notion)_/, "")] ??
     "게시하지 못했습니다. 권한과 GitHub Pages 상태를 확인한 뒤 다시 시도해 주세요."
@@ -311,10 +339,11 @@ export function publishErrorMessage(code: string): string {
 async function readJson(response: Response): Promise<unknown> {
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const code = z.object({ error: z.string() }).safeParse(body);
+    const code = z.object({ detail: z.string().max(64).optional(), error: z.string() }).safeParse(body);
     throw new ApiError(
       code.success ? code.data.error : `http_${response.status}`,
       retryAtFromResponse(response),
+      code.success ? (code.data.detail ?? null) : null,
     );
   }
   return body;

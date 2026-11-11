@@ -205,7 +205,8 @@ data source 행은 해당 child database 아래에 배치하고, outline에서 �
 commit하지 않는다.
 
 칸반은 dnd-kit의 pointer/keyboard sensor를 제공한다. `publishing` column으로 drop한 동작은 영속 column
-변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다. 새로고침하면 Notion 목록과 블로그 저장소를 다시
+변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다. 카드를 놓아도 화면은 보던 스크롤 위치를 지킨다
+(옮긴 카드 위치로 스크롤하는 dnd-kit 드롭 애니메이션을 쓰지 않는다). 새로고침하면 Notion 목록과 블로그 저장소를 다시
 읽어 같은 칸반을 그린다.
 
 ### 게시
@@ -278,7 +279,10 @@ redirect는 최대 3회, 이미지당 timeout은 10초, 이미지당 최대 8 Mi
 stream byte를 모두 검사하고
 허용하지 않는 MIME, 누락된 MIME, redirect downgrade/loop/초과, DNS/IP 오류와 timeout은
 commit 전에 `422 invalid_publish_image`로 실패한다. SVG와 MIME sniff fallback은
-허용하지 않는다.
+허용하지 않는다. 요청 `Accept`는 받을 수 있는 PNG·JPEG·GIF·WebP만 적고, 검증한 주소 중 IPv4가 있으면
+IPv4로 연결한다. `422 invalid_publish_image`와 `422 invalid_blog_metadata` 응답은 `{ error, detail }`이며
+`detail`은 고정 거절 이유(`byte_limit`, `mime_type`, `network` 등)나 예약 속성 이름만 담는다. 화면은
+`detail`로 어떤 이미지·속성을 고쳐야 하는지 안내한다.
 
 `packages/publisher`는 GitHub owner와 repository 이름을 검증한 뒤 결정적인 Astro
 template manifest를 생성한다. manifest에는 정렬된 repository 상대 경로와 byte
@@ -576,6 +580,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - 서버는 읽기와 mutation을 자동 재시도하지 않는다. 사용자가 명시적으로 다시 시도하며,
   특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다. 예외는 보관 중 목록의 SHA 조건부
   저장이 conflict로 거절된 경우다. 아무것도 쓰이지 않았으므로 같은 요청 안에서 다시 읽어 3번까지 시도한다.
+- 게시 내용 거절(422)은 `publish_content_rejected` 이벤트로 `code`와 고정 `detail`만 남긴다.
 - 구조화 운영 로그는 allowlist field만 JSON 한 줄로 기록한다. token, cookie, OAuth code,
   provider URL, 사용자·page·repository 식별자, 임의 오류 message/stack은 기록하지 않는다.
 

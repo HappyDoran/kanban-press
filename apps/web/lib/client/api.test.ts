@@ -83,5 +83,9 @@ describe("publishErrorMessage", () => {
     expect(publishErrorMessage("notion_rate_limited")).toContain("잠시");
     expect(publishErrorMessage("github_timeout")).toContain("시간이 초과");
     expect(publishErrorMessage("invalid_publish_image")).toContain("이미지");
+    expect(publishErrorMessage("invalid_publish_image", "byte_limit")).toContain("8MB");
+    expect(publishErrorMessage("invalid_publish_image", "network")).toContain("외부 주소");
+    expect(publishErrorMessage("invalid_publish_image", "unknown_reason")).toContain("다시 첨부");
+    expect(publishErrorMessage("invalid_blog_metadata", "Blog Category")).toContain('"Blog Category" 속성');
   });
 });
