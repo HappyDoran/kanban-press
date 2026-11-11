@@ -21,6 +21,8 @@ interface TreeContextValue {
   pages: readonly PageSummary[];
   pagesById: ReadonlyMap<string, PageSummary>;
   pendingKeys: ReadonlySet<string>;
+  /** 블로그에 글이 있는 page(하이픈 뺀 page ID). 이 행은 추가 대신 `게시됨`을 보인다. */
+  published: ReadonlySet<string>;
 }
 
 const TreeContext = createContext<TreeContextValue | null>(null);
@@ -39,8 +41,9 @@ export function NotionTree({
   onBoardChange,
   pages,
   pendingKeys,
+  published,
   query = "",
-}: Pick<TreeContextValue, "board" | "connectionId" | "onBoardChange" | "pendingKeys"> & {
+}: Pick<TreeContextValue, "board" | "connectionId" | "onBoardChange" | "pendingKeys" | "published"> & {
   pages: PageSummary[];
   /** 제목 검색어. 있으면 계층 대신 제목이 맞는 문서를 평평하게 보여준다(database 행 포함). */
   query?: string;
@@ -64,7 +67,7 @@ export function NotionTree({
 
   return (
     <TreeContext.Provider
-      value={{ board, childPagesByParent, connectionId, onBoardChange, pages, pagesById, pendingKeys }}
+      value={{ board, childPagesByParent, connectionId, onBoardChange, pages, pagesById, pendingKeys, published }}
     >
       {search === "" ? null : (
         <p className="treeSearchStatus" role="status">
@@ -95,6 +98,7 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
   const container = isContainer(page);
   const hasChildren = !ancestors.has(page.providerPageId) && (container || childPages.length > 0);
   const onBoard = tree.board.has(suffixOf(page.providerPageId));
+  const isPublished = tree.published.has(suffixOf(page.providerPageId));
   const pending = tree.pendingKeys.has(pageKey({ connectionId: tree.connectionId, providerPageId: page.providerPageId }));
 
   async function loadOutline(): Promise<void> {
@@ -132,7 +136,14 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
             {page.title}
           </span>
         </button>
-        {container ? null : (
+        {container ? null : isPublished ? (
+          // 다시 게시·내리기는 칸반의 게시 완료 카드에서 한다.
+          <span className="pageAction">
+            <span className="rowStatus" title="블로그에 게시된 문서입니다. 칸반의 게시 완료에서 다시 게시하거나 내릴 수 있습니다.">
+              게시됨
+            </span>
+          </span>
+        ) : (
           <span className="pageAction">
             <button
               aria-label={`${page.title}을 보관 중에서 ${onBoard ? "빼기" : "넣기"}`}

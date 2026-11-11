@@ -21,11 +21,11 @@ function page(id: string, title: string, parentPageId: string | null = null): Pa
 const pages = [
   { ...page("a", "회고"), hasChildren: true },
   page("b", "2026년 10월 회고", "a"),
-  page("c", "Astro 블로그 만들기"),
+  page("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Astro 블로그 만들기"),
   page("d", "TypeScript strict 모드"),
 ];
 
-function render(query: string): string {
+function render(query: string, published: ReadonlySet<string> = new Set()): string {
   return renderToStaticMarkup(
     createElement(NotionTree, {
       board: new Set<string>(),
@@ -33,6 +33,7 @@ function render(query: string): string {
       onBoardChange: () => undefined,
       pages,
       pendingKeys: new Set<string>(),
+      published,
       query,
     }),
   );
@@ -56,5 +57,12 @@ describe("NotionTree search", () => {
 
     expect(render("astro")).toContain("Astro 블로그 만들기");
     expect(render("없는 제목")).toContain("일치하는 문서가 없습니다.");
+  });
+
+  it("shows 게시됨 instead of the add button for a page on the blog", () => {
+    const published = render("", new Set(["cccccccccccc4ccc8ccccccccccccccc"]));
+    expect(published).toContain("게시됨");
+    expect(published).not.toContain("Astro 블로그 만들기을 보관 중에서 넣기");
+    expect(published).toContain("TypeScript strict 모드을 보관 중에서 넣기");
   });
 });
