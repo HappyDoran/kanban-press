@@ -1,7 +1,7 @@
 ---
 title: 제품 명세
 kind: spec
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 # 제품 명세
@@ -14,14 +14,15 @@ last_verified: 2026-11-10
 승인한 문서를 자신의 GitHub Pages 블로그에 게시한다.
 
 여기서 “다중 사용자”는 여러 사용자가 하나의 팀 공간을 공유한다는 뜻이 아니다.
-각 GitHub 사용자가 자신의 브라우저에서 완전히 독립된 칸반을 갖는다는 뜻이다.
+각 GitHub 사용자가 완전히 독립된 칸반을 갖는다는 뜻이다. 칸반은 저장하지 않고 그 사용자의
+Notion 연결과 블로그 저장소에서 계산하므로 같은 계정이면 어느 브라우저에서나 같다.
 
 ## 2. MVP 범위
 
 - R1 GitHub OAuth 로그인
 - R2 하나 이상의 Notion 워크스페이스 OAuth 연결
 - R3 허용된 페이지와 하위 페이지 탐색
-- R4 영속 `보관 중`과 화면 수명 `게시 중 → 게시 완료` 칸반 표시
+- R4 Notion 문서(`보관 중`)·화면 수명 `게시 중`·블로그 저장소 기준 `게시 완료` 칸반 표시
 - R5 로그인 사용자의 공개 `<GitHub login>.github.io` repository 확인
 - R6 게시 준비 문서를 Astro 콘텐츠로 변환해 repository에 commit
 - R7 GitHub Actions와 Pages 배포 상태 표시
@@ -40,8 +41,8 @@ MVP 범위가 아니다.
 
 ### GitHub 사용자
 
-- GitHub의 불변 numeric user ID가 로컬 데이터 namespace의 기준이다.
-- GitHub login은 표시용이며 namespace key로 사용하지 않는다.
+- GitHub의 불변 numeric user ID로 사용자를 구분한다(쿠키 소유자, 화면의 사용자 전환 판별).
+- GitHub login은 표시와 `<login>.github.io` 대상 결정에만 쓴다.
 - 서버는 사용자 계정 행이나 세션 행을 저장하지 않는다.
 
 ### 서버 쿠키
@@ -52,83 +53,56 @@ MVP 범위가 아니다.
 프로젝트 이름 변경(2026-11-10, `notion-kanban-blog` → `kanban-press`) 전 데이터 호환:
 쿠키는 새 이름이 없을 때 옛 이름(`nkb_session`, `nkb_notion_connections`)을 읽고 옛 AAD
 (`notion-kanban-blog.cookie.v1.<keyId>`)로 봉인된 값도 연다. 새로 쓸 때는 새 이름·새 AAD만 쓰고, 로그아웃과
-마지막 Notion 연결 해제는 옛 이름 쿠키도 지운다. 칸반 DB는 처음 열 때 옛 이름(`notion-kanban-blog.board.<id>`)의
-v12 record를 새 DB가 비어 있을 때만 옮기고 옛 DB를 지운다. 블로그 저장소의 옛 폴더 `.notion-kanban-blog/`는
+마지막 Notion 연결 해제는 옛 이름 쿠키도 지운다. 블로그 저장소의 옛 폴더 `.notion-kanban-blog/`는
 관리 표식으로 인정하고, 다음 게시에서 옛 표식을 지우며, 사이트 설정은 새 파일이 없을 때 옛 파일을 읽고 저장할 때
 새 위치로 옮긴다.
 - 모든 payload는 서버만 해독 가능한 AEAD envelope로 보호한다.
 - 쿠키는 `HttpOnly`, `Secure`(production), `SameSite=Lax`, 제한된 `Path`를 사용한다.
 - Notion 연결은 쿠키 예산 내 명시적 개수 상한을 둔다.
 
-### 브라우저 IndexedDB
+### 칸반(저장하지 않음)
 
-칸반과 사용자 설정만 저장한다.
+칸반은 브라우저와 서버 어디에도 저장하지 않고 열 때마다 계산한다([ADR 0002](../adr/0002-stateless-board.md)).
 
 ```text
-BoardRecord
-  ownerGitHubUserId: GitHub numeric ID string
-  connectionId: Notion connection UUID
+KanbanRecord (화면 메모리)
+  connectionId: 선택한 Notion connection UUID
   providerPageId: Notion page ID
-  pageRole: document | container
-  pageRoleOverride: null | document | container
-  hasNavigableChildren: boolean | null
-  structureSourceLastEditedAt: ISO 8601 string | null
-  title: non-empty string
-  column: stored
-  position: non-negative finite number
-  updatedAt: ISO 8601 string
-  sourceLastEditedAt: ISO 8601 string
-  isVisible: boolean
-  visibilityOverride: null | shown | hidden
+  title, sourceLastEditedAt: Notion page 목록 값
+  column: stored | publishing | published
+  publishedUrl, publishActionsUrl, publishStartedAt: 화면의 게시 상태 또는 블로그 글 주소
 ```
 
-token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 않는다.
+- 카드: 선택한 연결의 page 목록 중 문서 page 전부(최상위·하위 page·database 행·토글 안 page 모두).
+  Notion 수정 시각이 최근인 문서가 위에 온다. 순서를 바꾸거나 카드를 숨기는 기능은 없다.
+- 역할: page 목록의 `hasChildren`(직접 하위 page, database 행, 토글 안 page 중 하나라도 있음)이 참이면
+  `Legacy` 같은 컨테이너로 탐색 계층만 만들고 칸반·게시 대상이 아니다. 아니면 문서다.
+- 칸반에 올릴 문서는 Notion 연결의 page 공유 범위로 고른다.
 
-칸반 데이터베이스 이름은 `kanban-press.board.<GitHub numeric ID>` 형식으로
-사용자별 분리한다. record에도 동일한 owner ID를 저장해 이중으로 검증한다.
-현재 Dexie schema version은 12이며 compound primary key는
-`[ownerGitHubUserId+connectionId+providerPageId]`다. 모든 read 전에 strict schema를
-통과하지 못하거나 owner가 다른 record를 삭제한다. version 11 이하 데이터베이스는
-migration하지 않고 열 때 비운다. 칸반은 다음 Notion 동기화로 다시 채워지며 이때
-이전 표시·숨김 선택은 사라진다(2026-11-10 사용자 결정).
-알 수 없는 필드는 거절하므로 credential 성격의 필드는 저장될 수 없다.
-최상위 page는 기본 표시하고 하위 page와 data source 행 page는 기본 숨김이다.
-`visibilityOverride`가 `shown` 또는 `hidden`이면 사용자의 선택이 기본값보다 우선한다.
-`isVisible=false`인 문서는 Notion 계층 목록에는 남아 있지만 칸반에서는 숨긴다.
-`pageRole`은 자동 구조 판별과 `pageRoleOverride`를 합성한 유효 역할이다.
-`pageRoleOverride=null`이면 탐색 가능한 하위 구조가 있는 page는 `container`, 없으면
-`document`가 된다. `pageRoleOverride`는 version 12 데이터에 남은 이전 수동 설정을
-읽기 위해서만 유지하며 사용자가 변경하는 UI와 API는 제공하지 않는다.
-`pageRole=container`인 page는 `Legacy`처럼 탐색 계층만 구성하며 칸반에 표시하거나
-게시 대상으로 사용할 수 없다. 컨테이너 전환은 column, position,
-`visibilityOverride`를 지우지 않는다. 다시 `document`가 되면 명시적 표시 선택 또는
-현재 계층의 기본 표시 규칙을 적용해 기존 칸반 상태를 복원한다.
-게시 상태와 결과는 IndexedDB에 쓰지 않는다.
+token, OAuth state, 쿠키 원문은 IndexedDB나 localStorage에 저장하지 않는다. 브라우저 localStorage에는
+문서 사이드바 너비만 둔다.
 
 ## 4. 상태 흐름
 
 ```text
-IndexedDB: stored(카드·표시 여부·정렬)
+Notion page 목록: 문서 page → stored
 화면 메모리: stored → publishing → published
                          └ 실패 ──→ 원래 열
 블로그 저장소: 글 파일이 있으면 published, 블로그에서 내리면 stored
 ```
 
-- IndexedDB에는 모든 문서를 `stored`로만 저장하고 표시 여부·정렬·구조 검사 결과만
-  유지한다. 게시 결과는 IndexedDB에 저장하지 않는다.
+- `stored`는 블로그 저장소에 글이 없는 문서 page다.
 - `publishing`은 React 메모리에서만 합성하는 화면 상태다.
 - `published`는 사용자 블로그 저장소에 그 page ID 접미사의 글 파일이 있는지로 정한다(§5.1 R8).
   칸반을 열 때마다 `/api/publish/posts`로 GitHub에서 다시 읽고, 읽지 못하면 게시 완료 열을 비운다.
-  게시에 성공하면 카드를 숨기지 않고 현재 화면에서 바로 `published`로 옮긴다.
-- `stored` 카드를 같은 column 안에서 드래그하면 보관 순서를 바꾸고 `publishing`
-  column에 놓으면 게시를 시작한다. `published` 카드를 `publishing`에 놓으면 다시
-  게시한다. `published` 카드는 `stored`로 끌어 옮길 수 없고 `블로그에서 내리기`(확인 후 실행)로만
+  게시에 성공하면 현재 화면에서 바로 `published`로 옮긴다.
+- `stored`·`published` 카드를 `publishing` column에 놓으면 게시(다시 게시)를 시작한다. 같은 column 안
+  이동은 없다. `published` 카드는 `stored`로 끌어 옮길 수 없고 `블로그에서 내리기`(확인 후 실행)로만
   `stored`로 돌아간다.
 - 상태 선택기는 제공하지 않는다. 게시는 카드를 `publishing`에 놓아 시작한다. 예외로 600px 미만 화면에서는
   게시 중 열까지 멀리 끌기 어려워 `stored`·`published` 카드에 `게시`·`다시 게시` 버튼을 둔다(놓기와 같은 동작).
   `publishing` 카드는 배포가 끝날 때까지 이동할 수 없다.
-- 모든 카드의 `×`는 Notion 원문이나 IndexedDB record를 삭제하지 않고
-  `isVisible=false`로 바꿔 칸반에서 숨긴다. 계층 목록에서 다시 표시할 수 있다.
+- `stored` 열에는 제목 검색을 둔다.
 - `published` 카드에서는 게시된 글 열기를 제공한다.
 - 게시 실패는 오류를 표시한 뒤 화면 상태를 원래 열로 되돌린다.
 - 동일 문서를 다시 게시하면 콘텐츠가 같아도 새 commit과 Actions 실행을 만든다.
@@ -150,7 +124,7 @@ GitHub callback은 항상 등록된 canonical origin 하나에만 존재한다.
 - OAuth scope: `read:user public_repo workflow`
 - state 만료: 10분, 세션 만료: 7일
 
-`/api/me`는 IndexedDB namespace에 사용할 GitHub numeric ID를 문자열로 반환하지만
+`/api/me`는 화면의 사용자 전환 판별에 쓰는 GitHub numeric ID를 문자열로 반환하지만
 credential은 반환하지 않는다. 로그아웃은 동일 origin `Origin`만 허용한다.
 
 ### Notion 연결과 탐색
@@ -178,12 +152,12 @@ page 검색과 data source 검색을 결합해 `page_id` 부모뿐 아니라 dat
 `database_parent`도 실제 상위 page로 해석한다. 응답은 `providerPageId`,
 `parentPageId`, data source database ID, 제목, 아이콘 URL, 수정 시각, 하위 문서
 여부만 포함한다. 접근 가능한 부모가 없는 직접 공유 page는 root로 승격한다.
-단, `block_id` 부모를 가진 page는 toggle 등 페이지 내부 block의 자식이므로 root로
-승격하지 않는다. 이 page는 최초 목록과 칸반에서 숨기고 해당 block outline을 펼쳤을
-때만 렌더링한다.
+`block_id` 부모를 가진 page(toggle 등 페이지 내부 block의 자식)는 서버가 block retrieve로 부모를
+page가 나올 때까지 거슬러 올라가 소유 page를 `parentPageId`로 채우고, 소유 page의 하위 문서 여부를
+참으로 만든다. 이 조회는 목록 한 번에 최대 50회이며, 상한을 넘거나 읽지 못한 block의 page는 root로
+승격하지 않고 계층 목록에서 숨긴다(칸반에는 문서로 보인다). rate limit은 목록 전체의 `429`로 알린다.
 
-UI는 최상위 page만 먼저 보이고 화면에 나타난 page의 내부 구조를 백그라운드에서
-조회한다. 페이지 내부 구조 API는 Notion Block Children API를 pagination하며
+UI는 최상위 page만 먼저 보이고 page를 펼칠 때만 내부 구조를 조회한다. 페이지 내부 구조 API는 Notion Block Children API를 pagination하며
 재귀 호출한다. 게시 본문 전체를 브라우저에 전달하지 않고 실제 page/database로
 이어지는 탐색용 outline만 반환한다.
 
@@ -192,8 +166,8 @@ label/paragraph/quote/to-do 같은 자식 보유 block을 `group`으로, column�
 원본 synced block 같은 시각적 wrapper를 투명하게 순회한다. duplicate synced block은
 원본 block을 따라가며 순환 참조는 중단한다. `child_page`, `child_database`,
 `link_to_page`의 page/database 참조는 provider ID를 별도로 반환한다. page/database
-후손이 없는 toggle/group은 결과에서 제거하므로 설명용 toggle만 있는 일반 문서는
-컨테이너 후보가 되지 않는다.
+후손이 없는 toggle/group은 결과에서 제거한다. outline은 탐색 표시에만 쓰고 역할 판별에는
+쓰지 않는다.
 
 data source 행은 해당 child database 아래에 배치하고, outline에서 확인되지 않는 접근
 가능 하위 page만 안전한 fallback으로 상위 page 바로 아래에 표시한다. Notion 권한
@@ -201,42 +175,14 @@ data source 행은 해당 child database 아래에 배치하고, outline에서 �
 
 ### 칸반
 
-클라이언트는 `/api/me`에서 받은 GitHub 사용자 ID를 기준으로 IndexedDB를 연다.
-Notion 페이지 식별자와 칸반 상태를 저장하며 다른 사용자 namespace를 절대 합치지 않는다.
-Notion 연결 또는 새로고침으로 발견한 모든 page metadata는 최초 상태 `stored`와
-안정적인 position으로 자동 동기화한다. 최상위 page만 `isVisible=true`, 하위 page는
-`isVisible=false`로 시작한다. 같은 페이지를 다시 가져오면 기존 column, position과
-사용자의 표시 override를 보존하고 원본 제목과 수정 시각만 갱신한다.
-사용자는 계층 목록에서 각 page의 `칸반 표시/숨김`을 바꿀 수 있다. 숨김은 원본이나
-칸반 record를 삭제하지 않으며 다시 표시했을 때 기존 상태를 복원한다.
-page 역할은 구조 검사 결과로 자동 결정한다. 탐색 가능한 하위 outline이 있으면
-컨테이너, 없으면 문서다. 컨테이너는 문서 아이콘과 칸반 표시 버튼 대신 탐색용 toggle로
-렌더링되며, 하위 outline을 여는 기능만 제공한다. 일반 화면에는 `컨테이너로 사용`과
-`문서로 사용` 버튼이나 역할 고급 설정을 노출하지 않는다.
+칸반은 선택한 Notion 연결의 page 목록과 `/api/publish/posts`로 그린다(§3 칸반, §4). GitHub 사용자가
+바뀌면 이전 사용자의 게시 중·실패 화면 상태를 버린다. 문서 목록(계층)은 탐색 전용이며 칸반 표시 버튼이나
+구조 판별 상태를 렌더링하지 않는다. 컨테이너는 폴더 아이콘과 펼치기만 제공한다. 게시 전 프리뷰는 칸반
+카드에서만 연다.
 
-아직 하위 구조가 확인되지 않은 page는 백그라운드에서 outline을 자동 조회한다.
-화면에 렌더링된 page만 동시 3개 이하로 검사하고, 중첩 page는 상위 계층을 펼쳐 화면에
-나타날 때 검사한다. outline에 탐색 가능한 `toggle`, `child_page`, `child_database`가
-하나라도 있거나 page metadata에서 직접 하위 page가 확인되면 자동으로 컨테이너가 된다.
-outline이 비어 있으면 일반 문서로 유지한다.
-
-검사 결과는 `hasNavigableChildren`과 검사 당시 Notion `lastEditedAt`인
-`structureSourceLastEditedAt`으로 IndexedDB에 캐시한다. 현재 `sourceLastEditedAt`과
-일치할 때만 캐시를 사용하고 Notion 수정 시각이 바뀌면 자동으로 무효화한다. 실패한
-검사는 캐시하지 않으며 다음 화면 진입 때 자동 재시도한다.
-
-page 역할 판별이 끝나기 전에는 개별 액션을 노출하지 않고 단일 `판별 중` 상태만
-표시한다. 실패하면 `구조 다시 확인` 액션 하나만 표시한다. 유효한 outline cache로
-자동 역할까지 저장된 뒤에만 문서의 칸반 표시 토글(화면 문구 `추가`·`칸반`, 접근 가능한 이름
-`칸반에서 표시하기`·`숨기기`)을 렌더링한다. 게시 전 프리뷰는 칸반 카드에서만 연다. 컨테이너에는
-역할이나 칸반 관련 액션을 렌더링하지 않는다.
-
-칸반은 dnd-kit의 pointer/keyboard sensor를 제공한다. `stored` 내부 이동은 IndexedDB
-단일 transaction에서 position 재정렬을 반영한다. `publishing` column으로 drop한
-동작은 영속 column 변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다.
-새로고침하면 현재 GitHub user namespace에서 `isVisible=true`인 record만 다시 읽어
-화면을 복구한다. 게시 성공으로 숨겨진 record는 Notion 계층 목록에서 사용자가 다시
-표시할 수 있다.
+칸반은 dnd-kit의 pointer/keyboard sensor를 제공한다. `publishing` column으로 drop한 동작은 영속 column
+변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다. 새로고침하면 Notion 목록과 블로그 저장소를 다시
+읽어 같은 칸반을 그린다.
 
 ### 게시
 
@@ -275,7 +221,7 @@ GitHub adapter, repository readiness, commit API를 호출하지 않는다. rich
 `http:`, `https:`, `mailto:`만 남기고 image URL은 provider 종류와 관계없이 DTO에서
 제거해 placeholder와 warning으로 전달한다. 원시 Notion property, credential, cookie,
 repository 정보는 응답하지 않는다. 프리뷰를 닫거나 새로고침하면 결과를 버리며
-IndexedDB v12 record와 게시 중·완료 상태를 변경하지 않는다. 실제 게시 요청은 프리뷰
+게시 중·완료 상태를 변경하지 않는다. 실제 게시 요청은 프리뷰
 DTO를 재사용하지 않고 최신 Notion 원문과 GitHub 권한을 다시 검증한다.
 
 rollout 통합 검증은 preview와 publish를 서로 독립된 요청으로 실행한다. mutable fake
@@ -455,6 +401,10 @@ deployment를 조회한다. deploy workflow는 `concurrency`로 Pages 배포를 
 Pages 성공을 최우선으로 하고, Actions 실패 conclusion은 `failed`, 진행 상태는
 `queued` 또는 `in_progress`로 반환한다. workflow가 아직 생성되지 않은 짧은 구간은
 `queued`로 간주한다. 새로고침 이후에는 이전 실행을 복구하거나 polling하지 않는다.
+한 탭에서 여러 글을 기다릴 때 클라이언트는 글마다 따로 조회하지 않고 이 탭이 마지막으로 만든
+commit 하나만 10초에 최대 1번 조회한다. 이 탭의 commit은 하나씩 순서대로 쌓이므로 마지막 commit이
+앞선 commit을 포함한다. 마지막 commit이 `failed`면 자기 commit을 한 번 더 조회해 그 결과를 쓴다.
+따라서 함께 게시하는 글 수와 관계없이 상태 조회 GitHub API 사용량은 글 하나를 게시할 때와 같다.
 
 ### GitHub Pages repository
 
@@ -499,7 +449,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 상태 조회가 반환하는 `actionsUrl`은 현재 화면의 게시 중·실패·완료 카드에서 GitHub Actions
 로그 링크로 제공한다. URL은 GitHub adapter가 검증한 `https://github.com/<owner>/<repo>/actions/`
-하위 URL만 허용하며 IndexedDB에 저장하지 않는다. readiness와 provider 오류는 안정적인
+하위 URL만 허용하며 저장하지 않는다. readiness와 provider 오류는 안정적인
 오류 code로 구분해 repository 생성, OAuth 재동의, Pages 설정, 기존 파일 확인, Actions 로그
 열기 중 가능한 복구 행동을 UI에 연결한다.
 
@@ -522,7 +472,7 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 - **블로그에서 내리기**(`POST /api/publish/unpublish`): `게시 완료` 카드에서 확인 dialog(D1)를 거쳐
   실행한다. 서버는 같은 origin, 세션, GitHub 저장소 소유권·쓰기 권한, 요청한 Notion 연결 소유권을 다시
   확인한 뒤 그 page ID 접미사의 글·이미지·옛 주소 안내 page만 지우는 commit 하나를 만든다. Notion 원문은
-  읽지 않는다. 관리 표식이 없는 저장소는 `409 github_repository_not_managed`로 거절한다. Notion 원문과 IndexedDB record는 지우지 않고 카드는
+  읽지 않는다. 관리 표식이 없는 저장소는 `409 github_repository_not_managed`로 거절한다. Notion 원문은 지우지 않고 카드는
   `보관 중`으로 돌아간다. 지울 파일이 없으면 commit하지 않고 `404 blog_post_not_found`를 준다.
 - **게시 완료 열 복원**(`GET /api/publish/posts`): 칸반을 열 때 저장소 tree의 `src/content/blog/*-<32자>.md`를
   읽어 접미사와 글 주소만 돌려주고, 접미사가 같은 카드를 `게시 완료`로 보여준다(§4). 이 값은 저장하지 않는다.
@@ -581,8 +531,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 ## 6. 명시적 제약
 
-- 칸반은 브라우저별 데이터다. 다른 기기와 자동 동기화되지 않는다.
-- 브라우저 데이터를 지우면 칸반이 사라지며 export/import는 제공하지 않는다.
+- 칸반은 저장하지 않으므로 카드 숨김·순서 바꾸기·여러 연결을 합친 칸반은 없다. 칸반은 선택한 연결 하나의
+  문서를 보여 준다.
 - 쿠키를 지우면 GitHub 및 Notion을 다시 연결해야 한다.
 - 쿠키 크기 때문에 연결 가능한 Notion 워크스페이스 수가 제한된다.
 - 서버 측 감사 로그, 영구 배포 이력, 자동 재시도는 없다.

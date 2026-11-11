@@ -170,7 +170,7 @@ export async function finishGitHubLogin(
   ]);
 }
 
-/** `GET /api/me`: 브라우저는 IndexedDB namespace에 쓸 user ID와 login만 받는다. */
+/** `GET /api/me`: 브라우저는 사용자 전환 판별에 쓸 user ID와 login만 받는다. */
 export async function getCurrentUser(
   request: Request,
   { sessionCodec }: Pick<GitHubAuthDependencies, "sessionCodec">,

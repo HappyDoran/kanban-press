@@ -25,6 +25,7 @@ import {
   invalidResponse,
   listAll,
   notionJson,
+  NotionProviderError,
   type NotionRequestOptions,
 } from "./provider";
 
@@ -35,6 +36,8 @@ export { NotionProviderError } from "./provider";
 const MAX_PAGES = 10_000;
 const MAX_BLOCKS = 5_000;
 const MAX_DEPTH = 20;
+// 토글 안 page의 소유 page를 찾는 block 조회(GET /v1/blocks/:id) 상한. 목록 한 번에 이만큼만 Notion을 더 부른다.
+const MAX_BLOCK_PARENT_LOOKUPS = 50;
 
 const pageSchema = z.object({
   icon: z.unknown().nullable().optional(),
@@ -50,6 +53,14 @@ const pageSchema = z.object({
     type: z.string(),
   }),
   properties: z.record(z.string(), z.unknown()),
+});
+
+const blockParentSchema = z.object({
+  parent: z.object({
+    block_id: z.string().min(1).max(255).optional(),
+    page_id: z.string().min(1).max(255).optional(),
+    type: z.string(),
+  }),
 });
 
 const dataSourceSchema = z.object({
@@ -71,6 +82,7 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
   /**
    * 연결에 공유된 모든 page를 평평한 목록으로 돌려준다.
    * data source(database) 행 page는 database가 놓인 page 아래로 붙이고,
+   * 토글 등 block 안의 page는 block을 거슬러 올라가 소유 page 아래로 붙인다.
    * 부모가 보이지 않는 page는 root(`parentPageId: null`)로 올린다.
    */
   async listPageTree(): Promise<readonly NotionPageSummary[]> {
@@ -95,12 +107,17 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
     )
       ? await this.#dataSourceParents()
       : new Map<string, string>();
+    const blockPages = await this.#blockPageParents(
+      pages.flatMap((page) => (page.parent.type === "block_id" && page.parent.block_id ? [page.parent.block_id] : [])),
+    );
     const parentOf = (page: (typeof pages)[number]): string | null =>
       page.parent.type === "page_id"
         ? (page.parent.page_id ?? null)
         : page.parent.type === "data_source_id"
           ? (dataSourceParents.get(page.parent.data_source_id ?? "") ?? null)
-          : null;
+          : page.parent.type === "block_id"
+            ? (blockPages.get(page.parent.block_id ?? "") ?? null)
+            : null;
 
     const visibleIds = new Set(pages.map((page) => page.id));
     const parentIds = new Set(pages.map(parentOf));
@@ -211,6 +228,53 @@ export class NotionRestContentAdapter implements NotionContentAdapter {
       }
       return children.map(parseBlock);
     };
+  }
+
+  /**
+   * block ID → 그 block이 놓인 page ID. block의 parent를 page가 나올 때까지 거슬러 올라간다.
+   * 조회 상한을 넘거나 찾을 수 없는 block(권한 밖·삭제됨)은 결과에서 빠지고 그 page는 부모 없이 남는다.
+   */
+  async #blockPageParents(blockIds: readonly string[]): Promise<Map<string, string>> {
+    const resolved = new Map<string, string | null>();
+    let lookups = 0;
+    const resolve = async (blockId: string, depth: number): Promise<string | null> => {
+      const known = resolved.get(blockId);
+      if (known !== undefined) {
+        return known;
+      }
+      if (depth > MAX_DEPTH || lookups >= MAX_BLOCK_PARENT_LOOKUPS) {
+        return null;
+      }
+      lookups += 1;
+      let parent: z.infer<typeof blockParentSchema>["parent"] | null = null;
+      try {
+        const block = blockParentSchema.safeParse(
+          await notionJson(this.#options, `https://api.notion.com/v1/blocks/${encodeURIComponent(blockId)}`, "content.block"),
+        );
+        parent = block.success ? block.data.parent : null;
+      } catch (error) {
+        // 한도 초과는 목록 전체 실패로 알리고, 그 밖의 실패는 이 block만 건너뛴다.
+        if (error instanceof NotionProviderError && error.code === "rate_limited") {
+          throw error;
+        }
+      }
+      const pageId =
+        parent?.type === "page_id"
+          ? (parent.page_id ?? null)
+          : parent?.type === "block_id" && parent.block_id !== undefined
+            ? await resolve(parent.block_id, depth + 1)
+            : null;
+      resolved.set(blockId, pageId);
+      return pageId;
+    };
+    const result = new Map<string, string>();
+    for (const blockId of new Set(blockIds)) {
+      const pageId = await resolve(blockId, 0);
+      if (pageId !== null) {
+        result.set(blockId, pageId);
+      }
+    }
+    return result;
   }
 
   /** data source ID → 그 database가 놓인 page ID. */

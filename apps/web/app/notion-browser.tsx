@@ -157,12 +157,8 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 <NotionTree
                   connectionId={selectedConnectionId}
                   key={selectedConnectionId}
-                  onInspectStructure={(page) => board.inspectStructure(selectedConnectionId, page)}
-                  onToggleVisibility={(page) => board.toggleVisibility(selectedConnectionId, page)}
                   pages={pageList.pages}
-                  pendingKeys={board.pendingKeys}
                   query={query}
-                  records={board.records}
                 />
               ) : null}
             </div>
@@ -179,15 +175,10 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 보관 중 {count("stored")}편 · 게시 중 {count("publishing")}편 · 게시 완료 {count("published")}편
               </p>
             </div>
-            {board.boardState === "error" ? (
-              <p className="notice danger" role="status">
-                브라우저 저장소를 사용할 수 없습니다. 저장 공간 또는 개인정보 보호 설정을 확인해 주세요.
-              </p>
-            ) : null}
-            {board.boardState === "ready" ? (
+            {pageList.state === "ready" ? (
               <KanbanBoard
                 connectionNames={connectionNames}
-                onMove={board.move}
+                key={pageList.connectionId}
                 onPreview={(record) =>
                   setPreviewTarget({
                     connectionId: record.connectionId,
@@ -196,7 +187,6 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                   })
                 }
                 onPublish={board.publish}
-                onRemove={board.remove}
                 onUnpublish={board.unpublish}
                 publishFailures={board.failures}
                 records={board.kanbanRecords}

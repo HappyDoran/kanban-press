@@ -3,10 +3,10 @@
 각 사용자가 GitHub로 로그인하고 자신의 Notion 문서를 개인 칸반에서 관리해
 자신의 GitHub Pages 블로그에 게시하는 애플리케이션입니다.
 
-서버 DB는 사용하지 않습니다. 인증과 Notion 연결은 암호화된 HttpOnly 쿠키,
-보관 문서의 순서와 표시 설정은 GitHub 사용자 ID로 구분한 브라우저 IndexedDB에
-저장합니다. 게시 중·완료 표시는 현재 화면의 메모리에만 유지되어 새로고침하면
-사라지며, 실제 게시 결과는 사용자 GitHub repository를 source of truth로 사용합니다.
+서버 DB는 사용하지 않습니다. 인증과 Notion 연결은 암호화된 HttpOnly 쿠키에 두고,
+칸반은 저장하지 않고 열 때마다 Notion page 목록과 블로그 저장소에서 계산하므로
+같은 계정이면 어느 브라우저에서나 같게 보입니다. 게시 중 표시는 현재 화면의 메모리에만
+있고, 게시 완료 여부는 사용자 GitHub repository를 source of truth로 사용합니다.
 
 제품 요구사항은 [docs/spec/PROJECT_SPEC.md](docs/spec/PROJECT_SPEC.md), 구현 순서는 [docs/spec/gap-analysis.md](docs/spec/gap-analysis.md)를
 기준으로 합니다.

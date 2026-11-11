@@ -11,22 +11,13 @@ import { BoardCard, type KanbanRecord } from "./kanban-board";
 const card: KanbanRecord = {
   column: "stored",
   connectionId: "3c90c3cc-0d44-4b50-8888-8dd25736052a",
-  hasNavigableChildren: false,
-  isVisible: true,
-  ownerGitHubUserId: "583231",
-  pageRole: "document",
-  pageRoleOverride: null,
-  position: 0,
   publishActionsUrl:
     "https://github.com/octocat/octocat.github.io/actions/runs/123",
   publishedUrl: null,
   publishStartedAt: null,
   providerPageId: "9188c6a5-7381-452f-b3dc-d4865aa89bdf",
   sourceLastEditedAt: "2026-07-19T10:00:00.000Z",
-  structureSourceLastEditedAt: "2026-07-19T10:00:00.000Z",
   title: "테스트 문서",
-  updatedAt: "2026-07-19T10:30:00.000Z",
-  visibilityOverride: "shown",
 };
 
 describe("boardDropAction", () => {
@@ -35,8 +26,8 @@ describe("boardDropAction", () => {
     expect(boardDropAction("published", "publishing")).toBe("publish");
   });
 
-  it("reorders stored cards but keeps completed cards out of stored while they are on the blog", () => {
-    expect(boardDropAction("stored", "stored")).toBe("move");
+  it("has no reordering inside a column and keeps completed cards out of stored while they are on the blog", () => {
+    expect(boardDropAction("stored", "stored")).toBeNull();
     expect(boardDropAction("published", "stored")).toBeNull();
   });
 
