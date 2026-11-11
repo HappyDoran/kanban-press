@@ -305,8 +305,8 @@ const PUBLISH_ERROR_MESSAGES: Readonly<Record<string, string>> = {
 // 이미지 거절 이유별 안내. 없는 이유는 invalid_publish_image의 일반 문구를 쓴다.
 const IMAGE_ERROR_MESSAGES: Readonly<Record<string, string>> = {
   byte_limit: "8MB를 넘는 이미지가 있습니다. 크기를 줄여 Notion에 다시 첨부한 뒤 게시해 주세요.",
-  count_limit: "이미지가 20개를 넘습니다. 한 글에는 이미지를 20개까지 넣을 수 있습니다.",
-  document_byte_limit: "이미지 전체 크기가 32MB를 넘습니다. 이미지 크기를 줄인 뒤 게시해 주세요.",
+  count_limit: "이미지가 100개를 넘습니다. 한 글에는 이미지를 100개까지 넣을 수 있습니다.",
+  document_byte_limit: "이미지 전체 크기가 64MB를 넘습니다. 이미지 크기를 줄인 뒤 게시해 주세요.",
   mime_content_mismatch: "PNG·JPEG·GIF·WebP가 아닌 이미지(예: HEIC·SVG)가 있습니다. 이 형식으로 바꿔 다시 첨부해 주세요.",
   mime_type: "PNG·JPEG·GIF·WebP가 아닌 이미지(예: HEIC·SVG)가 있습니다. 이 형식으로 바꿔 다시 첨부해 주세요.",
   timeout: "이미지를 받는 데 10초를 넘겼습니다. 잠시 뒤 다시 게시해 주세요.",

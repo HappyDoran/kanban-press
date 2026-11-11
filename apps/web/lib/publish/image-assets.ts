@@ -1,6 +1,6 @@
 import { lookup as dnsLookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
-import { BlockList, isIP } from "node:net";
+import { BlockList, isIP, type LookupFunction } from "node:net";
 
 import type {
   PublishArtifact,
@@ -8,14 +8,18 @@ import type {
   PublishDocument,
 } from "@kanban-press/publisher";
 
+import { TaskLimiter } from "../board/task-limiter";
+
 import type {
   PublishSourceBlock,
   PublishSourceDocument,
 } from "./document";
 
-const MAX_IMAGE_COUNT = 20;
+const MAX_IMAGE_COUNT = 100;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const MAX_DOCUMENT_IMAGE_BYTES = 32 * 1024 * 1024;
+const MAX_DOCUMENT_IMAGE_BYTES = 64 * 1024 * 1024;
+// 한 장씩 받으면 이미지가 많은 글이 서버 함수 시간을 넘기므로 4장씩 함께 받는다.
+const IMAGE_CONCURRENCY = 4;
 const MAX_REDIRECTS = 3;
 const IMAGE_TIMEOUT_MS = 10_000;
 const MAX_BLOCK_DEPTH = 20;
@@ -65,62 +69,76 @@ export async function materializePublishImages(
   artifacts: PublishArtifact[];
   document: PublishDocument;
 }> {
-  const imageCount = countImages(source.blocks, 0);
-  if (imageCount > MAX_IMAGE_COUNT) {
+  // 본문 순서대로 이미지를 모아 4장씩 함께 받는다. 하나라도 실패하거나 전체 용량을 넘으면 남은 요청은 시작하지 않는다.
+  const sources: string[] = [];
+  collectImageUrls(source.blocks, 0, sources);
+  if (sources.length > MAX_IMAGE_COUNT) {
     throw new InvalidPublishImageError("count_limit");
   }
+  const limiter = new TaskLimiter(IMAGE_CONCURRENCY);
+  let stopped = false;
+  let totalBytes = 0;
+  const downloads = await Promise.all(
+    sources.map((sourceUrl) =>
+      limiter.run(async () => {
+        if (stopped) {
+          return null;
+        }
+        try {
+          const downloaded = await downloadImage(sourceUrl, dependencies);
+          totalBytes += downloaded.bytes.byteLength;
+          if (totalBytes > MAX_DOCUMENT_IMAGE_BYTES) {
+            throw new InvalidPublishImageError("document_byte_limit");
+          }
+          return downloaded;
+        } catch (error) {
+          stopped = true;
+          throw error;
+        }
+      }),
+    ),
+  );
 
   const artifacts: PublishArtifact[] = [];
   let imageIndex = 0;
-  let totalBytes = 0;
 
-  const convertBlocks = async (
-    blocks: readonly PublishSourceBlock[],
-    depth: number,
-  ): Promise<PublishBlock[]> => {
-    if (depth > MAX_BLOCK_DEPTH) {
-      throw new InvalidPublishImageError("depth_limit");
-    }
-    const converted: PublishBlock[] = [];
-    for (const block of blocks) {
+  const convertBlocks = (blocks: readonly PublishSourceBlock[]): PublishBlock[] =>
+    blocks.map((block): PublishBlock => {
       if (block.kind === "image") {
+        const downloaded = downloads[imageIndex]!;
         imageIndex += 1;
-        const downloaded = await downloadImage(
-          block.sourceUrl,
-          dependencies,
-        );
-        totalBytes += downloaded.bytes.byteLength;
-        if (totalBytes > MAX_DOCUMENT_IMAGE_BYTES) {
-          throw new InvalidPublishImageError("document_byte_limit");
-        }
         const filename = `image-${String(imageIndex).padStart(3, "0")}.${downloaded.extension}`;
         artifacts.push({
           bytes: downloaded.bytes,
           path: `src/assets/blog/${source.slug}/${filename}`,
         });
-        converted.push({
+        return {
           assetPath: `../../assets/blog/${source.slug}/${filename}`,
           caption: block.caption,
           kind: "image",
-        });
-        continue;
+        };
       }
       if ("children" in block) {
-        converted.push({ ...block, children: await convertBlocks(block.children, depth + 1) });
-        continue;
+        return { ...block, children: convertBlocks(block.children) };
       }
-      converted.push(block);
-    }
-    return converted;
-  };
+      return block;
+    });
 
-  return {
-    artifacts,
-    document: {
-      ...source,
-      blocks: await convertBlocks(source.blocks, 0),
-    },
-  };
+  const document = { ...source, blocks: convertBlocks(source.blocks) };
+  return { artifacts, document };
+}
+
+function collectImageUrls(blocks: readonly PublishSourceBlock[], depth: number, urls: string[]): void {
+  if (depth > MAX_BLOCK_DEPTH) {
+    throw new InvalidPublishImageError("depth_limit");
+  }
+  for (const block of blocks) {
+    if (block.kind === "image") {
+      urls.push(block.sourceUrl);
+    } else if ("children" in block) {
+      collectImageUrls(block.children, depth + 1, urls);
+    }
+  }
 }
 
 export function createPublishImageDependencies(): PublishImageDependencies {
@@ -302,18 +320,18 @@ function parseImageUrl(value: string): URL {
   return url;
 }
 
-function countImages(
-  blocks: readonly PublishSourceBlock[],
-  depth: number,
-): number {
-  if (depth > MAX_BLOCK_DEPTH) {
-    throw new InvalidPublishImageError("depth_limit");
-  }
-  return blocks.reduce(
-    (count, block) =>
-      count + (block.kind === "image" ? 1 : "children" in block ? countImages(block.children, depth + 1) : 0),
-    0,
-  );
+/**
+ * 검증한 주소 하나만 돌려주는 DNS lookup. Node 20+는 autoSelectFamily 때문에 `{ all: true }`로 불러 배열을
+ * 기대한다. 주소 하나로 답하면 `ERR_INVALID_IP_ADDRESS`로 모든 이미지가 `network` 실패가 된다.
+ */
+export function pinnedLookup(address: ResolvedImageAddress): LookupFunction {
+  return (_hostname, options, callback) => {
+    if (options.all === true) {
+      callback(null, [{ address: address.address, family: address.family }]);
+    } else {
+      callback(null, address.address, address.family);
+    }
+  };
 }
 
 async function requestPinnedImage(
@@ -330,9 +348,7 @@ async function requestPinnedImage(
           accept: "image/webp,image/png,image/jpeg,image/gif",
           "user-agent": "kanban-press-image-fetch/1",
         },
-        lookup: (_hostname, _options, callback) => {
-          callback(null, address.address, address.family);
-        },
+        lookup: pinnedLookup(address),
         method: "GET",
         signal,
       },
