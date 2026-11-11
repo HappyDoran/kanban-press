@@ -200,8 +200,9 @@ data source 행은 해당 child database 아래에 배치하고, outline에서 �
 
 추가·빼기는 같은 origin, 세션, 요청한 Notion 연결 소유권, `<login>.github.io` 소유권·쓰기 권한을 다시
 확인한 뒤 서버가 최신 `board.json`을 읽어 바꾸고 읽은 blob SHA로 조건부 저장한다. 그 사이 다른 브라우저가
-바꿨으면 `409 github_conflict`로 실패하고 화면은 원래 목록으로 돌아가며, 서버는 재시도하지 않는다. 이미
-목록 상태가 요청과 같으면 commit하지 않는다.
+바꿨으면 서버가 같은 요청 안에서 다시 읽어 3번까지 시도하고, 그래도 바뀌면 `409 github_conflict`로 실패해
+화면은 그 문서만 원래대로 돌린다. 한 탭의 추가·빼기는 브라우저가 하나씩 보낸다. 이미 목록 상태가 요청과 같으면
+commit하지 않는다.
 
 칸반은 dnd-kit의 pointer/keyboard sensor를 제공한다. `publishing` column으로 drop한 동작은 영속 column
 변경이 아니라 게시 요청을 시작하는 UI 명령으로 해석한다. 새로고침하면 Notion 목록과 블로그 저장소를 다시
@@ -573,7 +574,8 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
   다 쓴 응답처럼 `Retry-After` 없이 `x-ratelimit-reset`만 오면 남은 초를 같은 범위로 잘라 쓴다. 브라우저는
   남은 대기 시간을 안내하고 만료 전 재시도 동작을 비활성화한다.
 - 서버는 읽기와 mutation을 자동 재시도하지 않는다. 사용자가 명시적으로 다시 시도하며,
-  특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다.
+  특히 commit 응답 유실 뒤 재시도는 허용된 중복 commit을 만들 수 있다. 예외는 보관 중 목록의 SHA 조건부
+  저장이 conflict로 거절된 경우다. 아무것도 쓰이지 않았으므로 같은 요청 안에서 다시 읽어 3번까지 시도한다.
 - 구조화 운영 로그는 allowlist field만 JSON 한 줄로 기록한다. token, cookie, OAuth code,
   provider URL, 사용자·page·repository 식별자, 임의 오류 message/stack은 기록하지 않는다.
 

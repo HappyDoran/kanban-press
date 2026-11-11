@@ -13,6 +13,7 @@ import {
   type PageSummary,
   publishErrorMessage,
 } from "../lib/client/api";
+import { TaskLimiter } from "../lib/board/task-limiter";
 import { publishAndWatch, unpublishInOrder } from "../lib/client/publish";
 import { pageIdSuffix } from "../lib/publish/blog-files";
 
@@ -37,6 +38,19 @@ export function pageKey(record: { connectionId: string; providerPageId: string }
 /** 하위 page(직접·database 행·토글 안)가 있는 page는 탐색용 컨테이너라 칸반과 게시 대상이 아니다. */
 export function isContainer(page: Pick<PageSummary, "hasChildren">): boolean {
   return page.hasChildren;
+}
+
+// 서버는 board.json을 읽은 SHA로 조건부 저장하므로 이 탭의 넣기·빼기를 동시에 보내면 서로 conflict가 난다.
+// 그래서 한 번에 하나씩 보낸다. 다른 탭·기기와의 충돌은 서버가 다시 읽어 몇 번 재시도한다.
+const boardQueue = new TaskLimiter(1);
+
+/** 서버 목록 위에 아직 응답을 받지 못한 이 탭의 넣기(true)·빼기(false)를 순서대로 다시 얹는다. */
+export function applyBoardChanges(list: readonly string[], changes: ReadonlyMap<string, boolean>): string[] {
+  let next = [...list];
+  for (const [pageId, onBoard] of changes) {
+    next = onBoard ? (next.includes(pageId) ? next : [...next, pageId]) : next.filter((id) => id !== pageId);
+  }
+  return next;
 }
 
 /** 보관 중 목록 변경 실패 문구. */
@@ -111,6 +125,7 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
   const [boardError, setBoardError] = useState("");
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
   const publishing = useRef(new Set<string>());
+  const boardChanges = useRef(new Map<string, boolean>());
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -151,7 +166,8 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
   }, [ownerId]);
 
   /**
-   * 보관 중에 넣기·빼기. 화면을 먼저 바꾸고 서버가 저장한 목록으로 맞춘다. 실패하면 원래 목록으로 돌린다.
+   * 보관 중에 넣기·빼기. 화면을 먼저 바꾸고 이 탭의 변경을 하나씩 서버에 보낸다. 응답 목록에는 아직 보내지 않은
+   * 변경을 다시 얹어, 여러 문서를 빠르게 넣어도 앞선 응답이 뒤 문서를 지우지 않는다. 실패하면 그 문서만 되돌린다.
    * 같은 문서의 변경은 동시에 하나만 보낸다.
    */
   async function setOnBoard(connectionId: string, providerPageId: string, onBoard: boolean): Promise<void> {
@@ -162,14 +178,18 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     }
     setPendingKeys((current) => new Set(current).add(key));
     setBoardError("");
-    const previous = board;
-    setBoard((current) =>
-      onBoard ? (current.includes(suffix) ? current : [...current, suffix]) : current.filter((id) => id !== suffix),
-    );
+    const wasOnBoard = board.includes(suffix);
+    boardChanges.current.set(suffix, onBoard);
+    setBoard((current) => applyBoardChanges(current, new Map([[suffix, onBoard]])));
     try {
-      setBoard(await changeBoard(onBoard ? "add" : "remove", connectionId, providerPageId));
+      const saved = await boardQueue.run(() => changeBoard(onBoard ? "add" : "remove", connectionId, providerPageId));
+      boardChanges.current.delete(suffix);
+      if (mounted.current) {
+        setBoard(applyBoardChanges(saved, boardChanges.current));
+      }
     } catch (error) {
-      setBoard(previous);
+      boardChanges.current.delete(suffix);
+      setBoard((current) => applyBoardChanges(current, new Map([[suffix, wasOnBoard]])));
       setBoardError(boardErrorMessage(error instanceof ApiError ? error.code : ""));
     } finally {
       setPendingKeys((current) => {

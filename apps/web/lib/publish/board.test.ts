@@ -53,14 +53,25 @@ describe("board route", () => {
     expect(context.writeBranchFile.mock.calls[0]?.[4]).toBe(BLOB);
   });
 
-  it("reports a change made elsewhere as 409 without retrying", async () => {
+  it("re-reads and keeps the other change when the list changed between read and write", async () => {
     const context = await fixture(file([]));
+    context.readBranchFile.mockResolvedValueOnce(file([])).mockResolvedValueOnce({ ...file([OTHER]), sha: "d".repeat(40) });
     context.writeBranchFile.mockRejectedValueOnce(new GitHubPagesError("conflict"));
+    const response = await changeBoard(send(context.cookie), context.dependencies, "add");
+
+    await expect(response.json()).resolves.toEqual({ pageIds: [OTHER, SUFFIX] });
+    expect(context.writeBranchFile).toHaveBeenCalledTimes(2);
+    expect(context.writeBranchFile.mock.calls[1]?.[4]).toBe("d".repeat(40));
+  });
+
+  it("reports 409 after three conflicting attempts", async () => {
+    const context = await fixture(file([]));
+    context.writeBranchFile.mockRejectedValue(new GitHubPagesError("conflict"));
     const response = await changeBoard(send(context.cookie), context.dependencies, "add");
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({ error: "github_conflict" });
-    expect(context.writeBranchFile).toHaveBeenCalledTimes(1);
+    expect(context.writeBranchFile).toHaveBeenCalledTimes(3);
   });
 
   it("rejects another origin, a connection the user does not own, and extra fields", async () => {
@@ -182,6 +193,7 @@ async function fixture(stored: { sha: string; text: string } | null) {
     createNotionAdapter: () => ({ getPageContent: vi.fn(), listPageOutline: vi.fn(), listPageTree: vi.fn() }),
     notionAuth: { connectionsCodec, sessionCodec },
     sessionCodec,
+    sleep: () => Promise.resolve(),
   };
   return { cookie: `kp_session=${session}; kp_notion_connections=${connections}`, dependencies, readBranchFile, writeBranchFile };
 }
