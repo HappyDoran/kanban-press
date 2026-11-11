@@ -773,42 +773,65 @@ describe("NotionRestContentAdapter", () => {
     });
   });
 
-  it("keeps a toggle-owned page out of the root classification", async () => {
+  it("nests a toggle-owned page under the page that holds the toggle", async () => {
     const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-    const adapter = new NotionRestContentAdapter({
-      accessToken: "secret",
-      apiVersion: "2026-03-11",
-      fetch: vi.fn<typeof fetch>().mockResolvedValue(
+    const outerToggleId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
         Response.json({
           has_more: false,
           next_cursor: null,
           results: [
-            page(ROOT_ID, "자기소개서", {
-              type: "workspace",
-              workspace: "true",
-            }),
-            page(CHILD_ID, "토글 내부 페이지", {
-              block_id: toggleId,
-              type: "block_id",
-            }),
+            page(ROOT_ID, "Legacy", { type: "workspace", workspace: "true" }),
+            page(CHILD_ID, "토글 내부 페이지", { block_id: toggleId, type: "block_id" }),
           ],
         }),
-      ),
-    });
+      )
+      .mockResolvedValueOnce(
+        Response.json({ id: toggleId, object: "block", parent: { block_id: outerToggleId, type: "block_id" } }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ id: outerToggleId, object: "block", parent: { page_id: ROOT_ID, type: "page_id" } }),
+      );
+    const adapter = new NotionRestContentAdapter({ accessToken: "secret", apiVersion: "2026-03-11", fetch: fetchMock });
 
     await expect(adapter.listPageTree()).resolves.toEqual([
-      expect.objectContaining({
-        hasChildren: false,
-        parentContainerId: null,
-        parentPageId: null,
-        providerPageId: ROOT_ID,
-      }),
+      expect.objectContaining({ hasChildren: true, parentPageId: null, providerPageId: ROOT_ID }),
       expect.objectContaining({
         hasChildren: false,
         parentContainerId: toggleId,
-        parentPageId: null,
+        parentPageId: ROOT_ID,
         providerPageId: CHILD_ID,
       }),
+    ]);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(`https://api.notion.com/v1/blocks/${toggleId}`);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("leaves a toggle-owned page without a parent when its block cannot be read", async () => {
+    const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const adapter = new NotionRestContentAdapter({
+      accessToken: "secret",
+      apiVersion: "2026-03-11",
+      fetch: vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          Response.json({
+            has_more: false,
+            next_cursor: null,
+            results: [
+              page(ROOT_ID, "자기소개서", { type: "workspace", workspace: "true" }),
+              page(CHILD_ID, "토글 내부 페이지", { block_id: toggleId, type: "block_id" }),
+            ],
+          }),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 404 })),
+    });
+
+    await expect(adapter.listPageTree()).resolves.toEqual([
+      expect.objectContaining({ hasChildren: false, parentPageId: null, providerPageId: ROOT_ID }),
+      expect.objectContaining({ parentContainerId: toggleId, parentPageId: null, providerPageId: CHILD_ID }),
     ]);
   });
 

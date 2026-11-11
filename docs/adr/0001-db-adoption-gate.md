@@ -11,7 +11,8 @@ last_verified: 2026-08-22
 
 ## 맥락
 
-현재 제품은 사용자별 칸반을 GitHub numeric user ID로 분리한 IndexedDB에 저장하고,
+결정 당시 제품은 사용자별 칸반을 GitHub numeric user ID로 분리한 IndexedDB에 저장하고(2026-11-11
+[ADR 0002](0002-stateless-board.md)로 칸반 저장을 없앴다),
 credential은 암호화 HttpOnly cookie, 게시 콘텐츠와 배포 상태는 GitHub에 둔다.
 서버가 영속화해야 할 공유 데이터나 작업 이력은 없다.
 

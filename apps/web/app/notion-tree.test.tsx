@@ -19,7 +19,7 @@ function page(id: string, title: string, parentPageId: string | null = null): Pa
 }
 
 const pages = [
-  page("a", "회고"),
+  { ...page("a", "회고"), hasChildren: true },
   page("b", "2026년 10월 회고", "a"),
   page("c", "Astro 블로그 만들기"),
   page("d", "TypeScript strict 모드"),
@@ -29,12 +29,8 @@ function render(query: string): string {
   return renderToStaticMarkup(
     createElement(NotionTree, {
       connectionId: "connection",
-      onInspectStructure: async () => [],
-      onToggleVisibility: async () => undefined,
       pages,
-      pendingKeys: new Set<string>(),
       query,
-      records: [],
     }),
   );
 }

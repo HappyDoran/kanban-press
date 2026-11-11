@@ -9,18 +9,10 @@ export interface PointerDropCandidate {
 export function boardDropAction(
   from: BoardColumn,
   to: BoardColumn,
-): "move" | "publish" | null {
-  if (
-    to === "publishing" &&
-    (from === "stored" || from === "published")
-  ) {
-    return "publish";
-  }
+): "publish" | null {
+  // 열 순서는 Notion 수정 시각으로 정해져 저장하지 않으므로 같은 열 안 이동은 없다.
   // 게시 완료 카드는 블로그에 글이 있는 동안 보관 중으로 옮길 수 없다. 블로그에서 내리기로만 돌아간다.
-  if (to === "stored" && from === "stored") {
-    return "move";
-  }
-  return null;
+  return to === "publishing" && (from === "stored" || from === "published") ? "publish" : null;
 }
 
 export function preferredPointerDropId(

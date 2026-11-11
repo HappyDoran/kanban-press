@@ -21,26 +21,29 @@ test("signed-out OAuth entry is explicit and accessible", async ({ page }) => {
   await expectNoSeriousAccessibilityViolations(page);
 });
 
-test("session, IndexedDB, preview, publish, and user isolation", async ({
+test("session, preview, publish, the same board in another browser, and user switch", async ({
+  browser,
   page,
 }) => {
   let userId = "52277540";
   let publishCalls = 0;
   await installAppRoutes(page, () => userId, () => {
     publishCalls += 1;
-  });
+  }, NESTED_PAGES);
   // R8: 블로그 저장소에 올라간 글 목록과 블로그에서 내리기.
   let onBlog = false;
   let unpublishCalls = 0;
-  await page.route("**/api/publish/posts", (route) =>
-    route.fulfill({
-      json: {
-        posts: onBlog
-          ? [{ pageIdSuffix: "9188c6a57381452fb3dcd4865aa89bdf", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/" }]
-          : [],
-      },
-    }),
-  );
+  const routeBlogPosts = (target: Page) =>
+    target.route("**/api/publish/posts", (route) =>
+      route.fulfill({
+        json: {
+          posts: onBlog
+            ? [{ pageIdSuffix: "9188c6a57381452fb3dcd4865aa89bdf", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/" }]
+            : [],
+        },
+      }),
+    );
+  await routeBlogPosts(page);
   await page.route("**/api/publish/unpublish", (route) => {
     unpublishCalls += 1;
     onBlog = false;
@@ -50,16 +53,14 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
 
   await expect(page.getByText("E2E 게시 문서", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("게시 준비 완료")).toBeVisible();
-  await expect(
-    page.getByRole("button", { exact: true, name: "미리보기" }),
-  ).toBeVisible();
+  // 하위 page도 칸반에 오르고, 하위 page가 있는 폴더 page는 오르지 않는다.
+  const board = page.getByRole("main");
+  await expect(board.getByRole("heading", { name: "E2E 하위 문서" })).toBeVisible();
+  await expect(board.getByRole("heading", { name: "E2E 폴더" })).toHaveCount(0);
+  await expect(page.getByText("보관 중 2편")).toBeVisible();
 
-  const databases = await page.evaluate(async () =>
-    (await indexedDB.databases()).map((database) => database.name),
-  );
-  expect(databases).toContain("kanban-press.board.52277540");
-
-  await page.getByRole("button", { exact: true, name: "미리보기" }).click();
+  await page.getByRole("button", { name: "E2E 게시 문서 카드 이동" }).locator("xpath=ancestor::article")
+    .getByRole("button", { exact: true, name: "미리보기" }).click();
   await expect(page.getByRole("dialog")).toContainText("E2E 프리뷰 본문");
   const headingSizes = await page.evaluate(() => {
     const size = (text: string) => {
@@ -101,75 +102,31 @@ test("session, IndexedDB, preview, publish, and user isolation", async ({
   await expect.poll(() => publishCalls).toBe(1);
   await expect(page.getByText("게시된 글 보기")).toBeVisible();
 
-  const storedVisibility = await page.evaluate(
-    async ({ connectionId, pageId }) => {
-      const request = indexedDB.open("kanban-press.board.52277540");
-      const database = await new Promise<IDBDatabase>((resolve, reject) => {
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-      const transaction = database.transaction("boardRecords", "readonly");
-      const store = transaction.objectStore("boardRecords");
-      const get = store.get(["52277540", connectionId, pageId]);
-      const record = await new Promise<Record<string, unknown> | undefined>(
-        (resolve, reject) => {
-          get.onsuccess = () => resolve(get.result as Record<string, unknown> | undefined);
-          get.onerror = () => reject(get.error);
-        },
-      );
-      database.close();
-      return record?.isVisible;
-    },
-    { connectionId: CONNECTION_ID, pageId: PAGE_ID },
-  );
-  // 게시해도 칸반에서 숨기지 않는다. 게시 완료 열은 새로고침 뒤 블로그 저장소 기준으로 다시 그린다.
-  expect(storedVisibility).toBe(true);
   onBlog = true;
   await page.reload();
   await expect(page.getByText("게시 완료 1편")).toBeVisible();
   await expect(page.getByText("게시된 글 보기")).toBeVisible();
 
+  // 칸반을 브라우저에 저장하지 않으므로 아무것도 없는 다른 브라우저에서도 같은 칸반이 보인다.
+  const otherBrowser = await browser.newContext();
+  const fresh = await otherBrowser.newPage();
+  await installAppRoutes(fresh, () => userId, () => undefined, NESTED_PAGES);
+  await routeBlogPosts(fresh);
+  await fresh.goto("/");
+  await expect(fresh.getByText("보관 중 1편 · 게시 중 0편 · 게시 완료 1편")).toBeVisible();
+  await expect(fresh.getByRole("main").getByRole("heading", { name: "E2E 하위 문서" })).toBeVisible();
+  await otherBrowser.close();
+
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "블로그에서 내리기" }).click();
   await expect.poll(() => unpublishCalls).toBe(1);
-  await expect(page.getByText("보관 중 1편")).toBeVisible();
+  await expect(page.getByText("보관 중 2편")).toBeVisible();
   await expect(page.getByText("게시 완료 0편")).toBeVisible();
 
+  // 다른 GitHub 사용자로 바뀌면 이전 사용자의 화면 상태 없이 다시 그린다.
   userId = "90000001";
   await page.reload();
-  await expect(page.getByText("보관 중 1편")).toBeVisible();
-  const isolatedDatabases = await page.evaluate(async () =>
-    (await indexedDB.databases()).map((database) => database.name),
-  );
-  expect(isolatedDatabases).toEqual(
-    expect.arrayContaining([
-      "kanban-press.board.52277540",
-      "kanban-press.board.90000001",
-    ]),
-  );
-  const newOwnerVisibility = await page.evaluate(
-    async ({ connectionId, pageId }) => {
-      const request = indexedDB.open("kanban-press.board.90000001");
-      const database = await new Promise<IDBDatabase>((resolve, reject) => {
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      });
-      const get = database
-        .transaction("boardRecords", "readonly")
-        .objectStore("boardRecords")
-        .get(["90000001", connectionId, pageId]);
-      const record = await new Promise<Record<string, unknown> | undefined>(
-        (resolve, reject) => {
-          get.onsuccess = () => resolve(get.result as Record<string, unknown> | undefined);
-          get.onerror = () => reject(get.error);
-        },
-      );
-      database.close();
-      return record?.isVisible;
-    },
-    { connectionId: CONNECTION_ID, pageId: PAGE_ID },
-  );
-  expect(newOwnerVisibility).toBe(true);
+  await expect(page.getByText("보관 중 2편")).toBeVisible();
   await expectNoSeriousAccessibilityViolations(page);
 });
 
@@ -268,7 +225,6 @@ test("document titles can be searched in the sidebar", async ({ page }, testInfo
   const sidebar = page.getByRole("navigation", { name: "Notion 문서" });
   await expect(sidebar.getByText("E2E 게시 문서")).toBeVisible();
 
-  // 행의 "구조 확인 중…"도 status라서 검색 결과 문구만 골라 본다.
   const searchStatus = sidebar.getByRole("status").filter({ hasText: /^(문서 \d+개|일치하는 문서가 없습니다\.)$/ });
   await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("없는 제목");
   await expect(searchStatus).toHaveText("일치하는 문서가 없습니다.");
@@ -294,10 +250,34 @@ test("cards can be published with a button on narrow screens", async ({ page }, 
   await expect(page.getByRole("button", { exact: true, name: "다시 게시" })).toBeVisible();
 });
 
+const E2E_PAGE = {
+  hasChildren: false,
+  iconUrl: null,
+  lastEditedAt: LAST_EDITED_AT,
+  parentContainerId: null,
+  parentPageId: null,
+  providerPageId: PAGE_ID,
+  title: "E2E 게시 문서",
+};
+const FOLDER_ID = "5a1b2c3d-0000-4000-8000-000000000001";
+// 폴더 page 아래 하위 page. 예전에는 하위 page가 기본 숨김이라 브라우저마다 칸반이 달랐다.
+const NESTED_PAGES = [
+  E2E_PAGE,
+  { ...E2E_PAGE, hasChildren: true, providerPageId: FOLDER_ID, title: "E2E 폴더" },
+  {
+    ...E2E_PAGE,
+    lastEditedAt: "2026-08-01T10:00:00.000Z",
+    parentPageId: FOLDER_ID,
+    providerPageId: "5a1b2c3d-0000-4000-8000-000000000002",
+    title: "E2E 하위 문서",
+  },
+];
+
 async function installAppRoutes(
   page: Page,
   currentUserId: () => string,
   onPublish: () => void,
+  pages: readonly object[] = [E2E_PAGE],
 ): Promise<void> {
   await page.route("**/api/me", (route) =>
     route.fulfill({
@@ -323,19 +303,7 @@ async function installAppRoutes(
   );
   await page.route("**/api/notion/connections/*/pages", (route) =>
     route.fulfill({
-      json: {
-        pages: [
-          {
-            hasChildren: false,
-            iconUrl: null,
-            lastEditedAt: LAST_EDITED_AT,
-            parentContainerId: null,
-            parentPageId: null,
-            providerPageId: PAGE_ID,
-            title: "E2E 게시 문서",
-          },
-        ],
-      },
+      json: { pages },
     }),
   );
   await page.route("**/api/notion/connections/*/pages/*/outline", (route) =>

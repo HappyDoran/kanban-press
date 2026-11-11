@@ -1,30 +1,22 @@
 "use client";
 
-// 선택한 Notion 연결의 문서 계층. page는 search 결과의 부모 관계로, page 안의 토글·그룹·database는
-// 펼칠 때 받아 오는 outline으로 그린다. 화면에 나타난 미확인 page는 자동으로 구조를 판별한다.
+// 선택한 Notion 연결의 문서 계층(탐색 전용). page는 목록의 부모 관계로, page 안의 토글·그룹·database는
+// 펼칠 때 받아 오는 outline으로 그린다. 하위 page가 있는 page는 컨테이너(폴더)로 보이고 칸반에 오르지 않는다.
 import type { NotionOutlineNode } from "@kanban-press/notion";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
-import type { BoardRecord } from "../lib/board/repository";
-import {
-  hasConfirmedNavigableChildren,
-  pageActionAvailability,
-  pagePrimaryAction,
-  type StructureInspectionState,
-} from "../lib/board/page-role";
-import type { PageSummary } from "../lib/client/api";
-import { formatEditedAt } from "../lib/format-date";
+import { fetchOutline, type PageSummary } from "../lib/client/api";
+import { filterRenderableOutline } from "../lib/notion/outline";
 
-import { pageKey } from "./use-board";
+import { isContainer } from "./use-board";
+
+type OutlineState = "error" | "idle" | "loading" | "ready";
 
 interface TreeContextValue {
   childPagesByParent: ReadonlyMap<string, PageSummary[]>;
   connectionId: string;
-  onInspectStructure: (page: PageSummary) => Promise<NotionOutlineNode[]>;
-  onToggleVisibility: (page: PageSummary) => Promise<void>;
+  pages: readonly PageSummary[];
   pagesById: ReadonlyMap<string, PageSummary>;
-  pendingKeys: ReadonlySet<string>;
-  recordsByKey: ReadonlyMap<string, BoardRecord>;
 }
 
 const TreeContext = createContext<TreeContextValue | null>(null);
@@ -39,17 +31,13 @@ function useTree(): TreeContextValue {
 
 export function NotionTree({
   connectionId,
-  onInspectStructure,
-  onToggleVisibility,
   pages,
-  pendingKeys,
   query = "",
-  records,
-}: Omit<TreeContextValue, "childPagesByParent" | "pagesById" | "recordsByKey"> & {
+}: {
+  connectionId: string;
   pages: PageSummary[];
   /** 제목 검색어. 있으면 계층 대신 제목이 맞는 문서를 평평하게 보여준다(database 행 포함). */
   query?: string;
-  records: readonly BoardRecord[];
 }) {
   const pagesById = new Map(pages.map((page) => [page.providerPageId, page]));
   const childPagesByParent = new Map<string, PageSummary[]>();
@@ -70,15 +58,7 @@ export function NotionTree({
 
   return (
     <TreeContext.Provider
-      value={{
-        childPagesByParent,
-        connectionId,
-        onInspectStructure,
-        onToggleVisibility,
-        pagesById,
-        pendingKeys,
-        recordsByKey: new Map(records.map((record) => [pageKey(record), record])),
-      }}
+      value={{ childPagesByParent, connectionId, pages, pagesById }}
     >
       {search === "" ? null : (
         <p className="treeSearchStatus" role="status">
@@ -103,53 +83,11 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
   const tree = useTree();
   const [expanded, setExpanded] = useState(false);
   const [outline, setOutline] = useState<NotionOutlineNode[] | null>(null);
-  const [outlineState, setOutlineState] = useState<StructureInspectionState>("idle");
-  const autoInspected = useRef<string | null>(null);
+  const [outlineState, setOutlineState] = useState<OutlineState>("idle");
 
-  const key = pageKey({ connectionId: tree.connectionId, providerPageId: page.providerPageId });
-  const record = tree.recordsByKey.get(key);
   const childPages = tree.childPagesByParent.get(page.providerPageId) ?? [];
-  const isContainer = record?.pageRole === "container";
-  // 저장된 판별 결과가 현재 Notion 수정 시각 기준이면 다시 묻지 않는다.
-  const inspectionIsCurrent =
-    record?.hasNavigableChildren !== null && record?.structureSourceLastEditedAt === page.lastEditedAt;
-  const hasStructuralChildren = hasConfirmedNavigableChildren({
-    discoveredChildCount:
-      (page.hasChildren || childPages.length > 0 ? 1 : 0) +
-      (inspectionIsCurrent && record?.hasNavigableChildren === true ? 1 : 0),
-    outlineNodeCount: outline?.length ?? 0,
-    outlineState,
-  });
-  const hasChildren = !ancestors.has(page.providerPageId) && (isContainer || hasStructuralChildren);
-  const visible = record?.isVisible ?? false;
-  const pending = tree.pendingKeys.has(key);
-  const primaryAction = pagePrimaryAction({
-    actionAvailability: pageActionAvailability({
-      inspectionIsCurrent,
-      inspectionState: outlineState,
-      recordIsAvailable: record !== undefined,
-    }),
-    isContainer,
-    pending,
-  });
-
-  const { onInspectStructure } = tree;
-  useEffect(() => {
-    const inspectionKey = `${page.providerPageId}:${page.lastEditedAt}`;
-    if (record === undefined || inspectionIsCurrent || autoInspected.current === inspectionKey) {
-      return;
-    }
-    autoInspected.current = inspectionKey;
-    void onInspectStructure(page)
-      .then((next) => {
-        setOutline(next);
-        setOutlineState("ready");
-      })
-      .catch(() => {
-        setOutline([]);
-        setOutlineState("error");
-      });
-  }, [inspectionIsCurrent, onInspectStructure, page, record]);
+  const container = isContainer(page);
+  const hasChildren = !ancestors.has(page.providerPageId) && (container || childPages.length > 0);
 
   async function loadOutline(): Promise<void> {
     if (outlineState === "loading" || outlineState === "ready") {
@@ -157,7 +95,7 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
     }
     setOutlineState("loading");
     try {
-      setOutline(await onInspectStructure(page));
+      setOutline(filterRenderableOutline(await fetchOutline(tree.connectionId, page.providerPageId), tree.pages));
       setOutlineState("ready");
     } catch {
       setOutline([]);
@@ -181,41 +119,11 @@ function PageNode({ ancestors, page }: { ancestors: ReadonlySet<string>; page: P
           type="button"
         >
           <Chevron expanded={expanded} visible={hasChildren} />
-          <PageIcon isContainer={isContainer} page={page} />
+          <PageIcon isContainer={container} page={page} />
           <span className="pageTitle" title={page.title}>
             {page.title}
           </span>
         </button>
-        {/* 행마다 상태 하나만: 칸반(표시 중, 누르면 숨김) · 추가 · 폴더 · 판별 중 · 구조 다시 확인 */}
-        <span className="pageAction">
-          {primaryAction === "loading" ? (
-            <span aria-live="polite" className="rowStatus" role="status">
-              {pending ? "저장 중" : "구조 확인 중…"}
-            </span>
-          ) : null}
-          {primaryAction === "retry" ? (
-            <button
-              aria-label={`${page.title} 구조 다시 확인`}
-              className="rowButton"
-              onClick={() => void loadOutline()}
-              type="button"
-            >
-              구조 다시 확인
-            </button>
-          ) : null}
-          {primaryAction === "visibility" ? (
-            <button
-              aria-label={`${page.title}을 칸반에서 ${visible ? "숨기기" : "표시하기"}`}
-              aria-pressed={visible}
-              className={visible ? "rowButton onBoard" : "rowButton"}
-              onClick={() => void tree.onToggleVisibility(page)}
-              title={`원문 수정 ${formatEditedAt(page.lastEditedAt)}`}
-              type="button"
-            >
-              {visible ? "칸반" : "추가"}
-            </button>
-          ) : null}
-        </span>
       </div>
       {hasChildren && expanded ? (
         <ul>

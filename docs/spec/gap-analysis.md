@@ -1,7 +1,7 @@
 ---
 title: 요구사항 대비 현재 상태와 백로그
 kind: spec
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 # 요구사항 대비 현재 상태와 백로그
@@ -24,15 +24,12 @@ last_verified: 2026-11-10
 - Notion OAuth 연결·목록·해제 route가 구현됐으며 실제 사용에는 Public Connection
   설정이 필요하다.
 - Notion workspace 목록과 접근 허용된 page tree 조회 UI가 구현됐다.
-- 사용자별 IndexedDB repository, schema migration, 문서의 보관 중 추가가 구현됐다.
 - 접근 가능한 drag-and-drop 칸반과 drop 기반 게시 시작 UI가 구현됐다.
 - 기존 GitHub App installation 구현과 환경 변수는 제거됐다.
 - GitHub OAuth는 `public_repo workflow`를 요청하며 `<login>.github.io`의 scope,
   소유권, 공개 여부와 push 권한을 확인한다.
-- Notion page metadata는 자동으로 stored에 동기화되고 계층 목록의
-  자동/표시/숨김/역할 override/구조 검사 캐시가 IndexedDB에 보존된다(schema version 10에서 도입, 현재 12).
-- 칸반은 IndexedDB의 `보관 중`과 화면 메모리의 `게시 중`, `게시 완료`를 합성한다.
-  v12 migration은 이전 영속 게시 상태와 commit/hash/URL 추적 필드를 제거한다.
+- 칸반은 저장하지 않고 Notion page 목록의 문서 page(`보관 중`), 화면 메모리(`게시 중`),
+  블로그 저장소(`게시 완료`)로 매번 계산한다(2026-11-11 K2, ADR 0002). IndexedDB 칸반 저장소는 제거됐다.
 - page를 펼칠 때만 Notion block outline을 조회하며 legacy toggle, child page,
   child database 계층을 탐색 UI에 보존한다.
 - 결정적 Astro template manifest와 user/project base path 실제 build 검증이 구현됐다.
@@ -164,6 +161,16 @@ last_verified: 2026-11-10
 | U3 정체성: 칸반 앱 | 교정쇄 × 원고지 시각 정체성을 앱에 적용, 디자인 토큰 단일 출처(`DESIGN_TOKENS_CSS`) | 디자인 기획 2.4·6.4·10·11 | designer, frontend | 앱과 블로그 template이 같은 토큰 문자열을 쓴다(unit).<br>E2E·Axe가 그대로 통과하고 네 폭에서 가로 넘침이 없다. | 완료 (2026-11-10 lint, typecheck, build, unit 309개, integration 22개(template 19·web 3), E2E 11개(+폭 전용 skip 3) 통과. 포트 3100을 다른 프로젝트 서버가 쓰고 있어 같은 E2E를 포트 3200 임시 설정으로 실행했다. `DESIGN_TOKENS_CSS`를 publisher에 두고 블로그 `BaseLayout`과 앱 `layout.tsx`가 같은 문자열을 넣는다(unit: template이 토큰 문자열을 그대로 포함). 앱: Hahmlet·JetBrains Mono 가변 글꼴과 시스템 고딕(처음 넣은 Noto Sans KR은 Vercel build의 글꼴 다운로드 실패로 뺐다), 잉크 주 버튼, 연필 파랑 단 구분선·기준선·재단선, 교정 붉은 게시 중 막대, 게시 완료 카드 교료 도장, ‘칸’‘반’ 로고, 안내 문구, 개수 단위 `편`(E2E 기대 문구 4곳 갱신). 1440·1024·768·320px 스크린샷으로 넘침·겹침 확인(1024px는 scrollWidth로도 가로 넘침 없음 측정). 블로그는 같은 토큰만 바뀐 중간 상태(U4에서 마무리)) |
 | U4 정체성: 블로그 | 블로그 template·프리뷰에 교정쇄 × 원고지 적용: 판권·(끝)·200자 원고지 매수, 제목 글꼴 | 디자인 기획 2.4·7.5·10·11 | designer, backend | 매수 계산을 unit으로, 판권·(끝)을 template integration으로 증명한다. | 완료 (2026-11-10 lint, typecheck, build, unit 311개(매수 계산 2개 추가), integration 22개(template 19·web 3, 판권·(끝)·매수·글꼴 link·옛 글 분량 생략 확인 추가), E2E 11개(+폭 전용 skip 3) 통과. publisher가 게시 때 `countManuscriptPages`로 `manuscriptPages` frontmatter를 쓰고(본문 글자가 없으면 생략), template이 글 메타·판권에 보여준다. 앱 프리뷰도 같은 함수로 매수·(끝)·판권을 그린다. 블로그는 Google Fonts `Hahmlet` 700만 받는다. 샘플 블로그 build를 1200·375px로 확인. 매수는 다음 게시부터 붙는다(실제 블로그의 기존 글은 0개)) |
 | U5 디자인 시스템 다지기 | 간격·글자 크기 토큰화, 버튼·카드·dialog 컴포넌트화, 개발용 style guide | 디자인 기획 10·11 | designer, frontend | 앱 CSS의 간격·글자 크기 literal이 토큰으로 바뀐다. | 대기 |
+
+## 칸반 일관성 백로그 (2026-11-11 사용자 요청)
+
+같은 GitHub 계정으로 다른 브라우저에서 로그인하면 게시 완료 열이 비던 문제(칸반 표시 설정이 브라우저 IndexedDB에만 있음)와,
+글을 한꺼번에 다시 게시할 때 GitHub 시간당 한도를 넘길 수 있는 문제를 다룬다.
+
+| 단계 | 내용 | 요구사항 | 역할 | 완료 조건 | 상태 |
+|---|---|---|---|---|---|
+| K1 배포 상태 조회 통합 | 여러 글을 기다릴 때 마지막 commit 하나만 조회 | §5 상태 조회 | frontend | 함께 게시하는 글 수와 관계없이 상태 조회가 10초에 최대 1번이다(unit). | 완료 (2026-11-11 `03b7b3e`. lint, typecheck, unit 272개 통과. 결과 재사용·failed fallback 테스트 추가) |
+| K2 칸반 무상태화 | IndexedDB 칸반 저장소 제거, page 목록 기반 역할 판별, 토글 안 page의 소유 page 찾기, 보관 중 검색 | R3, R4, §3 칸반, §4 | backend, frontend | 아무 저장 데이터가 없는 다른 브라우저에서 같은 칸반이 보인다(E2E).<br>하위 page도 칸반에 오르고 컨테이너는 오르지 않는다(unit·E2E).<br>토글 안 page가 소유 page 아래로 붙는다(unit). | 완료 (2026-11-11 아래 커밋 본문 참조) |
 
 ## 미결 결정
 

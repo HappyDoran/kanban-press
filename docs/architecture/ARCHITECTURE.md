@@ -1,7 +1,7 @@
 ---
 title: 아키텍처
 kind: design
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 # 아키텍처
@@ -10,8 +10,7 @@ last_verified: 2026-11-10
 
 ```text
 Browser
-  ├─ Next.js UI
-  └─ IndexedDB (GitHub user ID별 칸반)
+  └─ Next.js UI (칸반은 저장하지 않고 Notion 목록 + 블로그 저장소로 계산)
           │ HTTPS + HttpOnly encrypted cookies
           ▼
 apps/web (stateless Next.js)
@@ -32,7 +31,7 @@ apps/web (stateless Next.js)
 |---|---|---|
 | GitHub 세션과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
 | Notion connection과 credential | 암호화 HttpOnly 쿠키 | 서버에서 복호화·검증 |
-| 보관 문서 정렬, 칸반 표시 override, 구조 판별 캐시 | IndexedDB(schema v12, 이전 version은 비움) | 비신뢰 입력 |
+| 칸반 카드와 문서/컨테이너 역할 | 저장하지 않음. Notion page 목록(하위 page 여부)으로 매번 계산([ADR 0002](../adr/0002-stateless-board.md)) | 열 때마다 Notion API에서 조회 |
 | 게시 중 상태와 실패 안내 | React 메모리 | 새로고침 시 소멸 |
 | 게시 완료 여부와 글 주소 | 사용자 GitHub repository(글 파일의 page ID 접미사) | 열 때마다 GitHub API에서 조회 |
 | 블로그 사이트 설정(이름·소개·링크) | 사용자 GitHub repository `.kanban-press/site.json` | 저장 시 서버 zod 검증, 빌드 시 template이 다시 검증 |
@@ -49,7 +48,6 @@ package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책�
 |---|---|---|
 | 화면 | `app/notion-browser.tsx`, `kanban-board.tsx`, `notion-tree.tsx`, `publish-preview.tsx`, `github-pages-target.tsx` | 조립과 표시 |
 | 화면 상태 | `app/use-workspace.ts`, `app/use-board.ts`, `lib/client/` | 세션·연결·칸반 상태, 브라우저 API 호출과 응답 검증, 게시→배포 확인 |
-| 칸반 저장소 | `lib/board/repository.ts` | 사용자별 IndexedDB(Dexie) |
 | 인증 | `lib/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
 | Notion | `lib/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
 | GitHub | `lib/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
@@ -110,7 +108,7 @@ publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한�
    `no-store`로 반환한다.
 
 프리뷰는 GitHub adapter를 생성하지 않고 repository를 조회·변경하지 않는다. 브라우저는
-프리뷰 결과를 React 메모리에만 두며 IndexedDB나 게시 상태를 변경하지 않는다.
+프리뷰 결과를 React 메모리에만 두며 게시 상태를 변경하지 않는다.
 화면은 블로그 template과 같은 class와 `@kanban-press/publisher`의 `BLOG_CSS`로 그려
 실제 글과 같은 heading·목록·표 구조를 보여준다. 블로그 안의 이동 링크는 href 없이 그린다.
 
@@ -161,7 +159,7 @@ GitHub OAuth credential에는 공개 repository 직접 게시를 위한 `public_
 scope들은 사용자 repository에 대한 쓰기 권한이므로 제품은 서버에서 대상을
 `<현재 login>.github.io` 하나로 더 좁힌다. 매 요청마다 token scope, repository owner
 numeric ID, public 여부와 push 권한을 확인하며 credential은 응답, URL, 로그,
-IndexedDB에 포함하지 않는다.
+브라우저 저장소에 포함하지 않는다.
 
 ## 6. 장애 특성
 

@@ -60,8 +60,8 @@ last_verified: 2026-11-10
 
 - 실행 서버는 `apps/web` 하나다. 별도 Worker, DB, 큐, 객체 저장소를 추가하지 않는다.
 - GitHub 사용자는 서로 독립적이며 팀·조직·tenant 모델을 만들지 않는다.
-- 사용자별 칸반은 브라우저 IndexedDB에 GitHub 사용자 ID namespace로 저장한다.
-- 인증 및 provider token은 클라이언트 JavaScript나 IndexedDB에 저장하지 않는다.
+- 칸반 상태는 어디에도 저장하지 않고 Notion page 목록과 블로그 저장소에서 매번 계산한다([ADR 0002](docs/adr/0002-stateless-board.md)). 그래서 같은 계정이면 어느 브라우저에서나 같다.
+- 인증 및 provider token은 클라이언트 JavaScript나 브라우저 저장소(IndexedDB·localStorage)에 저장하지 않는다.
 - GitHub 세션과 Notion 연결 정보는 암호화·무결성 보호된 `HttpOnly`,
   `Secure`, `SameSite=Lax` 쿠키에만 둔다.
 - 게시 요청은 서버가 Notion과 GitHub 권한을 다시 확인한 후 GitHub repository에
@@ -75,7 +75,7 @@ last_verified: 2026-11-10
 - 모든 서버 mutation은 현재 GitHub 사용자와 Notion/GitHub 리소스 소유권을
   요청 시점에 다시 검증한다.
 - Notion 연결 쿠키는 크기 상한과 연결 개수 상한을 둔다. 초과 시 명시적으로 거절한다.
-- 브라우저 저장 데이터는 신뢰하지 않고 서버 경계에서 Zod로 재검증한다.
+- 브라우저가 보낸 데이터는 신뢰하지 않고 서버 경계에서 Zod로 재검증한다.
 
 ## 명령어와 로컬 함정
 

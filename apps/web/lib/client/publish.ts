@@ -1,4 +1,4 @@
-// 게시 요청 → GitHub Actions 배포 완료까지 기다리는 흐름. React와 IndexedDB를 모른다.
+// 게시 요청 → GitHub Actions 배포 완료까지 기다리는 흐름. React를 모른다.
 // 서버 측 재시도나 이력은 없으므로(제품 명세 §4) 화면을 닫으면 확인을 멈추고 결과는 남기지 않는다.
 import { TaskLimiter } from "../board/task-limiter";
 import { ApiError, fetchPublishStatus, type PublishStatus, requestPublish, requestUnpublish } from "./api";

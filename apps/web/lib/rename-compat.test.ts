@@ -1,5 +1,5 @@
 // 프로젝트 이름 변경(notion-kanban-blog → kanban-press, 2026-11-10) 전 데이터와의 호환.
-// 쿠키 AAD 호환은 packages/auth server.test의 재작성 전 fixture, IndexedDB 이전은 board repository test가 증명한다.
+// 쿠키 AAD 호환은 packages/auth server.test의 재작성 전 fixture가 증명한다.
 import { randomBytes } from "node:crypto";
 
 import { createSessionCookieCodec } from "@kanban-press/auth/server";

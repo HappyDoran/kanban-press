@@ -50,9 +50,8 @@ Notion 원문, GitHub 응답, 브라우저 저장 데이터는 입력 자료이�
 - Route Handler와 Server Component를 서버 경계로 사용
 - Tailwind CSS, shadcn/ui
 - dnd-kit: 접근 가능한 칸반 drag-and-drop
-- IndexedDB + Dexie: 사용자별 보관 문서 정렬과 page 설정 저장
 - React state: 새로고침 시 소멸하는 게시 중·완료 상태와 완료 링크
-- Zod: 쿠키 복호화 결과, API 입력, IndexedDB 레코드 검증
+- Zod: 쿠키 복호화 결과, API 입력, provider 응답 검증
 
 ## 인증과 외부 연동
 
@@ -99,7 +98,7 @@ MVP에서는 사용하지 않는다. OAuth 흐름과 쿠키 codec을 작은 내�
 - Vitest integration: mutable fake provider로 preview→원문/권한 변경→publish와 실제
   publisher v2/category/image artifact 연결 검증
 - Astro fixture build: 구조적 Notion block의 Markdown과 최종 semantic HTML 회귀 검증
-- Playwright: OAuth를 대체한 브라우저 E2E와 IndexedDB 격리 검증
+- Playwright: OAuth를 대체한 브라우저 E2E와 다른 브라우저에서 같은 칸반 검증
 - Playwright + axe-core: production build에서 desktop·320px mobile 핵심 흐름,
   WCAG serious/critical 위반, overflow와 DCL 3초·전송량 3MB 회귀 예산 검증
 

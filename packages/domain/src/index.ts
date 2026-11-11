@@ -10,7 +10,7 @@ export type ContentItemId = EntityId<"ContentItem">;
 export type NotionConnectionId = EntityId<"NotionConnection">;
 export type UserId = EntityId<"GitHubUser">;
 
-/** 보관 중만 IndexedDB에 저장되고 게시 중·게시 완료는 화면 메모리에만 있다. */
+/** 칸반 열. 저장하지 않고 Notion 목록·블로그 저장소·화면의 게시 상태로 정한다. */
 export const BOARD_COLUMNS = ["stored", "publishing", "published"] as const;
 export type BoardColumn = (typeof BOARD_COLUMNS)[number];
 

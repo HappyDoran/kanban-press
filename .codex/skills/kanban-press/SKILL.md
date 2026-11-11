@@ -1,6 +1,6 @@
 ---
 name: kanban-press
-description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, per-GitHub-user IndexedDB boards, direct OAuth publishing to username.github.io, Astro/GitHub Pages output, project architecture, backlog priorities, or acceptance tests.
+description: Build and verify this repository's DB-free, multi-user Notion kanban publishing app. Use when implementing or reviewing GitHub OAuth, encrypted HttpOnly cookie sessions, Notion OAuth connections, stateless boards computed from Notion and the blog repository, direct OAuth publishing to username.github.io, Astro/GitHub Pages output, project architecture, backlog priorities, or acceptance tests.
 ---
 
 # Kanban Press
@@ -22,7 +22,7 @@ architecture or contract in the documents before code.
 
 - Keep `apps/web` as the only server runtime.
 - Treat users as independent GitHub identities, not tenants or team members.
-- Store board state in IndexedDB under the immutable GitHub numeric user ID.
+- Do not persist board state anywhere; compute it from the Notion page list and the blog repository (ADR 0002).
 - Keep credentials only in authenticated-encryption, HttpOnly cookies.
 - Never put credentials in client JavaScript, IndexedDB, localStorage, URLs, or logs.
 - Revalidate Notion page and GitHub repository access for every publish request.

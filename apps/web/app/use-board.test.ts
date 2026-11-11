@@ -1,101 +1,75 @@
 import { describe, expect, it } from "vitest";
 
-import type { BoardRecord } from "../lib/board/repository";
+import type { PageSummary } from "../lib/client/api";
 
-import { isVisibleByDefault, pageKey, toKanbanRecords } from "./use-board";
+import { pageKey, toKanbanRecords } from "./use-board";
 
-function record(overrides: Partial<BoardRecord> = {}): BoardRecord {
+const CONNECTION = "connection";
+
+function page(overrides: Partial<PageSummary> = {}): PageSummary {
   return {
-    column: "stored",
-    connectionId: "connection",
-    hasNavigableChildren: false,
-    isVisible: true,
-    ownerGitHubUserId: "583231",
-    pageRole: "document",
-    pageRoleOverride: null,
-    position: 0,
+    hasChildren: false,
+    iconUrl: null,
+    lastEditedAt: "2026-07-19T10:00:00.000Z",
+    parentContainerId: null,
+    parentPageId: null,
     providerPageId: "page",
-    sourceLastEditedAt: "2026-07-19T10:00:00.000Z",
-    structureSourceLastEditedAt: null,
     title: "문서",
-    updatedAt: "2026-07-19T10:00:00.000Z",
-    visibilityOverride: null,
     ...overrides,
   };
 }
 
 describe("toKanbanRecords", () => {
-  it("shows visible documents in stored and hides containers and hidden pages", () => {
+  it("shows every document page (child and database rows too) newest first and leaves out containers", () => {
     const cards = toKanbanRecords(
+      CONNECTION,
       [
-        record(),
-        record({ pageRole: "container", providerPageId: "container" }),
-        record({ isVisible: false, providerPageId: "hidden" }),
+        page({ lastEditedAt: "2026-07-01T00:00:00.000Z", providerPageId: "old" }),
+        page({ hasChildren: true, providerPageId: "container" }),
+        page({ lastEditedAt: "2026-07-20T00:00:00.000Z", parentPageId: "container", providerPageId: "child" }),
+        page({ parentContainerId: "database", providerPageId: "row" }),
       ],
       {},
       {},
     );
 
-    expect(cards).toEqual([
-      expect.objectContaining({ column: "stored", providerPageId: "page", publishedUrl: null }),
+    expect(cards.map((card) => [card.providerPageId, card.column])).toEqual([
+      ["child", "stored"],
+      ["row", "stored"],
+      ["old", "stored"],
     ]);
   });
 
-  it("keeps a hidden card on screen while it is being published or just published", () => {
-    const hidden = record({ isVisible: false });
-    const cards = toKanbanRecords(
-      [hidden],
-      {
-        [pageKey(hidden)]: {
-          actionsUrl: null,
-          column: "published",
-          publishedUrl: "https://octocat.github.io/posts/a/",
-          startedAt: null,
-        },
-      },
-      {},
-    );
-
-    expect(cards).toEqual([
-      expect.objectContaining({ column: "published", publishedUrl: "https://octocat.github.io/posts/a/" }),
-    ]);
+  it("is empty until a connection is selected", () => {
+    expect(toKanbanRecords(null, [page()], {}, {})).toEqual([]);
   });
 
   it("carries the Actions link of a failed publish on the stored card", () => {
-    const failed = record();
-    const [card] = toKanbanRecords([failed], {}, {
-      [pageKey(failed)]: { actionsUrl: "https://github.com/a/a.github.io/actions/runs/1", message: "실패", retryAt: null },
+    const key = pageKey({ connectionId: CONNECTION, providerPageId: "page" });
+    const [card] = toKanbanRecords(CONNECTION, [page()], {}, {
+      [key]: { actionsUrl: "https://github.com/a/a.github.io/actions/runs/1", message: "실패", retryAt: null },
     });
 
     expect(card).toMatchObject({ column: "stored", publishActionsUrl: "https://github.com/a/a.github.io/actions/runs/1" });
   });
-});
 
-describe("toKanbanRecords with blog posts", () => {
-  it("puts visible cards whose page is on the blog in published with the blog URL, unless a publish is in flight", () => {
-    const onBlog = record({ providerPageId: "9188c6a5-7381-452f-b3dc-d4865aa89bdf" });
+  it("puts pages that are on the blog in published with the blog URL, unless a publish is in flight", () => {
+    const onBlog = page({ providerPageId: "9188c6a5-7381-452f-b3dc-d4865aa89bdf" });
     const blog = new Map([["9188c6a57381452fb3dcd4865aa89bdf", "https://octocat.github.io/posts/notion-9188c6a57381452fb3dcd4865aa89bdf/"]]);
 
-    expect(toKanbanRecords([onBlog, record({ isVisible: false, providerPageId: "9188c6a5-7381-452f-b3dc-000000000000" })], {}, {}, blog)).toEqual([
+    expect(toKanbanRecords(CONNECTION, [onBlog], {}, {}, blog)).toEqual([
       expect.objectContaining({
         column: "published",
         publishedUrl: "https://octocat.github.io/posts/notion-9188c6a57381452fb3dcd4865aa89bdf/",
       }),
     ]);
     const [publishing] = toKanbanRecords(
+      CONNECTION,
       [onBlog],
-      { [pageKey(onBlog)]: { actionsUrl: null, column: "publishing", publishedUrl: null, startedAt: 1 } },
+      { [pageKey({ connectionId: CONNECTION, providerPageId: onBlog.providerPageId })]: { actionsUrl: null, column: "publishing", publishedUrl: null, startedAt: 1 } },
       {},
       blog,
     );
     expect(publishing?.column).toBe("publishing");
-  });
-});
-
-describe("isVisibleByDefault", () => {
-  it("shows only top-level pages by default", () => {
-    expect(isVisibleByDefault({ parentContainerId: null, parentPageId: null })).toBe(true);
-    expect(isVisibleByDefault({ parentContainerId: null, parentPageId: "parent" })).toBe(false);
-    expect(isVisibleByDefault({ parentContainerId: "database", parentPageId: null })).toBe(false);
   });
 });

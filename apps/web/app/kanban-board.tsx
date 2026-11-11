@@ -38,14 +38,20 @@ import type {
   Over,
 } from "@dnd-kit/core";
 import type { BoardColumn } from "@kanban-press/domain";
-import type { BoardRecord } from "../lib/board/repository";
 
-export type KanbanRecord = Omit<BoardRecord, "column"> & {
+import { normalizeForSearch } from "./notion-tree";
+
+/** 칸반 카드. 저장하지 않고 Notion page 목록·블로그 저장소·화면의 게시 상태로 매번 만든다(use-board). */
+export interface KanbanRecord {
   column: BoardColumn;
+  connectionId: string;
+  providerPageId: string;
   publishActionsUrl: string | null;
   publishedUrl: string | null;
   publishStartedAt: number | null;
-};
+  sourceLastEditedAt: string;
+  title: string;
+}
 
 const COLUMN_LABELS: Readonly<Record<BoardColumn, string>> = {
   published: "게시 완료",
@@ -55,14 +61,8 @@ const COLUMN_LABELS: Readonly<Record<BoardColumn, string>> = {
 
 interface KanbanBoardProps {
   connectionNames: Readonly<Record<string, string>>;
-  onMove: (
-    record: KanbanRecord,
-    targetColumn: BoardColumn,
-    targetIndex: number,
-  ) => Promise<void>;
   onPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
-  onRemove: (record: KanbanRecord) => Promise<void>;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   publishFailures: Readonly<
     Record<
@@ -75,10 +75,8 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({
   connectionNames,
-  onMove,
   onPublish,
   onPreview,
-  onRemove,
   onUnpublish,
   publishFailures,
   records,
@@ -86,6 +84,7 @@ export function KanbanBoard({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [query, setQuery] = useState("");
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 6 },
@@ -99,12 +98,14 @@ export function KanbanBoard({
       Object.fromEntries(
         BOARD_COLUMNS.map((column) => [
           column,
-          records
-            .filter((record) => record.column === column)
-            .sort(compareRecords),
+          records.filter(
+            (record) =>
+              record.column === column &&
+              (column !== "stored" || matchesQuery(record, query)),
+          ),
         ]),
       ) as Record<BoardColumn, KanbanRecord[]>,
-    [records],
+    [query, records],
   );
   const activeRecord =
     records.find((record) => recordId(record) === activeId) ?? null;
@@ -112,10 +113,11 @@ export function KanbanBoard({
   async function move(
     record: KanbanRecord,
     targetColumn: BoardColumn,
-    targetIndex: number,
   ): Promise<void> {
-    const action = boardDropAction(record.column, targetColumn);
-    if (action === null) {
+    if (record.column === targetColumn) {
+      return;
+    }
+    if (boardDropAction(record.column, targetColumn) === null) {
       setNotice(
         `${COLUMN_LABELS[record.column]}에서 ${COLUMN_LABELS[targetColumn]}(으)로 바로 이동할 수 없습니다.`,
       );
@@ -125,26 +127,9 @@ export function KanbanBoard({
     setMovingId(id);
     setNotice("");
     try {
-      if (action === "publish") {
-        await onPublish(record);
-      } else {
-        await onMove(record, "stored", targetIndex);
-      }
+      await onPublish(record);
     } catch {
       setNotice("카드 작업을 완료하지 못했습니다. 다시 시도해 주세요.");
-    } finally {
-      setMovingId(null);
-    }
-  }
-
-  async function remove(record: KanbanRecord): Promise<void> {
-    const id = recordId(record);
-    setMovingId(id);
-    setNotice("");
-    try {
-      await onRemove(record);
-    } catch {
-      setNotice("카드를 칸반에서 제거하지 못했습니다. 다시 시도해 주세요.");
     } finally {
       setMovingId(null);
     }
@@ -176,11 +161,11 @@ export function KanbanBoard({
   async function handleDragEnd(event: DragEndEvent): Promise<void> {
     setActiveId(null);
     const active = findRecord(event.active, records);
-    const target = dropTarget(event.over, grouped);
-    if (active === null || target === null) {
+    const column = dropColumn(event.over);
+    if (active === null || column === null) {
       return;
     }
-    await move(active, target.column, target.index);
+    await move(active, column);
   }
 
   return (
@@ -195,13 +180,13 @@ export function KanbanBoard({
             announcements: {
               onDragCancel: () => "카드 이동을 취소했습니다.",
               onDragEnd: ({ over }) => {
-                const label = overColumnLabel(over, grouped);
+                const label = overColumnLabel(over);
                 return label === null
                   ? "카드를 원래 자리에 두었습니다."
                   : `카드를 ${label}에 놓았습니다.`;
               },
               onDragOver: ({ over }) => {
-                const label = overColumnLabel(over, grouped);
+                const label = overColumnLabel(over);
                 return label === null
                   ? "놓을 수 있는 위치 밖입니다."
                   : `${label} 위에 있습니다.`;
@@ -229,11 +214,12 @@ export function KanbanBoard({
                 connectionNames={connectionNames}
                 key={column}
                 movingId={movingId}
-                onRemove={remove}
+                onQueryChange={setQuery}
                 onUnpublish={unpublish}
                 onRetryPublish={onPublish}
                 onPreview={onPreview}
                 publishFailures={publishFailures}
+                query={query}
                 records={grouped[column]}
               />
             ))}
@@ -259,17 +245,18 @@ function KanbanColumn({
   column,
   connectionNames,
   movingId,
-  onRemove,
+  onQueryChange,
   onUnpublish,
   onRetryPublish,
   onPreview,
   publishFailures,
+  query,
   records,
 }: {
   column: BoardColumn;
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
-  onRemove: (record: KanbanRecord) => Promise<void>;
+  onQueryChange: (query: string) => void;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
@@ -279,6 +266,7 @@ function KanbanColumn({
       { actionsUrl: string | null; message: string; retryAt: number | null }
     >
   >;
+  query: string;
   records: readonly KanbanRecord[];
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -297,6 +285,19 @@ function KanbanColumn({
         <h2>{COLUMN_LABELS[column]}</h2>
         <span aria-hidden="true">{records.length}편</span>
       </header>
+      {column === "stored" ? (
+        <input
+          aria-label="보관 중 문서 제목 검색"
+          className="treeSearch"
+          onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") onQueryChange("");
+          }}
+          placeholder="제목 검색"
+          type="search"
+          value={query}
+        />
+      ) : null}
       <SortableContext
         items={records.map(recordId)}
         strategy={verticalListSortingStrategy}
@@ -310,7 +311,6 @@ function KanbanColumn({
               }
               disabled={movingId === recordId(record)}
               key={recordId(record)}
-              onRemove={onRemove}
               onUnpublish={onUnpublish}
               onRetryPublish={onRetryPublish}
               onPreview={onPreview}
@@ -320,7 +320,9 @@ function KanbanColumn({
           ))}
           {column === "publishing" ? <p className="dropZone">여기에 놓으면 게시</p> : null}
           {column === "stored" && records.length === 0 ? (
-            <p className="emptyColumn">왼쪽 문서 목록에서 추가하세요</p>
+            <p className="emptyColumn">
+              {query === "" ? "보관 중인 문서가 없습니다" : "일치하는 문서가 없습니다"}
+            </p>
           ) : null}
           {column === "published" ? (
             <p className="columnHint">블로그에 올라가 있는 글입니다. 다시 게시하려면 게시 중으로 옮기세요.</p>
@@ -334,7 +336,6 @@ function KanbanColumn({
 function SortableBoardCard({
   connectionName,
   disabled,
-  onRemove,
   onUnpublish,
   onRetryPublish,
   onPreview,
@@ -343,7 +344,6 @@ function SortableBoardCard({
 }: {
   connectionName: string;
   disabled: boolean;
-  onRemove: (record: KanbanRecord) => Promise<void>;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
@@ -382,7 +382,6 @@ function SortableBoardCard({
         dragAttributes={attributes}
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
-        onRemove={onRemove}
         onUnpublish={onUnpublish}
         onRetryPublish={onRetryPublish}
         onPreview={onPreview}
@@ -399,7 +398,6 @@ export function BoardCard({
   dragAttributes,
   dragListeners,
   dragRef,
-  onRemove,
   onUnpublish,
   onRetryPublish,
   onPreview,
@@ -412,7 +410,6 @@ export function BoardCard({
   dragAttributes?: DraggableAttributes;
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
-  onRemove?: (record: KanbanRecord) => Promise<void>;
   onUnpublish?: (record: KanbanRecord) => Promise<void>;
   onRetryPublish?: (record: KanbanRecord) => Promise<void>;
   onPreview?: (record: KanbanRecord) => void;
@@ -546,22 +543,6 @@ export function BoardCard({
                 블로그에서 내리기
               </button>
             ) : null}
-            <button
-              aria-label={`${record.title} 칸반에서 제거`}
-              className="iconButton"
-              disabled={disabled}
-              onKeyDown={(event) => event.stopPropagation()}
-              onClick={() => {
-                if (onRemove !== undefined) {
-                  void onRemove(record);
-                }
-              }}
-              onPointerDown={(event) => event.stopPropagation()}
-              title="칸반에서 제거"
-              type="button"
-            >
-              ✕
-            </button>
           </div>
       ) : null}
     </article>
@@ -583,35 +564,17 @@ function PublishElapsed({ since }: { since: number }) {
   );
 }
 
-function overColumnLabel(
-  over: Over | null,
-  grouped: Readonly<Record<BoardColumn, readonly KanbanRecord[]>>,
-): string | null {
-  const target = dropTarget(over, grouped);
-  return target === null ? null : COLUMN_LABELS[target.column];
+function overColumnLabel(over: Over | null): string | null {
+  const column = dropColumn(over);
+  return column === null ? null : COLUMN_LABELS[column];
 }
 
-function dropTarget(
-  over: Over | null,
-  grouped: Readonly<Record<BoardColumn, readonly KanbanRecord[]>>,
-): { column: BoardColumn; index: number } | null {
-  if (over === null) {
-    return null;
-  }
-  const data = over.data.current;
-  if (data?.kind === "column" && isBoardColumn(data.column)) {
-    return { column: data.column, index: grouped[data.column].length };
-  }
-  if (data?.kind === "record" && isBoardColumn(data.column)) {
-    const index = grouped[data.column].findIndex(
-      (record) => recordId(record) === String(over.id),
-    );
-    return {
-      column: data.column,
-      index: index < 0 ? grouped[data.column].length : index,
-    };
-  }
-  return null;
+/** 카드를 놓은 열. 열 자체나 그 열의 카드 위에 놓으면 그 열이다. */
+function dropColumn(over: Over | null): BoardColumn | null {
+  const data = over?.data.current;
+  return (data?.kind === "column" || data?.kind === "record") && isBoardColumn(data.column)
+    ? data.column
+    : null;
 }
 
 function findRecord(
@@ -638,8 +601,9 @@ function columnId(column: BoardColumn): string {
   return `column:${column}`;
 }
 
-function compareRecords(left: KanbanRecord, right: KanbanRecord): number {
-  return left.position - right.position;
+function matchesQuery(record: KanbanRecord, query: string): boolean {
+  const search = normalizeForSearch(query);
+  return search === "" || normalizeForSearch(record.title).includes(search);
 }
 
 // ponytail: announcements가 render마다 새 객체 — dnd-kit이 ref로 들고 있어 무해, 문제 생기면 useMemo.
