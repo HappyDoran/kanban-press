@@ -5,6 +5,7 @@ import {
   InvalidPublishImageError,
   isPublicImageAddress,
   materializePublishImages,
+  pinnedLookup,
   type ImageHttpResponse,
   type PublishImageDependencies,
   type ResolvedImageAddress,
@@ -162,6 +163,16 @@ describe("publish image assets", () => {
     expect(request.mock.calls[0]?.[1]).toEqual(PUBLIC_ADDRESS);
   });
 
+  it("answers Node's all-addresses lookup with only the pinned address", () => {
+    const lookup = pinnedLookup(PUBLIC_ADDRESS);
+    const all = vi.fn();
+    const single = vi.fn();
+    lookup("cdn.example", { all: true }, all);
+    lookup("cdn.example", {}, single);
+    expect(all).toHaveBeenCalledWith(null, [PUBLIC_ADDRESS]);
+    expect(single).toHaveBeenCalledWith(null, PUBLIC_ADDRESS.address, 4);
+  });
+
   it("materializes images nested in structural Notion blocks", async () => {
     const source = documentWithImages([]);
     source.blocks = [
@@ -250,7 +261,7 @@ describe("publish image assets", () => {
     const eightMiB = new Uint8Array(8 * 1024 * 1024);
     eightMiB.set(PNG_SIGNATURE);
     const total = materializePublishImages(
-      documentWithImages(Array<string>(5).fill(SIGNED_URL)),
+      documentWithImages(Array<string>(9).fill(SIGNED_URL)),
       dependencies({
         request: vi.fn().mockImplementation(() =>
           Promise.resolve(
@@ -265,11 +276,31 @@ describe("publish image assets", () => {
 
     const request = vi.fn();
     const count = materializePublishImages(
-      documentWithImages(Array<string>(21).fill(SIGNED_URL)),
+      documentWithImages(Array<string>(101).fill(SIGNED_URL)),
       dependencies({ request }),
     );
     await expect(count).rejects.toMatchObject({ reason: "count_limit" });
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("downloads at most four images at once and keeps body order", async () => {
+    let active = 0;
+    let peak = 0;
+    const request = vi.fn().mockImplementation(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      active -= 1;
+      return response();
+    });
+    const result = await materializePublishImages(
+      documentWithImages(Array<string>(30).fill(SIGNED_URL)),
+      dependencies({ request }),
+    );
+    expect(peak).toBe(4);
+    expect(result.artifacts.map((artifact) => artifact.path).at(-1)).toBe(
+      "src/assets/blog/safe-post-a1b2c3d4/image-030.png",
+    );
   });
 
   it.each([

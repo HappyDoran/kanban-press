@@ -275,7 +275,7 @@ commit, ref update, Pages mutation은 호출하지 않는다. credential, provid
 모든 redirect hop은 DNS를 다시 검증해 loopback, private, link-local, multicast,
 documentation/reserved 주소를 차단하며, 검증한 public IP를 실제 TLS 연결에 고정한다.
 redirect는 최대 3회, 이미지당 timeout은 10초, 이미지당 최대 8 MiB, 문서 전체 최대
-32 MiB, 문서당 최대 20개다. `Content-Type`과 파일 signature, `Content-Length`와 실제
+64 MiB, 문서당 최대 100개다. 이미지는 본문 순서를 지키며 4장씩 함께 받는다. `Content-Type`과 파일 signature, `Content-Length`와 실제
 stream byte를 모두 검사하고
 허용하지 않는 MIME, 누락된 MIME, redirect downgrade/loop/초과, DNS/IP 오류와 timeout은
 commit 전에 `422 invalid_publish_image`로 실패한다. SVG와 MIME sniff fallback은

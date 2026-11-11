@@ -95,7 +95,7 @@ update, repository 관리 경계·Pages readiness 판별과 Actions/Pages 상태
 이미지 downloader는 `apps/web`의 게시 전용 경계다. HTTPS URL과 매 redirect의 hostname을
 DNS로 해석해 public unicast 주소만 남기고 그 주소를 TLS socket lookup에 고정한다.
 credential/fragment, private·reserved IP, protocol downgrade, redirect 3회 초과, 10초
-timeout, 허용 MIME 외 응답, 이미지당 8 MiB·문서당 32 MiB·20개 초과를 거절한다.
+timeout, 허용 MIME 외 응답, 이미지당 8 MiB·문서당 64 MiB·100개 초과를 거절한다.
 성공 byte만 결정적 `src/assets/blog/<slug>/image-<순번>.<확장자>` artifact가 되며
 publisher에는 provider URL 대신 검증된 로컬 상대 경로만 전달한다. 실패 오류는 URL을
 포함하지 않는 안정적인 code로만 응답한다.
