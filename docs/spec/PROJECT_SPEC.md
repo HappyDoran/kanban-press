@@ -1,7 +1,7 @@
 ---
 title: 제품 명세
 kind: spec
-last_verified: 2026-11-10
+last_verified: 2026-11-11
 ---
 
 # 제품 명세
@@ -455,6 +455,10 @@ deployment를 조회한다. deploy workflow는 `concurrency`로 Pages 배포를 
 Pages 성공을 최우선으로 하고, Actions 실패 conclusion은 `failed`, 진행 상태는
 `queued` 또는 `in_progress`로 반환한다. workflow가 아직 생성되지 않은 짧은 구간은
 `queued`로 간주한다. 새로고침 이후에는 이전 실행을 복구하거나 polling하지 않는다.
+한 탭에서 여러 글을 기다릴 때 클라이언트는 글마다 따로 조회하지 않고 이 탭이 마지막으로 만든
+commit 하나만 10초에 최대 1번 조회한다. 이 탭의 commit은 하나씩 순서대로 쌓이므로 마지막 commit이
+앞선 commit을 포함한다. 마지막 commit이 `failed`면 자기 commit을 한 번 더 조회해 그 결과를 쓴다.
+따라서 함께 게시하는 글 수와 관계없이 상태 조회 GitHub API 사용량은 글 하나를 게시할 때와 같다.
 
 ### GitHub Pages repository
 

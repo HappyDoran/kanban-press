@@ -119,4 +119,57 @@ describe("publishAndWatch", () => {
     await removed;
     expect(commitRequests).toEqual(["/api/publish", "/api/publish", "/api/publish/unpublish"]);
   });
+  describe("waiting for several posts in one tab", () => {
+    const SECOND = "c".repeat(40);
+    const statusUrl = (sha: string) => `/api/publish/status?commitSha=${sha}`;
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    function stubSequence(secondState: "failed" | "succeeded") {
+      const statusCalls: string[] = [];
+      let commits = 0;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn<typeof fetch>(async (input) => {
+          const url = String(input);
+          if (!url.startsWith("/api/publish/status")) {
+            commits += 1;
+            return Response.json({
+              commitSha: commits === 1 ? COMMIT : SECOND,
+              contentHash: "b".repeat(64),
+              pageUrl: "https://octocat.github.io/posts/hello/",
+            });
+          }
+          statusCalls.push(url);
+          const state = statusCalls.length === 1 ? "queued" : url === statusUrl(SECOND) ? secondState : "succeeded";
+          return Response.json({ actionsUrl: null, state });
+        }),
+      );
+      return statusCalls;
+    }
+
+    it("checks only the latest commit and reuses a result fetched while sleeping", async () => {
+      const statusCalls = stubSequence("succeeded");
+      let wakeFirst: () => void = () => undefined;
+      const first = watch({ sleep: () => new Promise<void>((resolve) => (wakeFirst = resolve)) });
+      await flush();
+      const second = watch({ providerPageId: "second" });
+      await expect(second).resolves.toBe("https://octocat.github.io/posts/hello/");
+
+      wakeFirst();
+      await expect(first).resolves.toBe("https://octocat.github.io/posts/hello/");
+      expect(statusCalls).toEqual([statusUrl(COMMIT), statusUrl(SECOND)]);
+    });
+
+    it("falls back to its own commit when the latest deployment failed", async () => {
+      const statusCalls = stubSequence("failed");
+      let wakeFirst: () => void = () => undefined;
+      const first = watch({ sleep: () => new Promise<void>((resolve) => (wakeFirst = resolve)) });
+      await flush();
+      await expect(watch({ providerPageId: "second" })).rejects.toEqual(new ApiError("deployment_failed"));
+
+      wakeFirst();
+      await expect(first).resolves.toBe("https://octocat.github.io/posts/hello/");
+      expect(statusCalls).toEqual([statusUrl(COMMIT), statusUrl(SECOND), statusUrl(COMMIT)]);
+    });
+  });
 });
