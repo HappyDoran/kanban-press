@@ -47,6 +47,30 @@ export function writePublishRejectedLog(
   sink(JSON.stringify({ code: safe(event.code), detail: safe(event.detail), event: "publish_content_rejected", level: "warn" }));
 }
 
+/**
+ * 게시·프리뷰 중 분류하지 못한 예외. 오류 이름과, 검사 오류면 실패한 필드 경로(키·번호만)를 남긴다. 값과 message는 남기지 않는다.
+ */
+export function writeUnexpectedFailureLog(
+  operation: string,
+  error: unknown,
+  sink: LogSink = (line) => console.error(line),
+): void {
+  const name = error instanceof Error ? error.name : typeof error;
+  const issue = (error as { issues?: { code?: unknown; path?: unknown }[] } | null)?.issues?.[0];
+  const path = Array.isArray(issue?.path) ? issue.path.filter((key) => typeof key === "string" || typeof key === "number").join(".") : "";
+  const safe = (value: string) => (SAFE_DETAIL.test(value) ? value : "invalid_detail");
+  sink(
+    JSON.stringify({
+      detail: safe(name),
+      event: "unexpected_failure",
+      issue: typeof issue?.code === "string" ? safe(issue.code) : null,
+      level: "error",
+      operation: SAFE_OPERATION.test(operation) ? operation : "invalid_operation",
+      path: path === "" ? null : safe(path),
+    }),
+  );
+}
+
 const SAFE_DETAIL = /^[A-Za-z][A-Za-z0-9_ .-]{0,63}$/;
 
 function logLevel(code: ProviderFailureLog["code"]): LogLevel {

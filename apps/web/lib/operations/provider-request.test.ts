@@ -5,7 +5,7 @@ import {
   providerRequest,
   ProviderTransportError,
 } from "./provider-request";
-import { writeProviderFailureLog, writePublishRejectedLog } from "./structured-log";
+import { writeProviderFailureLog, writePublishRejectedLog, writeUnexpectedFailureLog } from "./structured-log";
 
 describe("providerRequest", () => {
   it("bounds Retry-After and emits only allowlisted structured fields", async () => {
@@ -110,5 +110,25 @@ describe("writePublishRejectedLog", () => {
       { code: "invalid_publish_image", detail: "byte_limit", event: "publish_content_rejected", level: "warn" },
       { code: "invalid_publish_image", detail: "invalid_detail", event: "publish_content_rejected", level: "warn" },
     ]);
+  });
+});
+
+describe("writeUnexpectedFailureLog", () => {
+  it("records the error name and the failing field path without values or messages", () => {
+    const lines: string[] = [];
+    const error = Object.assign(new Error("secret value https://x.example"), {
+      issues: [{ code: "too_big", message: "secret", path: ["blocks", 3, "richText", 0, "href"] }],
+      name: "ZodError",
+    });
+    writeUnexpectedFailureLog("publish_unavailable", error, (line) => lines.push(line));
+    expect(JSON.parse(lines[0]!)).toEqual({
+      detail: "ZodError",
+      event: "unexpected_failure",
+      issue: "too_big",
+      level: "error",
+      operation: "publish_unavailable",
+      path: "blocks.3.richText.0.href",
+    });
+    expect(lines[0]).not.toContain("secret");
   });
 });
