@@ -371,6 +371,7 @@ Post ${number} body.
     expect(postsHtml.match(/data-post /g)).toHaveLength(13);
     expect(postsHtml).toContain('data-search="post 07 description 07 swift"');
     expect(postsHtml).toContain('data-pagination hidden');
+    expect(postsHtml).toContain('data-tag-more hidden');
     expect(postsHtml).toContain("<script");
     expect(css).toContain("min-width:20rem");
     expect(css).toContain("font-size:clamp(1.55rem,3vw,1.9rem)");
