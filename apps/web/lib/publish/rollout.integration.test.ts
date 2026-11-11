@@ -255,6 +255,7 @@ async function fixture(initialPage: NotionPageContent): Promise<RolloutFixture> 
     getDeploymentStatus: vi.fn(),
     getPagesRepository,
     getRepositoryReadiness,
+    readTextFiles: vi.fn().mockResolvedValue(new Map()),
   };
   const dependencies: PublishDependencies = {
     appOrigin: ORIGIN,

@@ -62,6 +62,7 @@ const blogPostsSchema = z.object({
     z.object({
       pageIdSuffix: z.string().regex(/^[a-f0-9]{32}$/),
       pageUrl: z.url({ protocol: /^https$/ }),
+      updatedAt: z.iso.datetime().nullable(),
     }),
   ),
 });
@@ -131,11 +132,17 @@ export async function requestPublish(connectionId: string, providerPageId: strin
   return parse(publishResultSchema, await readJson(response), "invalid_publish_response");
 }
 
-/** 블로그 저장소에 올라가 있는 글: page ID 접미사 → 글 주소. */
-export async function fetchBlogPosts(signal?: AbortSignal): Promise<ReadonlyMap<string, string>> {
+/** 블로그에 올라가 있는 글. `updatedAt`은 게시 때의 Notion 수정 시각이고, 모르면 null이다. */
+export interface BlogPost {
+  updatedAt: string | null;
+  url: string;
+}
+
+/** 블로그 저장소에 올라가 있는 글: page ID 접미사 → 글. */
+export async function fetchBlogPosts(signal?: AbortSignal): Promise<ReadonlyMap<string, BlogPost>> {
   const response = await fetch("/api/publish/posts", { cache: "no-store", ...(signal === undefined ? {} : { signal }) });
   const { posts } = parse(blogPostsSchema, await readJson(response));
-  return new Map(posts.map((post) => [post.pageIdSuffix, post.pageUrl]));
+  return new Map(posts.map((post) => [post.pageIdSuffix, { updatedAt: post.updatedAt, url: post.pageUrl }]));
 }
 
 const boardSchema = z.object({ pageIds: z.array(z.string().regex(/^[a-f0-9]{32}$/)) });

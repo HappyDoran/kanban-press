@@ -42,6 +42,22 @@ export function publishedPosts(contentPaths: readonly string[]): { slug: string;
   });
 }
 
+/** 글 Markdown 경로. */
+export function postPath(slug: string): string {
+  return `src/content/blog/${slug}.md`;
+}
+
+/**
+ * 글 frontmatter의 `updatedAt`(게시 때 받은 Notion `last_edited_time`, publisher가 JSON 문자열로 쓴다).
+ * 없거나 날짜가 아니면 null.
+ */
+export function postUpdatedAt(markdown: string): string | null {
+  const frontmatter = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(markdown)?.[1] ?? "";
+  const value = /^updatedAt: "([^"\\]+)"$/m.exec(frontmatter)?.[1];
+  const time = value === undefined ? Number.NaN : Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
 /**
  * 옛 주소에 두는 안내 page(결정 D4). JavaScript 없이 새 주소로 보내고, 검색엔진에는 새 주소를 알린다.
  * 이동은 상대 주소(`../<새 slug>/`)라 base path·로컬 미리보기에서도 같은 사이트 안에서 움직인다.

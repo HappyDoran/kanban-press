@@ -35,6 +35,7 @@ apps/web (stateless Next.js)
 | 칸반 카드와 문서/컨테이너 역할 | 저장하지 않음. Notion page 목록(하위 page 여부)으로 매번 계산 | 열 때마다 Notion API에서 조회 |
 | 게시 중 상태와 실패 안내 | React 메모리 | 새로고침 시 소멸 |
 | 게시 완료 여부와 글 주소 | 사용자 GitHub repository(글 파일의 page ID 접미사) | 열 때마다 GitHub API에서 조회 |
+| 게시된 글의 원문 수정 시각 | 사용자 GitHub repository(글 frontmatter `updatedAt`) | 열 때마다 GitHub GraphQL로 글 50개씩 묶어 조회 |
 | 블로그 사이트 설정(이름·소개·링크) | 사용자 GitHub repository `.kanban-press/site.json` | 저장 시 서버 zod 검증, 빌드 시 template이 다시 검증 |
 | 게시 전 프리뷰 DTO와 dialog 상태 | React 메모리 | 닫기·새로고침 시 소멸 |
 | 게시 콘텐츠와 이력 | 사용자 GitHub repository | GitHub 권한으로 검증 |

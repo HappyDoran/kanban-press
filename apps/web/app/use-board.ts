@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ApiError,
+  type BlogPost,
   changeBoard,
   fetchBlogPosts,
   fetchBoard,
@@ -73,7 +74,7 @@ export function toKanbanRecords(
   board: readonly string[],
   views: Readonly<Record<string, PublishView>>,
   failures: Readonly<Record<string, PublishFailure>>,
-  blogPosts: ReadonlyMap<string, string> = new Map(),
+  blogPosts: ReadonlyMap<string, BlogPost> = new Map(),
 ): KanbanRecord[] {
   if (connectionId === null) {
     return [];
@@ -85,13 +86,20 @@ export function toKanbanRecords(
       const key = pageKey({ connectionId, providerPageId: page.providerPageId });
       const view = views[key];
       const suffix = suffixOf(page.providerPageId);
-      const blogUrl = blogPosts.get(suffix) ?? null;
+      const blogPost = blogPosts.get(suffix);
+      const blogUrl = blogPost?.url ?? null;
       if (isContainer(page) || (!boardOrder.has(suffix) && blogUrl === null && view === undefined)) {
         return [];
       }
       return [{
         column: view?.column ?? (blogUrl === null ? "stored" : "published"),
         connectionId,
+        // 원문 수정 표시(§5.1 R8). 둘 다 Notion이 준 분 단위 시각이라 그대로 비교한다. 이번 화면의 게시는 제외한다.
+        outdated:
+          view === undefined &&
+          blogPost !== undefined &&
+          blogPost.updatedAt !== null &&
+          Date.parse(page.lastEditedAt) > Date.parse(blogPost.updatedAt),
         providerPageId: page.providerPageId,
         publishActionsUrl: view?.actionsUrl ?? failures[key]?.actionsUrl ?? null,
         publishedUrl: view?.publishedUrl ?? blogUrl,
@@ -120,7 +128,7 @@ export function suffixOf(providerPageId: string): string {
 export function useBoard(ownerId: string | null, githubLogin: string, pageList: PageList) {
   const [views, setViews] = useState<Readonly<Record<string, PublishView>>>({});
   const [failures, setFailures] = useState<Readonly<Record<string, PublishFailure>>>({});
-  const [blogPosts, setBlogPosts] = useState<ReadonlyMap<string, string>>(new Map());
+  const [blogPosts, setBlogPosts] = useState<ReadonlyMap<string, BlogPost>>(new Map());
   const [board, setBoard] = useState<readonly string[]>([]);
   const [boardError, setBoardError] = useState("");
   const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
@@ -272,7 +280,8 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
           return;
         }
         const suffix = suffixOf(record.providerPageId);
-        setBlogPosts((current) => new Map(current).set(suffix, publishedUrl));
+        // 방금 쓴 글의 수정 시각은 새로고침 때 저장소에서 다시 읽는다.
+        setBlogPosts((current) => new Map(current).set(suffix, { updatedAt: null, url: publishedUrl }));
         setViews((states) => ({
           ...states,
           [key]: { actionsUrl, column: "published", publishedUrl, startedAt: null },

@@ -24,7 +24,7 @@ import {
 import { NotionProviderError, NotionRestContentAdapter } from "../notion/content";
 import { writePublishRejectedLog, writeUnexpectedFailureLog } from "../operations/structured-log";
 
-import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
+import { pageFiles, pageIdSuffix, postPath, postUpdatedAt, publishedPosts, redirectPage } from "./blog-files";
 import { buildPublishDocument, InvalidBlogMetadataError } from "./document";
 import {
   createPublishImageDependencies,
@@ -163,10 +163,19 @@ export async function listPublishedPosts(request: Request, dependencies: Publish
     const repository = await github.getPagesRepository(session.userId, session.githubLogin);
     const readiness = await github.getRepositoryReadiness(repository, templatePaths(repository, session.githubLogin));
     const siteUrl = `https://${session.githubLogin.toLowerCase()}.github.io`;
-    const posts = publishedPosts(readiness.contentPaths).map(({ slug, suffix }) => ({
-      pageIdSuffix: suffix,
-      pageUrl: `${siteUrl}/posts/${slug}/`,
-    }));
+    const published = publishedPosts(readiness.contentPaths);
+    // 원문 수정 표시(§5.1 R8)용이다. 읽지 못해도 게시 완료 열은 보여야 하므로 수정 시각만 비운다.
+    const texts = await github
+      .readTextFiles(repository, published.map(({ slug }) => postPath(slug)))
+      .catch(() => new Map<string, string>());
+    const posts = published.map(({ slug, suffix }) => {
+      const text = texts.get(postPath(slug));
+      return {
+        pageIdSuffix: suffix,
+        pageUrl: `${siteUrl}/posts/${slug}/`,
+        updatedAt: text === undefined ? null : postUpdatedAt(text),
+      };
+    });
     return Response.json({ posts }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     return pageErrorResponse(error, "publish_unavailable");

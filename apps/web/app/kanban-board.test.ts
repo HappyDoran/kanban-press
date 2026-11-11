@@ -11,6 +11,7 @@ import { BoardCard, type KanbanRecord } from "./kanban-board";
 const card: KanbanRecord = {
   column: "stored",
   connectionId: "3c90c3cc-0d44-4b50-8888-8dd25736052a",
+  outdated: false,
   publishActionsUrl:
     "https://github.com/octocat/octocat.github.io/actions/runs/123",
   publishedUrl: null,

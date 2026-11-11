@@ -139,6 +139,7 @@ async function fixture() {
     getDeploymentStatus,
     getPagesRepository,
     getRepositoryReadiness,
+    readTextFiles: vi.fn().mockResolvedValue(new Map()),
   };
   const dependencies: PublishDependencies = {
     appOrigin: ORIGIN,

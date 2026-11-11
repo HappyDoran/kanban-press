@@ -172,6 +172,7 @@ last_verified: 2026-11-11
 | K1 배포 상태 조회 통합 | 여러 글을 기다릴 때 마지막 commit 하나만 조회 | §5 상태 조회 | frontend | 함께 게시하는 글 수와 관계없이 상태 조회가 10초에 최대 1번이다(unit). | 완료 (2026-11-11 `03b7b3e`. lint, typecheck, unit 272개 통과. 결과 재사용·failed fallback 테스트 추가) |
 | K2 칸반 무상태화(K3로 일부 대체) | IndexedDB 칸반 저장소 제거, page 목록 기반 역할 판별, 토글 안 page의 소유 page 찾기, 보관 중 검색 | R3, R4, §3 칸반, §4 | backend, frontend | 아무 저장 데이터가 없는 다른 브라우저에서 같은 칸반이 보인다(E2E).<br>하위 page도 칸반에 오르고 컨테이너는 오르지 않는다(unit·E2E).<br>토글 안 page가 소유 page 아래로 붙는다(unit). | 완료 (2026-11-11 `e3ae72b`, PR #4로 prd 배포) |
 | K3 보관 중 직접 고르기 | 문서 목록의 추가 토글, 보관 중 목록을 블로그 저장소 branch에 저장(`/api/board`), 보관 중 카드 ✕ | R4, §3 칸반, §4 | backend, frontend | 고른 문서만 보관 중에 오르고, 저장 데이터 없는 다른 브라우저에서도 같은 보관 중이 보인다(E2E).<br>branch가 없으면 부모 없는 commit으로 만들고, 동시 변경은 409로 실패한다(unit).<br>연결 소유권·origin·추가 필드를 거절한다(unit). | 완료 (2026-11-11 아래 커밋 본문 참조) |
+| K4 원문 수정 표시 | 게시 뒤 Notion이 바뀐 `게시 완료` 카드에 다시 게시 필요 표시 | R8, §5.1 원문 수정 표시 | backend, frontend | 글 frontmatter `updatedAt`보다 Notion 수정 시각이 늦은 카드만 표시한다(unit).<br>`updatedAt`을 읽지 못해도 게시 완료 열은 보인다(unit). | 완료 (2026-11-11 lint, typecheck, build, unit 전체(web 278개) 통과, integration 22개, E2E 12개(+skip 4) 통과. GitHub client에 GraphQL로 글 50개씩 묶어 읽는 `readTextFiles`(path는 변수로만 전달)를 더하고, `/api/publish/posts`가 frontmatter `updatedAt`을 돌려준다(읽기 실패 시 null). 칸반 카드는 Notion 수정 시각이 더 늦으면 `원문 수정됨 · 다시 게시 필요`를 보인다. 미검증: 실제 GitHub GraphQL 응답(fetch mock만 확인), `test:smoke`) |
 
 ## 미결 결정
 

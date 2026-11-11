@@ -45,6 +45,8 @@ import { normalizeForSearch } from "./notion-tree";
 export interface KanbanRecord {
   column: BoardColumn;
   connectionId: string;
+  /** 게시 완료 글보다 Notion 원문이 나중에 고쳐졌다(§5.1 R8 원문 수정 표시). */
+  outdated: boolean;
   providerPageId: string;
   publishActionsUrl: string | null;
   publishedUrl: string | null;
@@ -466,6 +468,9 @@ export function BoardCard({
       </div>
       <h3 title={record.title}>{record.title}</h3>
       <p className="cardMeta">원문 수정 {formatEditedAt(record.sourceLastEditedAt)}</p>
+      {record.column === "published" && record.outdated ? (
+        <p className="cardOutdated">원문 수정됨 · 다시 게시 필요</p>
+      ) : null}
       {!overlay && record.column === "publishing" ? (
         <div className="publishStatus" role="status">
           <span>
