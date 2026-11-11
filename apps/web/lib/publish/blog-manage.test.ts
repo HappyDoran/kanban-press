@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { NotionConnectionsPayload } from "../auth/notion";
 import { GitHubPagesClient } from "../github/pages";
 
-import { pageFiles, pageIdSuffix, publishedPosts, redirectPage } from "./blog-files";
+import { pageFiles, pageIdSuffix, postUpdatedAt, publishedPosts, redirectPage } from "./blog-files";
 import { listPublishedPosts, publishNotionPage, type PublishDependencies, unpublishNotionPage } from "./orchestration";
 
 const NOW = 2_000_000_000;
@@ -59,6 +59,13 @@ describe("blog-files", () => {
     ];
     expect(pageFiles(repository, secondSuffix).paths).toEqual([repository[1]]);
     expect(publishedPosts(repository).map((post) => post.suffix)).toEqual([firstSuffix, secondSuffix]);
+  });
+
+  it("reads updatedAt only from the frontmatter and rejects non-dates", () => {
+    expect(postUpdatedAt('---\nupdatedAt: "2026-07-19T10:01:00Z"\n---\n')).toBe("2026-07-19T10:01:00.000Z");
+    expect(postUpdatedAt('---\ntitle: "a"\n---\nupdatedAt: "2026-07-19T10:01:00Z"\n')).toBeNull();
+    expect(postUpdatedAt('---\nupdatedAt: "nope"\n---\n')).toBeNull();
+    expect(postUpdatedAt("")).toBeNull();
   });
 
   it("writes a redirect page that works without JavaScript and escapes the URL", () => {
@@ -196,14 +203,79 @@ describe("published posts", () => {
       context.dependencies,
     );
     await expect(response.json()).resolves.toEqual({
-      posts: [{ pageIdSuffix: SUFFIX, pageUrl: `https://octocat.github.io/posts/notion-${SUFFIX}/` }],
+      posts: [{ pageIdSuffix: SUFFIX, pageUrl: `https://octocat.github.io/posts/notion-${SUFFIX}/`, updatedAt: null }],
     });
+  });
+
+  it("adds each post's updatedAt from its frontmatter", async () => {
+    const path = `src/content/blog/notion-${SUFFIX}.md`;
+    const context = await fixture([path, LEGACY]);
+    context.readTextFiles.mockResolvedValueOnce(
+      new Map([[path, '---\ntitle: "제목"\nupdatedAt: "2026-07-19T10:01:00.000Z"\n---\n\n본문\nupdatedAt: "2030-01-01T00:00:00.000Z"\n']]),
+    );
+    const response = await listPublishedPosts(
+      new Request(`${ORIGIN}/api/publish/posts`, { headers: { cookie: context.cookie } }),
+      context.dependencies,
+    );
+    expect(context.readTextFiles).toHaveBeenCalledWith(expect.anything(), [path]);
+    await expect(response.json()).resolves.toMatchObject({ posts: [{ updatedAt: "2026-07-19T10:01:00.000Z" }] });
+  });
+
+  it("still lists posts when their updatedAt cannot be read", async () => {
+    const context = await fixture([`src/content/blog/notion-${SUFFIX}.md`]);
+    context.readTextFiles.mockRejectedValueOnce(new Error("graphql down"));
+    const response = await listPublishedPosts(
+      new Request(`${ORIGIN}/api/publish/posts`, { headers: { cookie: context.cookie } }),
+      context.dependencies,
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ posts: [{ pageIdSuffix: SUFFIX, updatedAt: null }] });
   });
 
   it("requires a session", async () => {
     const context = await fixture([]);
     const response = await listPublishedPosts(new Request(`${ORIGIN}/api/publish/posts`), context.dependencies);
     expect(response.status).toBe(401);
+  });
+});
+
+describe("GitHubPagesClient.readTextFiles", () => {
+  it("reads files in GraphQL batches of 50 with paths only in variables and skips missing or binary ones", async () => {
+    const paths = Array.from({ length: 51 }, (_, index) => `src/content/blog/post-${index}.md`);
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          data: {
+            repository: Object.fromEntries(
+              paths.slice(0, 50).map((_, index) => [`f${index}`, index === 0 ? { text: "first" } : index === 1 ? {} : null]),
+            ),
+          },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json({ data: { repository: { f0: { text: "last" } } } }));
+    const client = new GitHubPagesClient({ accessToken: "secret", apiVersion: "2026-03-10", fetch: fetchMock });
+    const repository = { defaultBranch: "main", fullName: "octocat/octocat.github.io", isPrivate: false, providerRepositoryId: "1" };
+
+    const files = await client.readTextFiles(repository, paths);
+
+    expect([...files]).toEqual([
+      [paths[0], "first"],
+      [paths[50], "last"],
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://api.github.com/graphql");
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as { query: string; variables: Record<string, string> };
+    expect(body.query).not.toContain("src/content");
+    expect(body.variables).toMatchObject({ e0: `main:${paths[0]}`, name: "octocat.github.io", owner: "octocat" });
+  });
+
+  it("fails on a GraphQL error body", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ data: null, errors: [{ message: "x" }] }));
+    const client = new GitHubPagesClient({ accessToken: "secret", apiVersion: "2026-03-10", fetch: fetchMock });
+    const repository = { defaultBranch: "main", fullName: "octocat/octocat.github.io", isPrivate: false, providerRepositoryId: "1" };
+    await expect(client.readTextFiles(repository, ["src/content/blog/a.md"])).rejects.toMatchObject({ code: "invalid_response" });
+    await expect(client.readTextFiles(repository, [])).resolves.toEqual(new Map());
   });
 });
 
@@ -286,6 +358,7 @@ async function fixture(contentPaths: string[]) {
     pagesSettingsUrl: "",
     state: "ready",
   });
+  const readTextFiles = vi.fn().mockResolvedValue(new Map());
   const dependencies: PublishDependencies = {
     appOrigin: ORIGIN,
     createGitHubAdapter: () => ({
@@ -298,6 +371,7 @@ async function fixture(contentPaths: string[]) {
         providerRepositoryId: "1",
       }),
       getRepositoryReadiness,
+      readTextFiles,
     }),
     createNotionAdapter: () => ({ getPageContent, listPageOutline: vi.fn(), listPageTree: vi.fn() }),
     imageDependencies: { request: vi.fn(), resolve: vi.fn() },
@@ -308,6 +382,7 @@ async function fixture(contentPaths: string[]) {
     commitArtifacts,
     cookie: `kp_session=${session}; kp_notion_connections=${connections}`,
     dependencies,
+    readTextFiles,
     getPageContent,
     getRepositoryReadiness,
   };

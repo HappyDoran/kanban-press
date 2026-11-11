@@ -42,7 +42,7 @@ describe("toKanbanRecords", () => {
   });
 
   it("shows pages on the blog as published even when they are not on the board list", () => {
-    const blog = new Map([[suffix("a"), "https://octocat.github.io/posts/a/"]]);
+    const blog = new Map([[suffix("a"), { updatedAt: null, url: "https://octocat.github.io/posts/a/" }]]);
 
     expect(toKanbanRecords(CONNECTION, [page("a")], [], {}, {}, blog)).toEqual([
       expect.objectContaining({ column: "published", publishedUrl: "https://octocat.github.io/posts/a/" }),
@@ -65,6 +65,26 @@ describe("toKanbanRecords", () => {
     });
 
     expect(card).toMatchObject({ column: "stored", publishActionsUrl: "https://github.com/a/a.github.io/actions/runs/1" });
+  });
+
+  it("marks a published card outdated only when Notion was edited after the blog copy", () => {
+    const post = (updatedAt: string | null) => new Map([[suffix("a"), { updatedAt, url: "https://octocat.github.io/posts/a/" }]]);
+    const edited = page("a", { lastEditedAt: "2026-07-19T10:01:00.000Z" });
+    const outdated = (updatedAt: string | null, views = {}) =>
+      toKanbanRecords(CONNECTION, [edited], [], views, {}, post(updatedAt))[0]?.outdated;
+
+    expect(outdated("2026-07-19T10:00:00.000Z")).toBe(true);
+    expect(outdated("2026-07-19T10:01:00.000Z")).toBe(false);
+    expect(outdated("2026-07-19T10:02:00.000Z")).toBe(false);
+    // 수정 시각을 읽지 못했거나 이번 화면에서 막 게시했으면 표시하지 않는다.
+    expect(outdated(null)).toBe(false);
+    const key = pageKey({ connectionId: CONNECTION, providerPageId: id("a") });
+    expect(
+      outdated("2026-07-19T10:00:00.000Z", {
+        [key]: { actionsUrl: null, column: "published", publishedUrl: "https://octocat.github.io/posts/a/", startedAt: null },
+      }),
+    ).toBe(false);
+    expect(toKanbanRecords(CONNECTION, [page("b")], [suffix("b")], {}, {})[0]?.outdated).toBe(false);
   });
 });
 

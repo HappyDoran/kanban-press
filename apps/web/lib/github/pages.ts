@@ -51,6 +51,14 @@ const gitObjectSchema = z.object({ sha: gitShaSchema });
 const gitRefSchema = z.object({ object: gitObjectSchema });
 const gitCommitSchema = z.object({ sha: gitShaSchema, tree: gitObjectSchema });
 const compareSchema = z.object({ status: z.string() });
+// object가 Blob이 아니면 inline fragment가 비어 `{}`로, 없으면 null로 온다.
+const graphqlFilesSchema = z.object({
+  data: z.object({
+    repository: z.record(z.string(), z.object({ text: z.string().nullish() }).nullable()),
+  }),
+});
+// ponytail: 한 요청에 50개씩 순서대로 읽는다. 글이 수천 개가 되어 느려지면 묶음을 병렬로 보낸다.
+const FILES_PER_QUERY = 50;
 const gitTreeSchema = z.object({
   tree: z.array(
     z.discriminatedUnion("type", [
@@ -358,6 +366,43 @@ export class GitHubPagesClient implements GitHubRepositoryAdapter {
       [404, 409],
     );
     return file === null ? null : Buffer.from(file.content, "base64").toString("utf8");
+  }
+
+  /**
+   * 기본 branch의 텍스트 파일 여러 개. REST는 파일마다 요청이 하나라 GraphQL alias로 묶어 읽는다.
+   * path는 변수로 넘기므로 query 문자열에 들어가지 않는다.
+   */
+  async readTextFiles(repository: GitHubRepository, paths: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const [owner, name] = repository.fullName.split("/");
+    const files = new Map<string, string>();
+    for (let start = 0; start < paths.length; start += FILES_PER_QUERY) {
+      const chunk = paths.slice(start, start + FILES_PER_QUERY).map((path) => gitPathSchema.parse(path));
+      const query = `query($owner: String!, $name: String!, ${chunk.map((_, index) => `$e${index}: String!`).join(", ")}) {
+  repository(owner: $owner, name: $name) {
+    ${chunk.map((_, index) => `f${index}: object(expression: $e${index}) { ... on Blob { text } }`).join("\n    ")}
+  }
+}`;
+      const variables = Object.fromEntries([
+        ["owner", owner],
+        ["name", name],
+        ...chunk.map((path, index) => [`e${index}`, `${repository.defaultBranch}:${path}`]),
+      ]);
+      const response = await this.#send("/graphql", "repository.files", {
+        body: JSON.stringify({ query, variables }),
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw providerError(response, "git_resource_not_found");
+      }
+      const { repository: objects } = (await parseBody(response, graphqlFilesSchema)).data;
+      chunk.forEach((path, index) => {
+        const text = objects[`f${index}`]?.text;
+        if (typeof text === "string") {
+          files.set(path, text);
+        }
+      });
+    }
+    return files;
   }
 
   /** 기본 branch가 아닌 `branch`의 작은 텍스트 파일과 blob SHA(칸반 보관 중 목록용). branch나 파일이 없으면 null. */

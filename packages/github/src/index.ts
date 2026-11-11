@@ -55,4 +55,10 @@ export interface GitHubRepositoryAdapter {
     repository: GitHubRepository,
     commitSha: string,
   ): Promise<GitHubDeploymentStatus>;
+
+  /** 기본 branch의 텍스트 파일 여러 개(path → 내용). 없거나 바이너리인 파일은 빠진다. */
+  readTextFiles(
+    repository: GitHubRepository,
+    paths: readonly string[],
+  ): Promise<ReadonlyMap<string, string>>;
 }

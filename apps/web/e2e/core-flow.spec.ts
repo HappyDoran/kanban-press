@@ -40,7 +40,7 @@ test("session, adding to the board, preview, publish, the same board in another 
       route.fulfill({
         json: {
           posts: onBlog
-            ? [{ pageIdSuffix: "9188c6a57381452fb3dcd4865aa89bdf", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/" }]
+            ? [{ pageIdSuffix: "9188c6a57381452fb3dcd4865aa89bdf", pageUrl: "https://happydoran.github.io/posts/e2e-post-9188c6a57381452fb3dcd4865aa89bdf/", updatedAt: null }]
             : [],
         },
       }),

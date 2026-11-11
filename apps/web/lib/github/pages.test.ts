@@ -713,6 +713,7 @@ describe("GitHub Pages repository route orchestration", () => {
             getDeploymentStatus: vi.fn(),
             getPagesRepository,
             getRepositoryReadiness,
+            readTextFiles: vi.fn(),
           };
         },
         sessionCodec,

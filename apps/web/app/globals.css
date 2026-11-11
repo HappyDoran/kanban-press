@@ -827,6 +827,15 @@ button:disabled {
   font-size: 0.6875rem;
 }
 
+.cardOutdated {
+  justify-self: start;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--radius-control);
+  background: var(--color-warning-bg);
+  color: var(--color-danger);
+  font-size: 0.6875rem;
+}
+
 /* 교료 도장: 게시 완료 카드에만 찍는 장식(디자인 기획 2.4·10.3). 제목이 도장 밑으로 가지 않게 오른쪽을 비운다. */
 .boardCard.published h3 {
   padding-right: 3.75rem;
