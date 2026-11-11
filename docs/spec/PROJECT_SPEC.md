@@ -393,6 +393,11 @@ code fence 길이는 본문보다 길게 생성하고 language 식별자를
 제한한다. toggle의 `<details>` wrapper만 publisher가 생성한 신뢰 HTML로 허용하며
 summary와 자식 내용은 동일한 escape 규칙을 적용한다.
 
+굵게·기울임·취소선은 Markdown 기호(`**` 등) 대신 `<strong>`·`<em>`·`<s>` 태그로 쓰고 줄마다 따로 감싼다. 닫는 기호 앞이
+문장부호이고 뒤가 글자면(`**임시(URL)**을`) Markdown이 강조로 보지 않고, 강조가 빈 줄을 넘으면 문단 경계에서 끊기기 때문이다.
+Notion 글자에 직접 입력한 `**글자**`(붙여 넣은 Markdown)도 같은 줄 안에서 짝이 맞으면 굵게로 보이며, 인라인 코드 안은 바꾸지 않는다.
+인라인 코드 글자는 escape하지 않고 Markdown 렌더러가 한 번만 escape한다.
+
 Notion 본문의 의미 구조는 일반 문단으로 평탄화하지 않는다. 글머리·번호 목록과
 할 일은 중첩 자식을 유지하고, callout은 본문과 자식을 하나의 강조 영역으로,
 table은 행·열 header 설정과 cell rich text를 보존한다. publisher가 생성하는 table과

@@ -267,6 +267,8 @@ describe("Astro template build", () => {
         },
         { expression: "E = mc^2", kind: "equation" },
         { kind: "paragraph", richText: [{ code: true, text: "<org> & co" }] },
+        { kind: "paragraph", richText: [{ text: "MinIO에게 " }, { bold: true, text: "임시 출입증(presigned URL)" }, { text: "을 요청" }] },
+        { kind: "paragraph", richText: [{ text: "핵심은 **\"직접 입력한 굵게\"**에 있다" }] },
         {
           caption: [{ text: "Reference" }],
           kind: "linkCard",
@@ -312,6 +314,9 @@ describe("Astro template build", () => {
     // inline code는 한 번만 escape된다(화면에 `<org> & co`로 보인다).
     expect(html).toContain("<code>&lt;org&gt; &amp; co</code>");
     expect(html).not.toContain("&amp;lt;");
+    // 닫는 강조 앞이 괄호이고 뒤가 글자여도 굵게 보인다.
+    expect(html).toContain("MinIO에게 <strong>임시 출입증(presigned URL)</strong>을 요청");
+    expect(html).toContain('핵심은 <strong>"직접 입력한 굵게"</strong>에 있다');
     expect(html).toContain('href="https://example.com/reference"');
     expect(html).toContain("Attachment");
   });

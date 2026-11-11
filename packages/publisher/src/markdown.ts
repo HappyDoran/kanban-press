@@ -417,19 +417,21 @@ function renderTable(
 }
 
 function renderRichText(parts: readonly PublishRichText[]): string {
-  return parts
+  return typedBold(parts
     .map((part) => {
       let content = part.code
         ? inlineCode(part.text)
         : escapeMarkdown(part.text);
+      // 강조는 `**` 대신 HTML 태그로 쓴다. `**임시(URL)**을`처럼 닫는 `**` 앞이 문장부호이고 뒤가 글자면
+      // Markdown이 강조로 보지 않아 별표가 그대로 보인다. content는 이미 escape되어 있다.
       if (!part.code && part.bold) {
-        content = `**${content}**`;
+        content = emphasize("strong", content);
       }
       if (!part.code && part.italic) {
-        content = `*${content}*`;
+        content = emphasize("em", content);
       }
       if (!part.code && part.strikethrough) {
-        content = `~~${content}~~`;
+        content = emphasize("s", content);
       }
       const href =
         part.href === undefined || part.href === null
@@ -439,7 +441,7 @@ function renderRichText(parts: readonly PublishRichText[]): string {
         ? content
         : `[${content}](<${escapeLinkDestination(href)}>)`;
     })
-    .join("");
+    .join(""));
 }
 
 function renderRichTextHtml(
@@ -464,6 +466,30 @@ function renderRichTextHtml(
         : `<a href="${escapeHtml(href)}">${content}</a>`;
     })
     .join("");
+}
+
+/**
+ * Notion 글자에 Markdown처럼 직접 입력한 `**굵게**`를 굵게로 보인다(붙여 넣은 Markdown이 별표째 남는다).
+ * 글자 조각을 이은 뒤 escape된 `\*\*…\*\*`를 한 줄 안에서만 짝짓는다. 사이에 인라인 코드가 있어도 되지만,
+ * 인라인 코드 안의 글자는 바꾸지 않는다.
+ */
+function typedBold(content: string): string {
+  const spans: string[] = [];
+  const masked = content.replace(/(`+) [\s\S]*? \1(?!`)/g, (span) => {
+    spans.push(span);
+    return `\uE000${spans.length - 1}\uE000`;
+  });
+  return masked
+    .replace(/\\\*\\\*((?:(?!\\\*\\\*)[^\n])+?)\\\*\\\*/g, "<strong>$1</strong>")
+    .replace(/\uE000(\d+)\uE000/g, (_, index: string) => spans[Number(index)] ?? "");
+}
+
+/** 줄마다 따로 감싼다. 강조가 빈 줄을 넘어 여러 문단에 걸쳐도 태그가 문단 경계에서 끊기지 않는다. */
+function emphasize(tag: "em" | "s" | "strong", content: string): string {
+  return content
+    .split("\n")
+    .map((line) => (line.trim() === "" ? line : `<${tag}>${line}</${tag}>`))
+    .join("\n");
 }
 
 /**
