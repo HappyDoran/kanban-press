@@ -1222,7 +1222,7 @@ button:disabled {
 
 /* 프레임 안은 블로그 CSS(BLOG_CSS)가 그린다. 여기서는 블로그 전용 크기 토큰과 기본 글자만 맞춘다. */
 .previewFrame {
-  --shell-max: 67.5rem;
+  --shell-max: 76rem;
   --reading-max: 45rem;
   --toc-width: 13.75rem;
   width: 100%;
@@ -1255,22 +1255,6 @@ button:disabled {
 
 .previewFrame .site-main {
   min-height: 0;
-}
-
-/* 블로그 CSS는 화면 폭으로 목차 위치를 정한다. 좁은 프레임에서는 실제 화면 폭과 무관하게 목차를 본문 위에 둔다. */
-.previewFrame:not(.desktop) .article-layout.with-toc {
-  grid-template-columns: minmax(0, var(--reading-max));
-}
-
-.previewFrame:not(.desktop) .article-layout.with-toc > * {
-  position: static;
-  grid-column: auto;
-  grid-row: auto;
-  max-height: none;
-}
-
-.previewFrame:not(.desktop) .article-layout.with-toc > .post-toc {
-  margin-bottom: 2rem;
 }
 
 .previewImagePlaceholder > div {

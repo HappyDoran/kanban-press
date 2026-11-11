@@ -18,7 +18,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { NotionConnectionsPayload } from "../auth/notion";
 import { GitHubPagesError } from "../github/pages";
 import { NotionProviderError } from "../notion/content";
-import { categorySlug } from "./document";
 import {
   publishNotionPage,
   type PublishDependencies,
@@ -46,7 +45,7 @@ interface RolloutFixture {
   setPage(page: NotionPageContent | Error): void;
 }
 
-describe("preview/category/template v2 rollout", () => {
+describe("preview/template v2 rollout", () => {
   it("publishes only the latest source after a stale preview", async () => {
     const context = await fixture(previewPage());
     const previewResponse = await previewNotionPage(
@@ -58,7 +57,6 @@ describe("preview/category/template v2 rollout", () => {
     expect(previewResponse.status).toBe(200);
     expect(preview).toMatchObject({
       document: {
-        category: { name: "Preview" },
         tags: ["preview-only"],
       },
       sourceLastEditedAt: "2026-08-10T01:00:00.000Z",
@@ -89,10 +87,7 @@ describe("preview/category/template v2 rollout", () => {
       "src/content/blog/rollout-post-9188c6a57381452fb3dcd4865aa89bdf.md",
     );
     expect(markdown).toContain("schemaVersion: 2");
-    expect(markdown).toContain('category: "Release"');
-    expect(markdown).toContain(
-      `categorySlug: "${categorySlug("Release")}"`,
-    );
+    expect(markdown).not.toContain("category");
     expect(markdown).toContain('tags: ["latest", "v2"]');
     expect(markdown).toContain("최신 &lt;본문&gt;");
     expect(markdown).toContain(
@@ -300,7 +295,6 @@ async function fixture(initialPage: NotionPageContent): Promise<RolloutFixture> 
 function previewPage(): NotionPageContent {
   return page({
     body: "프리뷰 본문",
-    category: "Preview",
     editedAt: "2026-08-10T01:00:00.000Z",
     tags: ["preview-only"],
   });
@@ -309,7 +303,6 @@ function previewPage(): NotionPageContent {
 function releasePage(): NotionPageContent {
   return page({
     body: "최신 <본문>",
-    category: "Release",
     editedAt: "2026-08-11T02:00:00.000Z",
     imageUrl: CAPABILITY_URL,
     tags: ["latest", "v2"],
@@ -318,13 +311,11 @@ function releasePage(): NotionPageContent {
 
 function page({
   body,
-  category,
   editedAt,
   imageUrl,
   tags,
 }: {
   body: string;
-  category: string;
   editedAt: string;
   imageUrl?: string;
   tags: string[];
@@ -350,7 +341,6 @@ function page({
     lastEditedAt: new Date(editedAt),
     providerPageId: PAGE_ID,
     publishingProperties: {
-      "Blog Category": { kind: "select", name: category },
       "Blog Description": { kind: "rich_text", plainText: body },
       "Blog Tags": { kind: "multi_select", names: tags },
     },

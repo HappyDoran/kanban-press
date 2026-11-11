@@ -37,6 +37,19 @@ export interface PublishArtifact {
   path: string;
 }
 
+/**
+ * 예전 template이 만들었지만 지금은 만들지 않는 파일(2026-11-11 주제·시리즈·태그 화면 제거).
+ * 남아 있으면 지운 함수를 import해 build가 깨지므로 게시 commit이 저장소에서 지운다.
+ */
+export const RETIRED_TEMPLATE_PATHS: readonly string[] = [
+  "src/pages/categories/[slug].astro",
+  "src/pages/categories/index.astro",
+  "src/pages/series/[slug].astro",
+  "src/pages/series/index.astro",
+  "src/pages/tags/[slug].astro",
+  "src/pages/tags/index.astro",
+];
+
 export function createAstroTemplateManifest(
   target: AstroTemplateTarget,
 ): PublisherManifest {
@@ -178,34 +191,25 @@ const v1 = z
   })
   .transform((post) => ({
     ...post,
-    category: "미분류",
-    categorySlug: "uncategorized",
     pinned: false,
     schemaVersion: 1 as const,
     tags: [] as string[],
   }));
 
 const tag = z.string().trim().min(1).max(40);
+// 2026-11-11 전에 게시한 글에 남은 주제·시리즈 field. build만 통과시키고 화면에는 쓰지 않는다.
+const retired = z.unknown().optional();
 const v2 = z
   .object({
     ...fields,
-    category: z.string().trim().min(1).max(80),
-    categorySlug: z
-      .string()
-      .min(1)
-      .max(120)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    category: retired,
+    categorySlug: retired,
     manuscriptPages: z.number().int().positive().optional(),
     pinned: z.boolean().default(false),
     schemaVersion: z.literal(2),
-    series: z.string().trim().min(1).max(80).optional(),
-    seriesOrder: z.number().finite().optional(),
-    seriesSlug: z
-      .string()
-      .min(1)
-      .max(120)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
-      .optional(),
+    series: retired,
+    seriesOrder: retired,
+    seriesSlug: retired,
     tags: z
       .array(tag)
       .max(10)
@@ -267,7 +271,7 @@ const { items } = Astro.props;
 `,
     "src/components/PostCard.astro": `---
 import type { CollectionEntry } from "astro:content";
-import { formatDate, pathFor, tagSlug } from "../lib/blog";
+import { formatDate, pathFor, tagPath } from "../lib/blog";
 
 interface Props {
   headingLevel?: "h2" | "h3";
@@ -281,14 +285,13 @@ const remainingTagCount = post.data.tags.length - visibleTags.length;
 ---
 <article class="post-card">
   <div class="post-card-meta">
-    <a class="category-link" href={pathFor("categories/" + post.data.categorySlug + "/")}>{post.data.category}</a>
     <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
   </div>
   <Heading><a class="post-card-title" href={pathFor("posts/" + post.id + "/")}>{post.data.title}</a></Heading>
   {post.data.description && <p class="post-card-description">{post.data.description}</p>}
   {visibleTags.length > 0 && (
     <ul class="tag-list" aria-label="태그">
-      {visibleTags.map((tag) => <li><a href={pathFor("tags/" + tagSlug(tag) + "/")}>#{tag}</a></li>)}
+      {visibleTags.map((tag) => <li><a href={tagPath(tag)}>#{tag}</a></li>)}
       {remainingTagCount > 0 && <li aria-label={"태그 " + remainingTagCount + "개 더 있음"}>+{remainingTagCount}</li>}
     </ul>
   )}
@@ -347,13 +350,6 @@ function readSiteSettings(): SiteSettings {
 
 export type BlogPost = CollectionEntry<"blog">;
 
-export interface BlogCategory {
-  count: number;
-  name: string;
-  posts: readonly BlogPost[];
-  slug: string;
-}
-
 export function pathFor(path = ""): string {
   return base + path.replace(/^\\/+/, "");
 }
@@ -369,34 +365,6 @@ export function sortPosts(posts: readonly BlogPost[]): BlogPost[] {
   });
 }
 
-export function categoriesFor(posts: readonly BlogPost[]): BlogCategory[] {
-  const grouped = new Map<string, { name: string; posts: BlogPost[] }>();
-  for (const post of sortPosts(posts)) {
-    const existing = grouped.get(post.data.categorySlug);
-    if (existing === undefined) {
-      grouped.set(post.data.categorySlug, {
-        name: post.data.category,
-        posts: [post],
-      });
-    } else {
-      existing.posts.push(post);
-    }
-  }
-
-  return [...grouped.entries()]
-    .map(([slug, category]) => ({
-      count: category.posts.length,
-      name: category.name,
-      posts: category.posts,
-      slug,
-    }))
-    .sort((left, right) =>
-      right.count - left.count ||
-      compareText(left.name, right.name) ||
-      compareText(left.slug, right.slug),
-    );
-}
-
 export interface BlogTag {
   count: number;
   name: string;
@@ -404,12 +372,17 @@ export interface BlogTag {
   slug: string;
 }
 
-/** 태그 주소. 카테고리 slug와 같은 규칙(영문·숫자 부분 + 정규화한 이름의 hash 8자)이라 한글 태그도 안정적이다. */
+/** 태그 slug. 영문·숫자 부분 + 정규화한 이름의 hash 8자라 한글 태그도 안정적이다. */
 export function tagSlug(name: string): string {
   const normalized = name.normalize("NFKC").trim().replace(/\\s+/gu, " ").toLowerCase();
   const hash = createHash("sha256").update(normalized, "utf8").digest("hex").slice(0, 8);
   const ascii = normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
   return ascii ? ascii + "-" + hash : "tag-" + hash;
+}
+
+/** 태그 링크는 전체 글의 태그 거르기로 간다(R9). */
+export function tagPath(name: string): string {
+  return pathFor("posts/?tag=" + tagSlug(name));
 }
 
 export function tagsFor(posts: readonly BlogPost[]): BlogTag[] {
@@ -428,39 +401,6 @@ export function tagsFor(posts: readonly BlogPost[]): BlogTag[] {
   return [...grouped.entries()]
     .map(([slug, tag]) => ({ count: tag.posts.length, name: tag.name, posts: tag.posts, slug }))
     .sort((left, right) => right.count - left.count || compareText(left.name, right.name));
-}
-
-export interface BlogSeries {
-  name: string;
-  posts: readonly BlogPost[];
-  slug: string;
-}
-
-/** 시리즈(R10): seriesOrder가 작을수록 앞, 없으면 뒤에 두고 같으면 게시일이 이른 글이 앞이다. */
-export function seriesFor(posts: readonly BlogPost[]): BlogSeries[] {
-  const grouped = new Map<string, { name: string; posts: BlogPost[] }>();
-  for (const post of posts) {
-    const { series, seriesSlug } = post.data;
-    if (series === undefined || seriesSlug === undefined) {
-      continue;
-    }
-    const existing = grouped.get(seriesSlug) ?? { name: series, posts: [] };
-    existing.posts.push(post);
-    grouped.set(seriesSlug, existing);
-  }
-  const order = (post: BlogPost) => post.data.seriesOrder ?? Number.POSITIVE_INFINITY;
-  return [...grouped.entries()]
-    .map(([slug, series]) => ({
-      name: series.name,
-      posts: series.posts.sort(
-        (left, right) =>
-          order(left) - order(right) ||
-          left.data.publishedAt.valueOf() - right.data.publishedAt.valueOf() ||
-          compareText(left.id, right.id),
-      ),
-      slug,
-    }))
-    .sort((left, right) => compareText(left.name, right.name));
 }
 
 /** 게시일(UTC) 기준 연·월 묶음. 최근 달이 먼저다. */
@@ -524,9 +464,7 @@ const section = pathname === base
   ? "home"
   : pathname.startsWith(pathFor("posts/"))
     ? "posts"
-    : pathname.startsWith(pathFor("categories/"))
-      ? "categories"
-      : undefined;
+    : undefined;
 ---
 <!doctype html>
 <html lang="ko">
@@ -579,7 +517,6 @@ ${BLOG_CSS}
         <nav class="site-nav" aria-label="주요 탐색">
           <ul>
             <li><a href={pathFor("posts/")} aria-current={section === "posts" ? "page" : undefined}>전체 글</a></li>
-            <li><a href={pathFor("categories/")} aria-current={section === "categories" ? "page" : undefined}>주제</a></li>
             <li><a href={githubUrl} rel="me">GitHub</a></li>
           </ul>
         </nav>
@@ -589,7 +526,7 @@ ${BLOG_CSS}
     <footer class="site-footer">
       <div class="site-footer-inner">
         <span>© {new Date().getUTCFullYear()} {siteOwner} · GitHub Pages로 게시됨</span>
-        <span><a href={pathFor("series/")}>시리즈</a> · <a href={pathFor("archive/")}>보관함</a> · <a href={pathFor("tags/")}>태그</a> · <a href={pathFor("rss.xml")}>RSS</a></span>
+        <span><a href={pathFor("archive/")}>보관함</a></span>
       </div>
     </footer>
   </body>
@@ -599,13 +536,13 @@ ${BLOG_CSS}
 import { getCollection } from "astro:content";
 import PostCard from "../components/PostCard.astro";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { categoriesFor, pathFor, site, sortPosts } from "../lib/blog";
+import { pathFor, site, sortPosts, tagsFor } from "../lib/blog";
 
 const posts = sortPosts(await getCollection("blog"));
 // 고정 글(R10)은 최신 글 위에 따로 두고 최신 글에서는 뺀다.
 const pinnedPosts = posts.filter((post) => post.data.pinned);
 const latestPosts = posts.filter((post) => !post.data.pinned).slice(0, 12);
-const categories = categoriesFor(posts);
+const tagCount = tagsFor(posts).length;
 ---
 <BaseLayout title="홈" description={site.description || undefined}>
   <section class="hero" aria-labelledby="site-title">
@@ -618,7 +555,7 @@ const categories = categoriesFor(posts);
     )}
     <dl class="hero-stats" aria-label="블로그 통계">
       <div><dt>글</dt><dd>{posts.length}</dd></div>
-      <div><dt>주제</dt><dd>{categories.length}</dd></div>
+      <div><dt>태그</dt><dd>{tagCount}</dd></div>
     </dl>
   </section>
   {posts.length === 0 ? (
@@ -647,21 +584,6 @@ const categories = categoriesFor(posts);
           {latestPosts.map((post) => <PostCard headingLevel="h3" post={post} />)}
         </div>
       </section>
-      <section aria-labelledby="categories-title">
-        <div class="section-heading">
-          <h2 id="categories-title">주제</h2>
-        </div>
-        <ul class="category-list">
-          {categories.map((category) => (
-            <li>
-              <a href={pathFor("categories/" + category.slug + "/")}>
-                <span>{category.name}</span>
-                <span class="muted">{category.count}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
     </>
   )}
 </BaseLayout>
@@ -671,11 +593,14 @@ import { getCollection } from "astro:content";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import PostCard from "../../components/PostCard.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, pathFor, sortPosts } from "../../lib/blog";
+import { base, pathFor, sortPosts, tagSlug, tagsFor } from "../../lib/blog";
 
 const posts = sortPosts(await getCollection("blog"));
+const tags = tagsFor(posts);
+const searchText = (post: (typeof posts)[number]) =>
+  [post.data.title, post.data.description, ...post.data.tags].join(" ").normalize("NFKC").toLowerCase();
 ---
-<BaseLayout description="게시된 모든 글을 최신순으로 봅니다." title="전체 글">
+<BaseLayout description="게시된 모든 글을 검색하고 태그로 거릅니다." title="전체 글">
   <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "전체 글" }]} />
   <header class="page-intro">
     <h1>전체 글</h1>
@@ -687,88 +612,127 @@ const posts = sortPosts(await getCollection("blog"));
       <p>새 글이 게시되면 이곳에 표시됩니다.</p>
     </section>
   ) : (
-    <div class="post-list">{posts.map((post) => <PostCard post={post} />)}</div>
+    <>
+      <form class="post-search" role="search" action={pathFor("posts/")} data-post-search>
+        <label for="post-query">글 검색</label>
+        <input id="post-query" name="q" type="search" autocomplete="off" placeholder="제목·설명·태그로 찾기" />
+      </form>
+      {tags.length > 0 && (
+        <nav class="tag-filter" aria-label="태그로 거르기">
+          <ul class="category-list">
+            <li><a href={pathFor("posts/")} data-tag-filter="">전체 <span class="muted">{posts.length}</span></a></li>
+            {tags.map((tag) => (
+              <li><a href={pathFor("posts/?tag=" + tag.slug)} data-tag-filter={tag.slug}>#{tag.name} <span class="muted">{tag.count}</span></a></li>
+            ))}
+          </ul>
+        </nav>
+      )}
+      <p class="post-status muted" role="status" data-post-status></p>
+      <div class="post-list">
+        {posts.map((post) => (
+          <div data-post data-search={searchText(post)} data-tags={post.data.tags.map(tagSlug).join(" ")}>
+            <PostCard post={post} />
+          </div>
+        ))}
+      </div>
+      <nav class="pagination" aria-label="쪽 이동" data-pagination hidden></nav>
+    </>
   )}
 </BaseLayout>
-`,
-    "src/pages/categories/index.astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, categoriesFor, pathFor } from "../../lib/blog";
+<script>
+  // 검색·태그 거르기·쪽 나누기(R9). JavaScript가 없으면 모든 글이 그대로 보인다.
+  // 상태는 주소 query(q, tag, page)에 두어 새로고침·공유해도 같다.
+  const PAGE_SIZE = 10;
+  const items = [...document.querySelectorAll<HTMLElement>("[data-post]")];
+  const form = document.querySelector<HTMLFormElement>("[data-post-search]");
+  const input = document.querySelector<HTMLInputElement>("#post-query");
+  const status = document.querySelector<HTMLElement>("[data-post-status]");
+  const pager = document.querySelector<HTMLElement>("[data-pagination]");
+  const tagLinks = [...document.querySelectorAll<HTMLAnchorElement>("[data-tag-filter]")];
+  const normalize = (value: string) => value.normalize("NFKC").toLowerCase().replace(/\\s+/g, " ").trim();
 
-const categories = categoriesFor(await getCollection("blog"));
----
-<BaseLayout description="게시된 글을 주제별로 찾아봅니다." title="주제">
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "주제" }]} />
-  <header class="page-intro">
-    <h1>주제</h1>
-    <p class="muted">주제 {categories.length}개 · <a href={pathFor("tags/")}>태그 전체 보기</a></p>
-  </header>
-  {categories.length === 0 ? (
-    <section class="empty-state" aria-labelledby="empty-title">
-      <h2 id="empty-title">아직 주제가 없습니다</h2>
-      <p>글이 게시되면 주제가 이곳에 표시됩니다.</p>
-    </section>
-  ) : (
-    <ul class="category-list">
-      {categories.map((category) => (
-        <li>
-          <a href={pathFor("categories/" + category.slug + "/")}>
-            <span>{category.name}</span>
-            <span class="muted">{category.count}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  )}
-</BaseLayout>
-`,
-    "src/pages/categories/[slug].astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import PostCard from "../../components/PostCard.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, categoriesFor, pathFor } from "../../lib/blog";
+  function read() {
+    const params = new URLSearchParams(location.search);
+    const page = Number.parseInt(params.get("page") ?? "1", 10);
+    return { page: Number.isFinite(page) && page > 0 ? page : 1, q: params.get("q") ?? "", tag: params.get("tag") ?? "" };
+  }
 
-export async function getStaticPaths() {
-  const categories = categoriesFor(await getCollection("blog"));
-  return categories.map((category) => ({
-    params: { slug: category.slug },
-    props: { categories, category },
-  }));
-}
+  function write(next: { page: number; q: string; tag: string }) {
+    const params = new URLSearchParams();
+    if (next.q) params.set("q", next.q);
+    if (next.tag) params.set("tag", next.tag);
+    if (next.page > 1) params.set("page", String(next.page));
+    const query = params.toString();
+    history.replaceState(null, "", location.pathname + (query ? "?" + query : ""));
+    render();
+  }
 
-const { categories, category } = Astro.props;
----
-<BaseLayout description={category.name + " 카테고리의 글입니다."} title={category.name}>
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { href: pathFor("categories/"), label: "주제" }, { label: category.name }]} />
-  <header class="page-intro">
-    <h1>{category.name}</h1>
-    <p class="muted">글 {category.count}개</p>
-  </header>
-  <nav aria-label="카테고리 전환">
-    <ul class="category-list">
-      {categories.map((item) => (
-        <li>
-          <a href={pathFor("categories/" + item.slug + "/")} aria-current={item.slug === category.slug ? "page" : undefined}>
-            {item.name} <span class="muted">{item.count}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  </nav>
-  <div class="section-heading"><h2>글</h2></div>
-  <div class="post-list">
-    {category.posts.map((post) => <PostCard headingLevel="h3" post={post} />)}
-  </div>
-</BaseLayout>
+  function pageButton(label: string, page: number, ariaLabel: string, options: { current?: boolean; disabled?: boolean } = {}) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.setAttribute("aria-label", ariaLabel);
+    button.disabled = options.disabled === true;
+    if (options.current === true) button.setAttribute("aria-current", "page");
+    button.addEventListener("click", () => {
+      write({ ...read(), page });
+      document.querySelector(".page-intro")?.scrollIntoView();
+    });
+    return button;
+  }
+
+  function render() {
+    const { page, q, tag } = read();
+    if (input && input.value !== q) input.value = q;
+    const terms = normalize(q).split(" ").filter(Boolean);
+    const matched = items.filter(
+      (item) =>
+        (tag === "" || (item.dataset.tags ?? "").split(" ").includes(tag)) &&
+        terms.every((term) => (item.dataset.search ?? "").includes(term)),
+    );
+    const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
+    const current = Math.min(page, pages);
+    const shown = new Set(matched.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE));
+    for (const item of items) item.hidden = !shown.has(item);
+    for (const link of tagLinks) {
+      if (link.dataset.tagFilter === tag) link.setAttribute("aria-current", "true");
+      else link.removeAttribute("aria-current");
+    }
+    if (status) {
+      status.textContent =
+        matched.length === 0
+          ? "조건에 맞는 글이 없습니다."
+          : "글 " + matched.length + "개" + (pages > 1 ? " · " + current + "/" + pages + "쪽" : "");
+    }
+    if (pager) {
+      pager.replaceChildren();
+      pager.hidden = pages <= 1;
+      if (pages > 1) {
+        pager.append(pageButton("이전", current - 1, "이전 쪽", { disabled: current === 1 }));
+        for (let number = 1; number <= pages; number += 1) {
+          pager.append(pageButton(String(number), number, number + "쪽", { current: number === current }));
+        }
+        pager.append(pageButton("다음", current + 1, "다음 쪽", { disabled: current === pages }));
+      }
+    }
+  }
+
+  form?.addEventListener("submit", (event) => event.preventDefault());
+  input?.addEventListener("input", () => write({ ...read(), page: 1, q: input.value }));
+  for (const link of tagLinks) {
+    link.addEventListener("click", (event) => {
+      event.preventDefault();
+      write({ ...read(), page: 1, tag: link.dataset.tagFilter ?? "" });
+    });
+  }
+  render();
+</script>
 `,
     "src/pages/posts/[...slug].astro": `---
 import { getCollection, render } from "astro:content";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, formatDate, isDifferentDay, pathFor, seriesFor, siteOwner, sortPosts, tagSlug } from "../../lib/blog";
+import { base, formatDate, isDifferentDay, pathFor, siteOwner, sortPosts, tagPath } from "../../lib/blog";
 
 export async function getStaticPaths() {
   const posts = sortPosts(await getCollection("blog"));
@@ -781,24 +745,20 @@ export async function getStaticPaths() {
 const { allPosts, post } = Astro.props;
 const { Content, headings } = await render(post);
 const sectionHeadings = headings.filter((heading) => heading.depth === 2);
-// 시리즈 글은 시리즈 순서로, 아니면 같은 카테고리의 게시일 순으로 이전·다음 글을 고른다.
-const series = seriesFor(allPosts).find((candidate) => candidate.slug === post.data.seriesSlug);
-const sequence = series?.posts ?? allPosts.filter((candidate) => candidate.data.categorySlug === post.data.categorySlug);
-const currentIndex = sequence.findIndex((candidate) => candidate.id === post.id);
-const previousPost = currentIndex > 0 ? sequence[currentIndex - 1] : undefined;
-const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1] : undefined;
+// 이전 글은 바로 더 오래된 글, 다음 글은 바로 더 새 글이다(allPosts는 최신순).
+const currentIndex = allPosts.findIndex((candidate) => candidate.id === post.id);
+const previousPost = allPosts[currentIndex + 1];
+const nextPost = currentIndex > 0 ? allPosts[currentIndex - 1] : undefined;
 ---
 <BaseLayout description={post.data.description} title={post.data.title} type="article">
   <Breadcrumbs items={[
     { href: base, label: "홈" },
-    { href: pathFor("categories/" + post.data.categorySlug + "/"), label: post.data.category },
+    { href: pathFor("posts/"), label: "전체 글" },
     { label: post.data.title },
   ]} />
   <article class:list={["article-layout", sectionHeadings.length >= 3 ? "with-toc" : "without-toc"]}>
     <header class="post-header">
-      <a class="category-link" href={pathFor("categories/" + post.data.categorySlug + "/")}>{post.data.category}</a>
       <h1>{post.data.title}</h1>
-      {post.data.description && <p class="post-description">{post.data.description}</p>}
       <div class="post-meta">
         <span>게시 <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time></span>
         {isDifferentDay(post.data.publishedAt, post.data.updatedAt) && (
@@ -808,7 +768,7 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
       </div>
       {post.data.tags.length > 0 && (
         <ul class="tag-list" aria-label="태그">
-          {post.data.tags.map((tag) => <li><a href={pathFor("tags/" + tagSlug(tag) + "/")}>#{tag}</a></li>)}
+          {post.data.tags.map((tag) => <li><a href={tagPath(tag)}>#{tag}</a></li>)}
         </ul>
       )}
     </header>
@@ -819,22 +779,6 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
       </nav>
     )}
     <div class="article-main">
-      {series !== undefined && (
-        <nav class="series-nav" aria-labelledby="series-title">
-          <h2 id="series-title"><a href={pathFor("series/" + series.slug + "/")}>시리즈 · {series.name}</a> <span class="muted">{currentIndex + 1}/{series.posts.length}</span></h2>
-          <ol>
-            {series.posts.map((item) => (
-              <li>
-                {item.id === post.id ? (
-                  <span aria-current="page">{item.data.title}</span>
-                ) : (
-                  <a href={pathFor("posts/" + item.id + "/")}>{item.data.title}</a>
-                )}
-              </li>
-            ))}
-          </ol>
-        </nav>
-      )}
       <div class="post-body"><Content /></div>
       <p class="post-end">(끝)</p>
       <footer class="post-colophon" aria-labelledby="colophon-title">
@@ -851,7 +795,7 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
         </dl>
       </footer>
       {(previousPost !== undefined || nextPost !== undefined) && (
-        <nav class="post-navigation" aria-label={series === undefined ? "같은 카테고리의 이전 및 다음 글" : "같은 시리즈의 이전 및 다음 글"}>
+        <nav class="post-navigation" aria-label="이전 및 다음 글">
           <div>{previousPost && <a href={pathFor("posts/" + previousPost.id + "/")}><small>← 이전 글</small>{previousPost.data.title}</a>}</div>
           <div class="next">{nextPost && <a href={pathFor("posts/" + nextPost.id + "/")}><small>다음 글 →</small>{nextPost.data.title}</a>}</div>
         </nav>
@@ -859,124 +803,6 @@ const nextPost = currentIndex < sequence.length - 1 ? sequence[currentIndex + 1]
       <p class="home-link"><a href={base}>홈으로</a></p>
     </div>
   </article>
-</BaseLayout>
-`,
-    "src/pages/tags/index.astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, pathFor, tagsFor } from "../../lib/blog";
-
-const tags = tagsFor(await getCollection("blog"));
----
-<BaseLayout description="게시된 글의 태그를 모아 봅니다." title="태그">
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "태그" }]} />
-  <header class="page-intro">
-    <h1>태그</h1>
-    <p class="muted">태그 {tags.length}개</p>
-  </header>
-  {tags.length === 0 ? (
-    <section class="empty-state" aria-labelledby="empty-title">
-      <h2 id="empty-title">아직 태그가 없습니다</h2>
-      <p>Notion의 Blog Tags 속성을 채워 게시하면 이곳에 표시됩니다.</p>
-    </section>
-  ) : (
-    <ul class="category-list">
-      {tags.map((tag) => (
-        <li>
-          <a href={pathFor("tags/" + tag.slug + "/")}>
-            <span>#{tag.name}</span>
-            <span class="muted">{tag.count}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  )}
-</BaseLayout>
-`,
-    "src/pages/tags/[slug].astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import PostCard from "../../components/PostCard.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, pathFor, tagsFor } from "../../lib/blog";
-
-export async function getStaticPaths() {
-  return tagsFor(await getCollection("blog")).map((tag) => ({ params: { slug: tag.slug }, props: { tag } }));
-}
-
-const { tag } = Astro.props;
----
-<BaseLayout description={"#" + tag.name + " 태그의 글입니다."} title={"#" + tag.name}>
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { href: pathFor("tags/"), label: "태그" }, { label: "#" + tag.name }]} />
-  <header class="page-intro">
-    <h1>#{tag.name}</h1>
-    <p class="muted">글 {tag.count}개</p>
-  </header>
-  <div class="post-list">
-    {tag.posts.map((post) => <PostCard post={post} />)}
-  </div>
-</BaseLayout>
-`,
-    "src/pages/series/index.astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, pathFor, seriesFor } from "../../lib/blog";
-
-const seriesList = seriesFor(await getCollection("blog"));
----
-<BaseLayout description="연재 글을 시리즈별로 봅니다." title="시리즈">
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { label: "시리즈" }]} />
-  <header class="page-intro">
-    <h1>시리즈</h1>
-    <p class="muted">시리즈 {seriesList.length}개</p>
-  </header>
-  {seriesList.length === 0 ? (
-    <section class="empty-state" aria-labelledby="empty-title">
-      <h2 id="empty-title">아직 시리즈가 없습니다</h2>
-      <p>Notion의 Blog Series 속성을 채워 게시하면 이곳에 표시됩니다.</p>
-    </section>
-  ) : (
-    <ul class="category-list">
-      {seriesList.map((item) => (
-        <li>
-          <a href={pathFor("series/" + item.slug + "/")}>
-            <span>{item.name}</span>
-            <span class="muted">{item.posts.length}</span>
-          </a>
-        </li>
-      ))}
-    </ul>
-  )}
-</BaseLayout>
-`,
-    "src/pages/series/[slug].astro": `---
-import { getCollection } from "astro:content";
-import Breadcrumbs from "../../components/Breadcrumbs.astro";
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { base, formatDate, pathFor, seriesFor } from "../../lib/blog";
-
-export async function getStaticPaths() {
-  return seriesFor(await getCollection("blog")).map((series) => ({ params: { slug: series.slug }, props: { series } }));
-}
-
-const { series } = Astro.props;
----
-<BaseLayout description={series.name + " 시리즈의 글입니다."} title={series.name}>
-  <Breadcrumbs items={[{ href: base, label: "홈" }, { href: pathFor("series/"), label: "시리즈" }, { label: series.name }]} />
-  <header class="page-intro">
-    <h1>{series.name}</h1>
-    <p class="muted">글 {series.posts.length}개 · 읽는 순서</p>
-  </header>
-  <ol class="archive-list series-list">
-    {series.posts.map((post) => (
-      <li>
-        <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
-        <a href={pathFor("posts/" + post.id + "/")}>{post.data.title}</a>
-      </li>
-    ))}
-  </ol>
 </BaseLayout>
 `,
     "src/pages/archive.astro": `---
@@ -1031,7 +857,6 @@ export async function GET(context: APIContext): Promise<Response> {
       "<link>" + escapeXml(link) + "</link>",
       '<guid isPermaLink="true">' + escapeXml(link) + "</guid>",
       "<pubDate>" + post.data.publishedAt.toUTCString() + "</pubDate>",
-      "<category>" + escapeXml(post.data.category) + "</category>",
       "<description>" + escapeXml(post.data.description) + "</description>",
       "</item>",
     ].join("");
@@ -1053,20 +878,14 @@ export async function GET(context: APIContext): Promise<Response> {
     "src/pages/sitemap.xml.ts": `import { getCollection } from "astro:content";
 import type { APIContext } from "astro";
 
-import { absoluteUrl, categoriesFor, escapeXml, seriesFor, sortPosts, tagsFor } from "../lib/blog";
+import { absoluteUrl, escapeXml, sortPosts } from "../lib/blog";
 
 export async function GET(context: APIContext): Promise<Response> {
   const posts = sortPosts(await getCollection("blog"));
   const pages: { lastmod?: Date; path: string }[] = [
     { path: "" },
     { path: "posts/" },
-    { path: "categories/" },
-    { path: "tags/" },
     { path: "archive/" },
-    { path: "series/" },
-    ...seriesFor(posts).map((series) => ({ path: "series/" + series.slug + "/" })),
-    ...categoriesFor(posts).map((category) => ({ path: "categories/" + category.slug + "/" })),
-    ...tagsFor(posts).map((tag) => ({ path: "tags/" + tag.slug + "/" })),
     ...posts.map((post) => ({ lastmod: post.data.updatedAt, path: "posts/" + post.id + "/" })),
   ];
   const urls = pages.map(

@@ -25,7 +25,7 @@ export const DESIGN_TOKENS_CSS = `:root {
   --radius-column: 0;
   --shadow-dialog: 0 16px 48px rgb(22 24 29 / 18%);
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --shell-max: 67.5rem;
+  --shell-max: 76rem;
   --reading-max: 45rem;
   --toc-width: 13.75rem;
 }`;

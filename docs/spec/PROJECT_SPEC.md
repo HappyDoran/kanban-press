@@ -33,8 +33,8 @@ MVP 범위가 아니다.
 확장 범위(2026-11-10 사용자 선택. 계약은 §5.1, 진행 상태는 gap-analysis):
 
 - R8 블로그 글 관리: 제목 변경 시 옛 글 정리, 블로그에서 내리기, 게시 완료 열 복원(구현 완료)
-- R9 블로그 탐색·노출: 태그 목록, 연·월 보관함, RSS·sitemap·Open Graph(구현 완료)
-- R10 블로그 순서·묶음: 고정 글, 시리즈와 시리즈 안 순서(구현 완료)
+- R9 블로그 탐색·노출: 전체 글 검색·태그 필터·페이지 나누기, 연·월 보관함, RSS·sitemap·Open Graph
+- R10 블로그 순서: 고정 글(주제·시리즈는 2026-11-11 제거, 글 묶음은 태그로만 한다)
 - R11 블로그 주소·사이트 설정: 글 주소 지정, 사이트 소개 설정(구현 완료)
 
 ## 3. 식별자와 저장 계약
@@ -250,10 +250,10 @@ repository 정보는 응답하지 않는다. 프리뷰를 닫거나 새로고침
 DTO를 재사용하지 않고 최신 Notion 원문과 GitHub 권한을 다시 검증한다.
 
 rollout 통합 검증은 preview와 publish를 서로 독립된 요청으로 실행한다. mutable fake
-provider의 원문 category, tag, 본문과 수정 시각을 preview 뒤 변경했을 때 publish artifact는
+provider의 원문 tag, 본문과 수정 시각을 preview 뒤 변경했을 때 publish artifact는
 preview snapshot이 아니라 두 번째 Notion 조회 결과만 포함해야 한다. preview 뒤 Notion
 접근 또는 GitHub 쓰기 권한이 철회되면 Markdown 생성·readiness·commit 전에 실패해야 한다.
-통합 suite는 실제 publisher를 사용해 strict v2 frontmatter, category slug, 로컬 image
+통합 suite는 실제 publisher를 사용해 strict v2 frontmatter, 로컬 image
 artifact와 template v2 marker가 한 commit artifact 집합에 연결되는지도 검증한다.
 
 실제 provider smoke는 일반 test suite와 분리한 명시적 read-only release gate다. 로컬의
@@ -290,11 +290,12 @@ template manifest를 생성한다. manifest에는 정렬된 repository 상대 �
 content, `siteUrl`, `basePath`, template version이 포함된다. user site인
 `<owner>.github.io`는 `/`, project site는 `/<repository>`를 base로 사용한다.
 template은 Astro content collection, 공통 header/main/footer와 skip link, 홈 최신 글,
-전체 글, category index/detail, 기존 permalink의 글 상세, 404 정적 route와 GitHub Pages
+전체 글, 보관함, 기존 permalink의 글 상세, 404 정적 route와 GitHub Pages
 workflow를 포함하며 절대 경로와 `..` 경로를 허용하지 않는다. 내부 링크는 모두
 user/project site의 base path를 반영하며 핵심 탐색은 client JavaScript 없이 동작한다.
-블로그 shell은 GitHub owner를 개인 브랜드로 사용하고 홈·전체 글·주제·GitHub의 네 가지
-탐색만 제공한다. 홈은 블로그 소개, 전체 글·주제 수, 최신 글을 우선순위대로 보여준다.
+전체 글의 검색·태그 필터·페이지 나누기만 JavaScript로 동작하고, JavaScript가 없으면 전체 목록을 보여준다.
+블로그 shell은 GitHub owner를 개인 브랜드로 사용하고 홈·전체 글·GitHub의 세 가지
+탐색만 제공한다. 홈은 블로그 소개, 글·태그 수, 최신 글을 우선순위대로 보여준다.
 글 상세는 45rem 읽기 폭을 유지하며 목차가 있는 글은 mobile에서 본문 앞에, 넓은 화면에서
 본문 옆 sticky 탐색으로 배치한다. 제목 글꼴(Hahmlet)만 Google Fonts에서 받으며(결정 D5), 이 글꼴이나
 client JavaScript 없이도 320px, keyboard, reduced-motion과 고대비 환경에서 핵심 탐색과 읽기가 가능해야 한다.
@@ -318,14 +319,14 @@ orchestration이 최신 Notion page를 조회한 뒤 제목, 설명, 게시/수�
 
 | 예약 속성 | Notion 타입 | 게시 값 | 누락 시 fallback |
 |---|---|---|---|
-| `Blog Category` | `select` | category name | `미분류` |
 | `Blog Tags` | `multi_select` | 중복 제거한 최대 10개 tag | `[]` |
-| `Blog Description` | `rich_text` | annotation을 제거한 plain text | 첫 paragraph/quote/heading, 없으면 title |
 | `Blog Published At` | `date` | range start | Notion `created_time` |
-| `Blog Pinned`·`Blog Series`·`Blog Order` | `checkbox`·`select`·`number` | §5.1 R10 | 고정 안 함·시리즈 없음·순서 없음 |
+| `Blog Pinned` | `checkbox` | §5.1 R10 | 고정 안 함 |
 | `Blog Slug` | `rich_text` | 글 주소 앞부분(§5.1 R11) | 제목에서 만든 slug |
 
-category는 trim 후 1~80자, tag는 각각 1~40자, description은 0~1,000자다.
+tag는 각각 1~40자다. description은 속성으로 받지 않고 본문 첫 paragraph(소제목·인용은 건너뛴다), 없으면 title에서
+1,000자까지 만들어 글 카드·전체 글 검색·meta·Open Graph·RSS에만 쓴다. 글 상세 제목 아래에는 보이지 않는다(본문 첫 줄과
+겹친다). 2026-11-11에 제거한 `Blog Category`·`Blog Description`·`Blog Series`·`Blog Order` 속성은 page에 남아 있어도 읽지 않는다.
 속성이 존재하지만 타입, 값, 개수 또는 날짜가 계약에 맞지 않으면 fallback하지 않고
 `422 invalid_blog_metadata`로 실패한다. Notion adapter는 이 네 속성만 제한된
 `rich_text | select | multi_select | date | unsupported` union으로 정규화하며 원시
@@ -341,16 +342,13 @@ NotionPageProperty
   { kind: unsupported, providerType }
 ```
 
-category route slug는 category display name을 `NFKC`, trim, 연속 공백 축약,
-lowercase한 값에서 ASCII 영숫자 base를 만들고 정규화 원문의 SHA-256 앞 8자를 붙인다.
-ASCII base가 없으면 `category-<hash8>`을 사용하며 `미분류`는 `uncategorized`로 고정한다.
-post slug는 기존 title과 Notion page ID 조합을 유지해 category 변경으로 URL이 바뀌지 않는다.
+tag route slug는 tag 이름을 `NFKC`, trim, 연속 공백 축약, lowercase한 값에서 ASCII 영숫자 base를 만들고
+정규화 원문의 SHA-256 앞 8자를 붙인다. ASCII base가 없으면 `tag-<hash8>`을 사용한다.
 
 ```text
 PublishDocument
   schemaVersion: 2
   slug, title, description, publishedAt, updatedAt
-  category: { name, slug }
   tags: string[]
   blocks:
     paragraph | heading | quote | code | image | toggle | divider
@@ -367,14 +365,15 @@ PublishDocument
     text, href?, bold?, italic?, strikethrough?, code?
 ```
 
-`apps/web/lib/publish`의 공유 `buildPublishDocument`만 metadata fallback, category slug,
+`apps/web/lib/publish`의 공유 `buildPublishDocument`만 metadata fallback,
 tag 정규화, post slug와 block level 변환을 조립한다. publish와 이후 preview는 이 함수를
 사용하며 request body는 계속 `{ connectionId, providerPageId }`만 받는다. Astro template
 v2는 content frontmatter를 다음 순서로 해석한다.
 
 - `schemaVersion`이 없으면 v1으로 간주하고 `category=미분류`,
   `categorySlug=uncategorized`, `tags=[]`를 주입한다.
-- `schemaVersion: 2`는 category, categorySlug와 tags를 필수로 strict 검증한다.
+- `schemaVersion: 2`는 tags를 필수로 strict 검증한다. 2026-11-11 전에 게시한 글의 `category`·`categorySlug`·
+  `series`·`seriesSlug`·`seriesOrder`는 선택 field로 받아 build는 통과시키되 화면에 쓰지 않고, 새 게시는 쓰지 않는다.
 - 알 수 없는 schema version과 v2의 누락·추가 field는 build를 실패시킨다.
 
 template v2 marker와 v1/v2 compatibility reader를 먼저 배포하고 user/project base path의
@@ -517,17 +516,24 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 
 ### R9 블로그 탐색·노출
 
-- 태그: `/tags/`(태그와 글 수)와 `/tags/<태그 slug>/`. 글 카드·상세의 태그는 이 주소로 링크한다.
-  태그 slug는 카테고리 slug와 같은 규칙(ASCII + hash)을 쓴다.
+- 전체 글(`/posts/`): 위에서부터 제목·설명·태그 검색 입력, 태그 목록(글 수 포함, 누르면 그 태그로 거르기),
+  글 목록 순서다. 글은 한 화면에 10개씩 보이고 아래에 이전·다음과 쪽 번호를 둔다. 검색어·태그·쪽은 주소
+  query(`q`, `tag`, `page`)에 남겨 새로고침·공유해도 같다. 글 카드·상세의 태그는 `/posts/?tag=<태그 slug>`로
+  링크한다. 별도 태그 화면(`/tags/`)은 두지 않는다.
 - 보관함: `/archive/`에 연·월별 글 목록.
-- 노출: 정적 `rss.xml`(최근 20개, 제목·설명·링크·게시일·카테고리. 본문은 넣지 않는다, D2), `sitemap.xml`
-  (홈·목록·카테고리·태그·보관함·글, 글은 수정일 `lastmod`), 모든 화면의 Open Graph(`og:type`은 글 상세만
+- 노출: 정적 `rss.xml`(최근 20개, 제목·설명·링크·게시일. 본문은 넣지 않는다, D2), `sitemap.xml`
+  (홈·전체 글·보관함·글, 글은 수정일 `lastmod`), 모든 화면의 Open Graph(`og:type`은 글 상세만
   `article`)·description meta와 RSS `alternate` link. 생성 블로그에 새 npm 의존성을 추가하지 않고 Astro
-  endpoint로 만든다. 보관함·태그·RSS는 footer에서, 보관함은 전체 글, 태그 전체는 주제 화면에서도 연결한다.
+  endpoint로 만든다. RSS는 구독 앱이 `alternate` link로 찾으므로 화면에 링크를 두지 않는다. 보관함은 footer와
+  전체 글에서 연결한다.
+- 글 상세의 이전·다음 글은 전체 글의 게시일 순서(이전 = 더 오래된 글)로 고른다. 본문 열은 화면 가운데에
+  두고, 목차가 있으면 본문 왼쪽 빈자리에 둔다.
+- 주제·시리즈를 제거하며 사라진 template 파일(`src/pages/categories/`, `src/pages/series/`, `src/pages/tags/`)은
+  다음 게시 commit이 저장소에서 지운다.
 - 완료 조건: user/project base path build에서 모든 새 주소가 생성되고 링크가 base path를 따른다.
-  JavaScript 없이 동작한다. RSS·sitemap이 XML 검증을 통과한다.
+  JavaScript 없이 전체 목록이 보인다. RSS·sitemap이 XML 검증을 통과한다. 옛 주제·시리즈 field가 있는 글이 build된다.
 
-### R10 블로그 순서·묶음
+### R10 블로그 순서
 
 순서는 칸반 드래그가 아니라 Notion 예약 속성으로 정한다(칸반 순서는 브라우저마다 달라 블로그의
 기준이 될 수 없다).
@@ -535,19 +541,11 @@ OAuth credential은 HttpOnly 암호화 세션 쿠키 밖으로 전달하지 않�
 | 예약 속성 | Notion 타입 | 의미 | 누락 시 |
 |---|---|---|---|
 | `Blog Pinned` | `checkbox` | 홈 최신 글 위 고정 | 고정 안 함 |
-| `Blog Series` | `select` | 연재 묶음 이름 | 시리즈 없음 |
-| `Blog Order` | `number` | 시리즈 안 순서(작을수록 앞) | 게시일 순 |
 
 - 고정 글은 홈의 `고정 글` 절(최신 글 위)에 게시일 역순으로 보이고 최신 글 목록에서는 빠진다.
-- 시리즈 이름이 비어 있으면 시리즈가 없는 글이다. 시리즈 slug는 카테고리 slug 규칙을 쓴다. 시리즈 안 순서는
-  `Blog Order` 오름차순, 순서가 없으면 뒤로, 같으면 게시일이 이른 글이 앞이다. `Blog Order`는 시리즈가 있을 때만
-  쓰고 절댓값 1,000,000 이하여야 한다.
-- 시리즈 글 상세는 본문 위에 시리즈 목록(현재 글 `aria-current`, `n/전체`)을 두고, 이전·다음 글을 카테고리 대신
-  시리즈 순서로 고른다. `/series/`와 `/series/<slug>/`를 만들고 sitemap과 footer에 넣는다.
-- Markdown frontmatter에는 값이 있을 때만 `pinned`, `series`, `seriesSlug`, `seriesOrder`를 쓴다. 형식이 맞지
-  않는 값은 §5 게시의 다른 예약 속성처럼 `422 invalid_blog_metadata`로 실패한다. 프리뷰 DTO도 같은 값을 갖고
-  화면에 시리즈와 순서를 보여준다.
-- 완료 조건: 속성이 없는 기존 글과 v1 글이 그대로 build된다. 고정·시리즈 fixture의 순서가 결정적이다.
+- Markdown frontmatter에는 값이 있을 때만 `pinned`를 쓴다. 형식이 맞지 않는 값은 §5 게시의 다른 예약 속성처럼
+  `422 invalid_blog_metadata`로 실패한다.
+- 완료 조건: 속성이 없는 기존 글과 v1 글이 그대로 build된다. 고정 fixture의 순서가 결정적이다.
 
 ### R11 블로그 주소·사이트 설정
 

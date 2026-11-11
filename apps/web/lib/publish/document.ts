@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 
 import type {
   NotionContentBlock,
@@ -14,8 +13,6 @@ import { z } from "zod";
 
 import { pageIdSuffix } from "./blog-files";
 
-const UNCATEGORIZED_NAME = "미분류";
-const MAX_CATEGORY_LENGTH = 80;
 const MAX_DESCRIPTION_LENGTH = 1_000;
 const MAX_TAG_COUNT = 10;
 const MAX_TAG_LENGTH = 40;
@@ -23,12 +20,8 @@ const MAX_TAG_LENGTH = 40;
 const publishingDateSchema = z.iso.datetime({ offset: true });
 
 type PublishingPropertyName =
-  | "Blog Category"
-  | "Blog Description"
-  | "Blog Order"
   | "Blog Pinned"
   | "Blog Published At"
-  | "Blog Series"
   | "Blog Slug"
   | "Blog Tags";
 type BlogMetadataField =
@@ -37,12 +30,9 @@ type BlogMetadataField =
   | "title";
 
 export interface BlogMetadata {
-  category: { name: string; slug: string };
   description: string;
   pinned: boolean;
   publishedAt: string;
-  series: { name: string; slug: string } | null;
-  seriesOrder: number | null;
   tags: string[];
 }
 
@@ -65,23 +55,14 @@ export class InvalidBlogMetadataError extends Error {
 
 export function deriveBlogMetadata(page: NotionPageContent): BlogMetadata {
   const properties = page.publishingProperties;
-  const categoryName = category(properties?.["Blog Category"]);
 
   return {
-    category: {
-      name: categoryName,
-      slug: categorySlug(categoryName),
-    },
-    description: description(
-      properties?.["Blog Description"],
-      page,
-    ),
+    description: description(page),
     publishedAt: publishedAt(
       properties?.["Blog Published At"],
       page.createdAt,
     ),
     tags: tags(properties?.["Blog Tags"]),
-    ...seriesAndOrder(properties?.["Blog Series"], properties?.["Blog Order"]),
     pinned: pinned(properties?.["Blog Pinned"]),
   };
 }
@@ -115,30 +96,6 @@ function pinned(property: NotionPageProperty | undefined): boolean {
   return property.checked;
 }
 
-/** `Blog Series` select(비어 있으면 시리즈 없음)와 `Blog Order` number. 순서는 시리즈가 있을 때만 쓴다. */
-function seriesAndOrder(
-  seriesProperty: NotionPageProperty | undefined,
-  orderProperty: NotionPageProperty | undefined,
-): Pick<BlogMetadata, "series" | "seriesOrder"> {
-  if (seriesProperty !== undefined && seriesProperty.kind !== "select") {
-    throw new InvalidBlogMetadataError("Blog Series");
-  }
-  if (orderProperty !== undefined && orderProperty.kind !== "number") {
-    throw new InvalidBlogMetadataError("Blog Order");
-  }
-  const name = seriesProperty?.name?.trim() ?? "";
-  if (name.length > MAX_CATEGORY_LENGTH) {
-    throw new InvalidBlogMetadataError("Blog Series");
-  }
-  const order = orderProperty?.value ?? null;
-  if (order !== null && Math.abs(order) > 1_000_000) {
-    throw new InvalidBlogMetadataError("Blog Order");
-  }
-  return name === ""
-    ? { series: null, seriesOrder: null }
-    : { series: { name, slug: categorySlug(name) }, seriesOrder: order };
-}
-
 export function buildPublishDocument(
   page: NotionPageContent,
 ): PublishSourceDocument {
@@ -150,7 +107,6 @@ export function buildPublishDocument(
 
   return {
     blocks: page.blocks.flatMap(toPublishBlock),
-    category: metadata.category,
     description: metadata.description,
     publishedAt: metadata.publishedAt,
     schemaVersion: 2,
@@ -159,32 +115,7 @@ export function buildPublishDocument(
     title,
     updatedAt: validDate(page.lastEditedAt, "last_edited_time"),
     ...(metadata.pinned ? { pinned: true as const } : {}),
-    ...(metadata.series === null ? {} : { series: metadata.series }),
-    ...(metadata.seriesOrder === null ? {} : { seriesOrder: metadata.seriesOrder }),
   };
-}
-
-export function categorySlug(name: string): string {
-  if (name === UNCATEGORIZED_NAME) {
-    return "uncategorized";
-  }
-
-  const normalized = name
-    .normalize("NFKC")
-    .trim()
-    .replace(/\s+/gu, " ")
-    .toLowerCase();
-  const hash = createHash("sha256")
-    .update(normalized, "utf8")
-    .digest("hex")
-    .slice(0, 8);
-  const base = normalized
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
-
-  return base ? `${base}-${hash}` : `category-${hash}`;
 }
 
 /**
@@ -204,24 +135,6 @@ export function pageSlug(title: string, providerPageId: string, custom: string |
       .slice(0, 80)
       .replace(/-+$/g, "") || "notion");
   return `${base}-${suffix}`;
-}
-
-function category(property: NotionPageProperty | undefined): string {
-  if (property === undefined) {
-    return UNCATEGORIZED_NAME;
-  }
-  if (
-    !isObject(property) ||
-    property.kind !== "select" ||
-    typeof property.name !== "string"
-  ) {
-    throw new InvalidBlogMetadataError("Blog Category");
-  }
-  const name = property.name.trim();
-  if (name.length < 1 || name.length > MAX_CATEGORY_LENGTH) {
-    throw new InvalidBlogMetadataError("Blog Category");
-  }
-  return name;
 }
 
 function tags(property: NotionPageProperty | undefined): string[] {
@@ -256,34 +169,13 @@ function tags(property: NotionPageProperty | undefined): string[] {
   return [...unique.values()];
 }
 
-function description(
-  property: NotionPageProperty | undefined,
-  page: NotionPageContent,
-): string {
-  if (property === undefined) {
-    return fallbackDescription(page);
-  }
-  if (
-    !isObject(property) ||
-    property.kind !== "rich_text" ||
-    typeof property.plainText !== "string"
-  ) {
-    throw new InvalidBlogMetadataError("Blog Description");
-  }
-  const text = property.plainText;
-  if (text.length > MAX_DESCRIPTION_LENGTH) {
-    throw new InvalidBlogMetadataError("Blog Description");
-  }
-  return text;
-}
-
-function fallbackDescription(page: NotionPageContent): string {
+/**
+ * 카드·검색·meta에 쓰는 설명. 본문 첫 문단이고, 문단이 없으면 제목이다. 소제목·인용은 요약이 아니라 건너뛴다.
+ * 글 상세 화면에는 보이지 않는다(본문 첫 줄과 겹친다).
+ */
+function description(page: NotionPageContent): string {
   for (const block of page.blocks) {
-    if (
-      block.kind === "paragraph" ||
-      block.kind === "quote" ||
-      block.kind === "heading"
-    ) {
+    if (block.kind === "paragraph") {
       const text = block.richText.map((part) => part.text).join("").trim();
       if (text) {
         return text.slice(0, MAX_DESCRIPTION_LENGTH);

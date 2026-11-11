@@ -430,9 +430,8 @@ describe("NotionRestContentAdapter", () => {
 
     const content = await adapter.getPageContent(ROOT_ID);
 
+    // 제거한 Blog Category·Blog Description은 읽지 않는다.
     expect(content.publishingProperties).toEqual({
-      "Blog Category": { kind: "select", name: "Engineering" },
-      "Blog Description": { kind: "rich_text", plainText: "설명 본문" },
       "Blog Published At": { kind: "date", start: "2026-08-09" },
       "Blog Tags": {
         kind: "multi_select",
@@ -454,14 +453,9 @@ describe("NotionRestContentAdapter", () => {
     );
     sourcePage.properties = {
       ...sourcePage.properties,
-      "Blog Category": {
-        id: "category",
-        rich_text: [{ plain_text: "wrong" }],
-        type: "rich_text",
-      },
-      "Blog Description": {
+      "Blog Slug": {
         date: null,
-        id: "description",
+        id: "slug",
         type: "date",
       },
       "Blog Published At": {
@@ -493,11 +487,7 @@ describe("NotionRestContentAdapter", () => {
     const content = await adapter.getPageContent(ROOT_ID);
     expect(content).toMatchObject({
       publishingProperties: {
-        "Blog Category": {
-          kind: "unsupported",
-          providerType: "rich_text",
-        },
-        "Blog Description": {
+        "Blog Slug": {
           kind: "unsupported",
           providerType: "date",
         },
@@ -519,7 +509,7 @@ describe("NotionRestContentAdapter", () => {
       "not-an-envelope",
       { id: "category", select: null },
       { id: "category", type: "select" },
-      { id: "category", select: { name: 42 }, type: "select" },
+      { id: "category", multi_select: [{ name: 42 }], type: "multi_select" },
       {
         id: "category",
         rich_text: [{ href: null }],
@@ -539,7 +529,7 @@ describe("NotionRestContentAdapter", () => {
       );
       sourcePage.properties = {
         ...sourcePage.properties,
-        "Blog Category": malformedProperty,
+        "Blog Tags": malformedProperty,
       };
       const fetchMock = vi
         .fn<typeof fetch>()
@@ -592,7 +582,7 @@ describe("NotionRestContentAdapter", () => {
       );
       sourcePage.properties = {
         ...sourcePage.properties,
-        "Blog Description": overLimitProperty,
+        "Blog Slug": overLimitProperty,
       };
       const adapter = new NotionRestContentAdapter({
         accessToken: "secret",

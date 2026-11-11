@@ -107,7 +107,8 @@ const LEGACY_V1_PATHS = new Set([
 ]);
 const LEGACY_BLOG_POST_PATH = /^src\/content\/blog\/[^/]+\.md$/;
 // 게시 글 파일과, 새 폴더로 옮길 옛 앱 폴더(.notion-kanban-blog/)의 파일.
-const CONTENT_PATH = /^(?:src\/content\/blog|src\/assets\/blog|public\/posts|\.notion-kanban-blog)\//;
+// 글 관련 파일과, 게시 commit이 지울 수 있는 옛 template 화면(RETIRED_TEMPLATE_PATHS)의 위치.
+const CONTENT_PATH = /^(?:src\/content\/blog|src\/assets\/blog|public\/posts|\.notion-kanban-blog|src\/pages\/(?:categories|series|tags))\//;
 const FAILED_PAGES_STATUSES = new Set(["cancelled", "error", "errored", "failed"]);
 const OK_RUN_CONCLUSIONS = new Set(["neutral", "skipped", "success"]);
 
