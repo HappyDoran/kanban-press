@@ -518,6 +518,31 @@ describe("GitHubPagesClient", () => {
     ]);
   });
 
+  it("accepts a commit as large as the image limits allow", async () => {
+    const sha = (digit: string) => digit.repeat(40);
+    const responses = [
+      Response.json({ object: { sha: sha("1") } }),
+      Response.json({ sha: sha("1"), tree: { sha: sha("2") } }),
+      ...Array.from({ length: 3 }, () => Response.json({ sha: sha("6") })),
+      Response.json({ sha: sha("4") }),
+      Response.json({ sha: sha("5"), tree: { sha: sha("4") } }),
+      Response.json({ object: { sha: sha("5") } }),
+    ];
+    const fetchMock = vi.fn<typeof fetch>(async () => responses.shift()!);
+    const client = new GitHubPagesClient({ accessToken: "secret", apiVersion: "2026-03-10", fetch: fetchMock });
+    const eightMiB = new Uint8Array(8 * 1024 * 1024);
+    const images = Array.from({ length: 3 }, (_, index) => ({ bytes: eightMiB, path: `image-${index}.png` }));
+    const texts = Array.from({ length: 220 }, (_, index) => ({ bytes: new TextEncoder().encode("x"), path: `t-${index}.md` }));
+
+    await expect(
+      client.commitArtifacts(
+        { defaultBranch: "main", fullName: "octocat/octocat.github.io", isPrivate: false, providerRepositoryId: "1" },
+        [...images, ...texts],
+        "Publish",
+      ),
+    ).resolves.toMatchObject({ created: true });
+  });
+
   it("combines Actions and Pages state for a commit", async () => {
     const commitSha = "5".repeat(40);
     const client = new GitHubPagesClient({
