@@ -68,7 +68,7 @@ describe("createMarkdownArtifact", () => {
     expect(markdown).toContain('title: "Notion에서 온 글"');
     expect(markdown).toContain("## 본문 제목");
     expect(markdown).toContain(
-      "**굵게** 그리고 [*링크*](<https://example.com/docs?q=notion>)",
+      "<strong>굵게</strong> 그리고 [<em>링크</em>](<https://example.com/docs?q=notion>)",
     );
     expect(markdown).toContain(
       "````text\nconst fence = ```;\nconsole.log(fence);\n````",
@@ -79,6 +79,32 @@ describe("createMarkdownArtifact", () => {
     expect(markdown).toContain("<details>");
     expect(markdown).toContain("<summary>자세히 &lt;보기&gt;</summary>");
     expect(markdown).toContain("`` child()` ``");
+  });
+
+  it("wraps emphasis per line so a bold span across a blank line stays inside each paragraph", () => {
+    const markdown = decoder.decode(
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [{ kind: "quote", richText: [{ bold: true, text: "제목\n\n본문" }] }],
+      }).bytes,
+    );
+    expect(markdown).toContain("> <strong>제목</strong>\n> \n> <strong>본문</strong>");
+  });
+
+  it("shows bold typed as **text** in Notion text as bold, but not inside inline code", () => {
+    const markdown = decoder.decode(
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [
+          { kind: "paragraph", richText: [{ text: "MinIO에게 **임시 출입증(presigned URL)**을 요청, 2 * 3" }] },
+          { kind: "paragraph", richText: [{ code: true, text: "**raw**" }] },
+          { kind: "paragraph", richText: [{ text: "가능한 **Server Component(" }, { code: true, text: "page.tsx" }, { text: ")**를 쓴다" }] },
+        ],
+      }).bytes,
+    );
+    expect(markdown).toContain("MinIO에게 <strong>임시 출입증\\(presigned URL\\)</strong>을 요청, 2 \\* 3");
+    expect(markdown).toContain("` **raw** `");
+    expect(markdown).toContain("가능한 <strong>Server Component\\(` page.tsx `\\)</strong>를 쓴다");
   });
 
   it("keeps inline code literal so the Markdown renderer escapes it exactly once", () => {
@@ -320,9 +346,9 @@ describe("createMarkdownArtifact", () => {
     });
     const markdown = decoder.decode(artifact.bytes);
 
-    expect(markdown).toContain("- **첫 항목**\n   1. 중첩 항목");
+    expect(markdown).toContain("- <strong>첫 항목</strong>\n   1. 중첩 항목");
     expect(markdown).toContain("- [x] 완료한 일");
-    expect(markdown).toContain("> 📌 *중요 안내*\n> \n> 추가 설명");
+    expect(markdown).toContain("> 📌 <em>중요 안내</em>\n> \n> 추가 설명");
     expect(markdown).toContain('<div class="notion-table-wrap">');
     expect(markdown).toContain('<th scope="col">항목</th>');
     expect(markdown).toContain('<th scope="row"><strong>안전</strong></th>');
