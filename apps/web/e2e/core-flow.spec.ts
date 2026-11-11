@@ -429,7 +429,6 @@ async function installAppRoutes(
               ],
             },
           ],
-          category: { name: "테스트", slug: "test-e2e00001" },
           description: "E2E 설명",
           publishedAt: LAST_EDITED_AT,
           slug: "e2e-post-9188c6a57381452fb3dcd4865aa89bdf",

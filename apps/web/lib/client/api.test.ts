@@ -86,6 +86,6 @@ describe("publishErrorMessage", () => {
     expect(publishErrorMessage("invalid_publish_image", "byte_limit")).toContain("8MB");
     expect(publishErrorMessage("invalid_publish_image", "network")).toContain("외부 주소");
     expect(publishErrorMessage("invalid_publish_image", "unknown_reason")).toContain("다시 첨부");
-    expect(publishErrorMessage("invalid_blog_metadata", "Blog Category")).toContain('"Blog Category" 속성');
+    expect(publishErrorMessage("invalid_blog_metadata", "Blog Tags")).toContain('"Blog Tags" 속성');
   });
 });

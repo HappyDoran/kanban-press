@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildPublishDocument,
-  categorySlug,
   deriveBlogMetadata,
   InvalidBlogMetadataError,
 } from "./document";
@@ -44,10 +43,10 @@ function page(
 describe("shared publish document assembly", () => {
   it("builds deterministic v2 metadata and preserves the existing post slug", () => {
     const source = page({
-      "Blog Category": { kind: "select", name: "  Ｄev   Ops 한글  " },
+      // 제거한 속성이라 값이 있어도 설명은 본문 첫 문단이다.
       "Blog Description": {
         kind: "rich_text",
-        plainText: "설명 본문",
+        plainText: "무시되는 설명",
       },
       "Blog Published At": {
         kind: "date",
@@ -69,11 +68,7 @@ describe("shared publish document assembly", () => {
 
     expect(first).toEqual(second);
     expect(first).toMatchObject({
-      category: {
-        name: "Ｄev   Ops 한글",
-        slug: categorySlug("Ｄev   Ops 한글"),
-      },
-      description: "설명 본문",
+      description: "본문 설명",
       publishedAt: "2026-07-01T00:30:00.000Z",
       schemaVersion: 2,
       slug: "notion-9188c6a57381452fb3dcd4865aa89bdf",
@@ -81,30 +76,30 @@ describe("shared publish document assembly", () => {
       title: "한글 게시 글",
       updatedAt: "2026-07-19T10:00:00.000Z",
     });
-    expect(first.category.slug).toBe("dev-ops-cdae5729");
     expect(first.blocks[0]).toMatchObject({ kind: "heading", level: 2 });
   });
 
-  it("uses uncategorized, empty tags, body/title, and createdAt fallbacks", () => {
+  it("uses empty tags, body/title, and createdAt fallbacks", () => {
     expect(
       deriveBlogMetadata(
         page({
-          "Blog Category ": { kind: "select", name: "alias" },
+          "Blog Tags ": { kind: "multi_select", names: ["alias"] },
           "blog tags": { kind: "multi_select", names: ["alias"] },
         }),
       ),
     ).toEqual({
-      category: { name: "미분류", slug: "uncategorized" },
-      description: "첫 제목",
+      // 소제목은 건너뛰고 첫 문단을 쓴다.
+      description: "본문 설명",
       pinned: false,
       publishedAt: "2026-07-18T09:00:00.000Z",
-      series: null,
-      seriesOrder: null,
       tags: [],
     });
 
     const titleOnly = page();
-    titleOnly.blocks = [{ kind: "divider" }];
+    titleOnly.blocks = [
+      { kind: "heading", level: 1, richText: [richText("한 줄 요약")] },
+      { kind: "quote", richText: [richText("표기 안내")] },
+    ] as NotionPageContent["blocks"];
     expect(deriveBlogMetadata(titleOnly).description).toBe("한글 게시 글");
   });
 
@@ -120,28 +115,8 @@ describe("shared publish document assembly", () => {
     },
   );
 
-  it("creates a hashed category slug after NFKC and whitespace normalization", () => {
-    expect(categorySlug("  ＡPI   Design  ")).toBe(
-      "api-design-76f1e543",
-    );
-    expect(categorySlug("한글 분류")).toBe("category-90ced527");
-    expect(categorySlug("미분류")).toBe("uncategorized");
-    expect(categorySlug("Ａ".repeat(80))).toMatch(
-      /^[a]{48}-[a-f0-9]{8}$/,
-    );
-  });
-
   it.each([
-    ["null category", { "Blog Category": null }],
-    [
-      "wrong category type",
-      { "Blog Category": { kind: "multi_select", names: [] } },
-    ],
-    ["empty category", { "Blog Category": { kind: "select", name: "  " } }],
-    [
-      "category over 80 characters",
-      { "Blog Category": { kind: "select", name: "a".repeat(81) } },
-    ],
+    ["null tags", { "Blog Tags": null }],
     ["wrong tags type", { "Blog Tags": { kind: "select", name: "tag" } }],
     ["empty tag", { "Blog Tags": { kind: "multi_select", names: ["  "] } }],
     [
@@ -150,15 +125,6 @@ describe("shared publish document assembly", () => {
         "Blog Tags": {
           kind: "multi_select",
           names: Array.from({ length: 11 }, (_, index) => `tag-${index}`),
-        },
-      },
-    ],
-    [
-      "description over 1000 characters",
-      {
-        "Blog Description": {
-          kind: "rich_text",
-          plainText: "a".repeat(1_001),
         },
       },
     ],
@@ -173,7 +139,7 @@ describe("shared publish document assembly", () => {
     [
       "unsupported present property",
       {
-        "Blog Description": {
+        "Blog Published At": {
           kind: "unsupported",
           providerType: "formula",
         },
@@ -191,57 +157,40 @@ describe("shared publish document assembly", () => {
   });
 });
 
-describe("pinned and series metadata (R10)", () => {
-  it("reads checkbox, select and number properties from Notion", () => {
+describe("pinned metadata (R10) and removed properties", () => {
+  it("reads the checkbox property and ignores removed category, series and order properties", () => {
     expect(
       publishingProperties({
+        "Blog Category": { id: "c", select: { color: "blue", id: "x", name: "개발" }, type: "select" },
         "Blog Order": { id: "o", number: 2, type: "number" },
         "Blog Pinned": { checkbox: true, id: "p", type: "checkbox" },
-        "Blog Series": { id: "s", select: { color: "blue", id: "x", name: "Astro 입문" }, type: "select" },
+        "Blog Series": { id: "s", select: { color: "blue", id: "y", name: "Astro 입문" }, type: "select" },
       }),
-    ).toEqual({
-      "Blog Order": { kind: "number", value: 2 },
-      "Blog Pinned": { checked: true, kind: "checkbox" },
-      "Blog Series": { kind: "select", name: "Astro 입문" },
-    });
+    ).toEqual({ "Blog Pinned": { checked: true, kind: "checkbox" } });
   });
 
-  it("adds pinned, series and order to the document only when set", () => {
+  it("adds pinned only when set and publishes pages that still have removed properties", () => {
     const document = buildPublishDocument(
       page({
+        "Blog Category": { kind: "select", name: "개발" },
         "Blog Order": { kind: "number", value: 2 },
         "Blog Pinned": { checked: true, kind: "checkbox" },
-        "Blog Series": { kind: "select", name: " Astro 입문 " },
+        "Blog Series": { kind: "select", name: "Astro 입문" },
       }),
     );
-    expect(document).toMatchObject({
-      pinned: true,
-      series: { name: "Astro 입문", slug: categorySlug("Astro 입문") },
-      seriesOrder: 2,
-    });
+    expect(document).toMatchObject({ pinned: true });
+    for (const key of ["category", "series", "seriesOrder"]) {
+      expect(document).not.toHaveProperty(key);
+    }
 
-    const plain = buildPublishDocument(
-      page({
-        "Blog Order": { kind: "number", value: 3 },
-        "Blog Pinned": { checked: false, kind: "checkbox" },
-        "Blog Series": { kind: "select", name: null },
-      }),
-    );
+    const plain = buildPublishDocument(page({ "Blog Pinned": { checked: false, kind: "checkbox" } }));
     expect(plain).not.toHaveProperty("pinned");
-    expect(plain).not.toHaveProperty("series");
-    expect(plain).not.toHaveProperty("seriesOrder");
   });
 
-  it.each([
-    ["Blog Pinned", { kind: "unsupported", providerType: "rich_text" }],
-    ["Blog Series", { kind: "multi_select", names: ["A"] }],
-    ["Blog Series", { kind: "select", name: "가".repeat(81) }],
-    ["Blog Order", { kind: "unsupported", providerType: "formula" }],
-    ["Blog Order", { kind: "number", value: 2_000_000 }],
-  ])("rejects an invalid %s value", (property, value) => {
-    expect(() => deriveBlogMetadata(page({ [property]: value }))).toThrowError(
-      new InvalidBlogMetadataError(property as "Blog Order"),
-    );
+  it("rejects an invalid Blog Pinned value", () => {
+    expect(() =>
+      deriveBlogMetadata(page({ "Blog Pinned": { kind: "unsupported", providerType: "rich_text" } })),
+    ).toThrowError(new InvalidBlogMetadataError("Blog Pinned"));
   });
 });
 

@@ -121,6 +121,12 @@ describe("publish cleanup", () => {
     expect(artifacts.map((artifact) => artifact.path)).toContain(".kanban-press/managed.json");
   });
 
+  it("deletes the category, series and tag pages the template no longer makes", async () => {
+    const context = await fixture(["src/pages/categories/index.astro", "src/pages/tags/[slug].astro", OTHER]);
+    await publishNotionPage(request("/api/publish", context.cookie), context.dependencies);
+    expect(context.commitArtifacts.mock.calls[0]?.[3]).toEqual(["src/pages/categories/index.astro", "src/pages/tags/[slug].astro"]);
+  });
+
   it("deletes nothing on a first publish", async () => {
     const context = await fixture([OTHER]);
     await publishNotionPage(request("/api/publish", context.cookie), context.dependencies);

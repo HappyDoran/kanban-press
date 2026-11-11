@@ -5,7 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { SessionCodec } from "@kanban-press/auth";
 import type { GitHubArtifact, GitHubRepositoryAdapter } from "@kanban-press/github";
 import type { NotionContentAdapter } from "@kanban-press/notion";
-import { createAstroTemplateManifest, createMarkdownArtifact } from "@kanban-press/publisher";
+import { createAstroTemplateManifest, createMarkdownArtifact, RETIRED_TEMPLATE_PATHS } from "@kanban-press/publisher";
 import { z } from "zod";
 
 import { createGitHubAuthDependencies } from "../auth/github";
@@ -107,9 +107,12 @@ export async function publishNotionPage(request: Request, dependencies: PublishD
     const artifacts = [...written, ...redirects].sort((left, right) => left.path.localeCompare(right.path));
     const writtenPaths = new Set(artifacts.map((artifact) => artifact.path));
     // 옛 관리 표식은 이번 commit이 새 표식을 쓰므로 지운다(이름 변경 이전 저장소).
+    // 지금 template이 만들지 않는 옛 화면 파일도 지운다(남으면 build가 깨진다).
     const deletePaths = [
       ...existing.paths.filter((path) => !writtenPaths.has(path)),
-      ...readiness.contentPaths.filter((path) => path === LEGACY_MANAGED_MARKER_PATH),
+      ...readiness.contentPaths.filter(
+        (path) => path === LEGACY_MANAGED_MARKER_PATH || RETIRED_TEMPLATE_PATHS.includes(path),
+      ),
     ];
     const contentHash = artifactHash(artifacts);
     // 같은 내용을 다시 게시해도 commit이 생기도록 UUID를 붙인다. 제목 외 provider 값은 넣지 않는다.

@@ -9,7 +9,6 @@ import {
 
 const decoder = new TextDecoder();
 const baseDocument = {
-  category: { name: "Engineering", slug: "engineering-a1b2c3d4" },
   description: "안전한 게시 fixture",
   publishedAt: "2026-07-19T01:00:00.000Z",
   schemaVersion: 2,
@@ -82,6 +81,17 @@ describe("createMarkdownArtifact", () => {
     expect(markdown).toContain("`` child()` ``");
   });
 
+  it("keeps inline code literal so the Markdown renderer escapes it exactly once", () => {
+    const markdown = decoder.decode(
+      createMarkdownArtifact({
+        ...baseDocument,
+        blocks: [{ kind: "paragraph", richText: [{ code: true, text: "<app> & co" }] }],
+      }).bytes,
+    );
+    expect(markdown).toContain("` <app> & co `");
+    expect(markdown).not.toContain("&lt;");
+  });
+
   it("renders exact deterministic v2 frontmatter and preserves the post path", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,
@@ -96,8 +106,6 @@ describe("createMarkdownArtifact", () => {
         "schemaVersion: 2",
         'title: "Notion에서 온 글"',
         'description: "안전한 게시 fixture"',
-        'category: "Engineering"',
-        'categorySlug: "engineering-a1b2c3d4"',
         'tags: ["Notion", "Publishing"]',
         'publishedAt: "2026-07-19T01:00:00.000Z"',
         'updatedAt: "2026-07-19T02:00:00.000Z"',
@@ -110,31 +118,19 @@ describe("createMarkdownArtifact", () => {
     );
   });
 
-  it("writes pinned and series fields only when present (R10)", () => {
-    const markdown = decoder.decode(
-      createMarkdownArtifact({
-        ...baseDocument,
-        blocks: [],
-        pinned: true,
-        series: { name: "Astro 입문", slug: "astro-1a2b3c4d" },
-        seriesOrder: 2,
-      }).bytes,
-    );
-    expect(markdown).toContain('updatedAt: "2026-07-19T02:00:00.000Z"\npinned: true\nseries: "Astro 입문"\nseriesSlug: "astro-1a2b3c4d"\nseriesOrder: 2\n---');
+  it("writes pinned only when present and no removed category or series fields (R10)", () => {
+    const markdown = decoder.decode(createMarkdownArtifact({ ...baseDocument, blocks: [], pinned: true }).bytes);
+    expect(markdown).toContain('updatedAt: "2026-07-19T02:00:00.000Z"\npinned: true\n---');
     const plain = decoder.decode(createMarkdownArtifact({ ...baseDocument, blocks: [] }).bytes);
-    expect(plain).not.toMatch(/pinned|series/);
+    expect(plain).not.toMatch(/pinned|series|category/);
     expect(() =>
-      createMarkdownArtifact({ ...baseDocument, blocks: [], seriesOrder: Number.POSITIVE_INFINITY }),
+      createMarkdownArtifact({ ...baseDocument, blocks: [], category: { name: "옛 주제", slug: "old" } } as PublishDocument),
     ).toThrow();
   });
 
   it("JSON-escapes frontmatter and escapes dangerous body content", () => {
     const artifact = createMarkdownArtifact({
       ...baseDocument,
-      category: {
-        name: 'Docs: "safe" & <typed>',
-        slug: "docs-safe-a1b2c3d4",
-      },
       description: '"><script>\nalert(1)</script>',
       tags: ['YAML: "quoted"', "HTML & <safe>"],
       title: "</title><script>alert(1)</script>",
@@ -158,9 +154,6 @@ describe("createMarkdownArtifact", () => {
     );
     expect(markdown).toContain(
       'description: "\\"\\u003e\\u003cscript\\u003e\\nalert(1)\\u003c/script\\u003e"',
-    );
-    expect(markdown).toContain(
-      'category: "Docs: \\"safe\\" \\u0026 \\u003ctyped\\u003e"',
     );
     expect(markdown).toContain(
       'tags: ["YAML: \\"quoted\\"", "HTML \\u0026 \\u003csafe\\u003e"]',
@@ -215,24 +208,6 @@ describe("createMarkdownArtifact", () => {
   });
 
   it.each([
-    "../escape",
-    "nested/escape",
-    "/absolute",
-    "Uppercase",
-    "two--dashes",
-  ])("rejects unsafe category slug %s", (slug) => {
-    expect(() =>
-      createMarkdownArtifact({
-        ...baseDocument,
-        blocks: [],
-        category: { name: "Engineering", slug },
-      }),
-    ).toThrow();
-  });
-
-  it.each([
-    { category: { name: "", slug: "engineering" } },
-    { category: { name: "x".repeat(81), slug: "engineering" } },
     { publishedAt: "2026-07-19" },
     { schemaVersion: 1 },
     { updatedAt: "not-a-date" },
@@ -268,16 +243,6 @@ describe("createMarkdownArtifact", () => {
         ...baseDocument,
         blocks: [],
         providerPageId: "secret-provider-id",
-      } as PublishDocument),
-    ).toThrow();
-    expect(() =>
-      createMarkdownArtifact({
-        ...baseDocument,
-        blocks: [],
-        category: {
-          ...baseDocument.category,
-          providerCategoryId: "secret-category-id",
-        },
       } as PublishDocument),
     ).toThrow();
   });

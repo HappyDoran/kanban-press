@@ -72,7 +72,6 @@ const document: PublishSourceDocument = {
       url: null,
     },
   ],
-  category: { name: "개발", slug: "category-a1b2c3d4" },
   description: "설명",
   publishedAt: "2026-08-09T00:00:00.000Z",
   schemaVersion: 2,

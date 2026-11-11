@@ -212,7 +212,6 @@ describe("publish orchestration", () => {
     );
     expect(createMarkdownArtifact).toHaveBeenCalledWith(
       expect.objectContaining({
-        category: { name: "미분류", slug: "uncategorized" },
         description: "최신 본문",
         publishedAt: "2026-07-18T09:00:00.000Z",
         schemaVersion: 2,
@@ -466,7 +465,6 @@ describe("publish orchestration", () => {
         body: JSON.stringify({
           connectionId: CONNECTION_ID,
           providerPageId: PAGE_ID,
-          category: "browser category",
           markdown: "# browser content",
           readiness: { state: "ready" },
           slug: "browser-slug",
@@ -500,7 +498,7 @@ describe("publish orchestration", () => {
       lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
       providerPageId: PAGE_ID,
       publishingProperties: {
-        "Blog Category": { kind: "select", name: "" },
+        "Blog Tags": { kind: "multi_select", names: ["  "] },
       },
       title: "한글 게시 글",
     });
@@ -523,7 +521,7 @@ describe("publish orchestration", () => {
 
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({
-      detail: "Blog Category",
+      detail: "Blog Tags",
       error: "invalid_blog_metadata",
     });
     expect(context.getRepositoryReadiness).not.toHaveBeenCalled();
@@ -609,7 +607,7 @@ describe("preview orchestration", () => {
       lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
       providerPageId: PAGE_ID,
       publishingProperties: {
-        "Blog Category": { kind: "select", name: "개발" },
+        "Blog Tags": { kind: "multi_select", names: ["개발"] },
       },
       title: "한글 게시 글",
     });
@@ -630,8 +628,8 @@ describe("preview orchestration", () => {
     expect(body).toMatchObject({
       document: {
         blocks: [{ caption: expect.any(Array), kind: "image" }],
-        category: { name: "개발" },
         slug: "notion-9188c6a57381452fb3dcd4865aa89bdf",
+        tags: ["개발"],
         title: "한글 게시 글",
       },
       previewSchemaVersion: 1,
@@ -734,7 +732,7 @@ describe("preview orchestration", () => {
       lastEditedAt: new Date("2026-07-19T10:00:00.000Z"),
       providerPageId: PAGE_ID,
       publishingProperties: {
-        "Blog Category": { kind: "select", name: "" },
+        "Blog Tags": { kind: "multi_select", names: ["  "] },
       },
       title: "한글 게시 글",
     });
@@ -749,7 +747,7 @@ describe("preview orchestration", () => {
 
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toEqual({
-      detail: "Blog Category",
+      detail: "Blog Tags",
       error: "invalid_blog_metadata",
     });
     expect(context.getPagesRepository).not.toHaveBeenCalled();

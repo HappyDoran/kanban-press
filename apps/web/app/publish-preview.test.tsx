@@ -32,7 +32,6 @@ const document: PublishSourceDocument = {
       summary: [{ text: "자세히 보기" }],
     },
   ],
-  category: { name: "개발", slug: "category-a1b2c3d4" },
   description: "프리뷰 설명",
   publishedAt: "2026-08-09T00:00:00.000Z",
   schemaVersion: 2,
@@ -76,14 +75,9 @@ describe("previewErrorMessage", () => {
 });
 
 describe("PublishPreviewContent R10", () => {
-  it("shows the series of the post and passes pinned through the DTO", () => {
-    const preview = createPublishPreviewResponse(
-      { ...document, pinned: true, series: { name: "Astro 입문", slug: "astro-1a2b3c4d" }, seriesOrder: 2 },
-      "2026-08-10T00:00:00.000Z",
-    );
-    expect(preview.document).toMatchObject({ pinned: true, seriesOrder: 2 });
-    const html = renderToStaticMarkup(createElement(PublishPreviewContent, { preview }));
-    expect(html).toContain("시리즈 · Astro 입문");
-    expect(html).toContain("순서 2");
+  it("passes pinned through the DTO", () => {
+    const preview = createPublishPreviewResponse({ ...document, pinned: true }, "2026-08-10T00:00:00.000Z");
+    expect(preview.document).toMatchObject({ pinned: true });
+    expect(preview.document).not.toHaveProperty("category");
   });
 });

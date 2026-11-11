@@ -398,12 +398,8 @@ export function pageIconUrl(icon: unknown): string | null {
 
 // 블로그 metadata는 이 이름·형식의 Notion 속성에서만 읽는다(제품 명세 §5 게시).
 const PUBLISHING_PROPERTY_TYPES = {
-  "Blog Category": "select",
-  "Blog Description": "rich_text",
-  "Blog Order": "number",
   "Blog Pinned": "checkbox",
   "Blog Published At": "date",
-  "Blog Series": "select",
   "Blog Slug": "rich_text",
   "Blog Tags": "multi_select",
 } as const;
@@ -434,10 +430,6 @@ const PROPERTY_PARSERS: Record<string, (value: unknown) => NotionPageProperty | 
       ? { kind: "multi_select", names: parsed.data.multi_select.map((option) => option.name) }
       : null;
   },
-  number: (value) => {
-    const parsed = z.object({ number: z.number().finite().nullable() }).safeParse(value);
-    return parsed.success ? { kind: "number", value: parsed.data.number } : null;
-  },
   rich_text: (value) => {
     const parsed = z
       .object({
@@ -447,10 +439,6 @@ const PROPERTY_PARSERS: Record<string, (value: unknown) => NotionPageProperty | 
       })
       .safeParse(value);
     return parsed.success ? { kind: "rich_text", plainText: plainText(parsed.data.rich_text) } : null;
-  },
-  select: (value) => {
-    const parsed = z.object({ select: nameSchema.nullable() }).safeParse(value);
-    return parsed.success ? { kind: "select", name: parsed.data.select?.name ?? null } : null;
   },
 };
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createAstroTemplateManifest, DESIGN_TOKENS_CSS } from "./index.js";
+import { createAstroTemplateManifest, DESIGN_TOKENS_CSS, RETIRED_TEMPLATE_PATHS } from "./index.js";
 
 const decoder = new TextDecoder();
 
@@ -50,11 +50,12 @@ describe("createAstroTemplateManifest", () => {
         "src/components/PostCard.astro",
         "src/lib/blog.ts",
         "src/pages/404.astro",
-        "src/pages/categories/[slug].astro",
-        "src/pages/categories/index.astro",
+        "src/pages/archive.astro",
         "src/pages/posts/index.astro",
       ]),
     );
+    // 지운 화면은 다시 만들지 않는다. 게시 commit이 저장소에서 지울 목록과 겹치지 않는다.
+    expect(paths.filter((path) => RETIRED_TEMPLATE_PATHS.includes(path))).toEqual([]);
 
     const contentConfig = readArtifact(
       first.artifacts,
@@ -62,8 +63,7 @@ describe("createAstroTemplateManifest", () => {
     );
     expect(contentConfig).toContain("schemaVersion: 1 as const");
     expect(contentConfig).toContain("schemaVersion: z.literal(2)");
-    expect(contentConfig).toContain('category: "미분류"');
-    expect(contentConfig).toContain('categorySlug: "uncategorized"');
+    expect(contentConfig).toContain("category: retired");
     expect(contentConfig).toContain(".strict()");
     expect(readArtifact(first.artifacts, "src/lib/blog.ts")).toContain(
       'export const base = "/"',
@@ -78,7 +78,7 @@ describe("createAstroTemplateManifest", () => {
     expect(layout).toContain(DESIGN_TOKENS_CSS);
     expect(layout).not.toContain("Gowun Batang");
     expect(layout).toContain('href={githubUrl} rel="me"');
-    expect(layout).toContain(">주제</a>");
+    expect(layout).not.toContain(">주제</a>");
     const home = readArtifact(first.artifacts, "src/pages/index.astro");
     expect(home).toContain('class="hero-stats"');
     expect(home).toContain("{site.title}");

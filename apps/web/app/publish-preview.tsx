@@ -220,7 +220,7 @@ function PreviewPost({ preview, siteOwner }: { preview: PublishPreviewResponse; 
             <span aria-hidden="true">/</span>
           </li>
           <li>
-            <a>{document.category.name}</a>
+            <a>전체 글</a>
             <span aria-hidden="true">/</span>
           </li>
           <li>
@@ -230,9 +230,7 @@ function PreviewPost({ preview, siteOwner }: { preview: PublishPreviewResponse; 
       </div>
       <article className={`article-layout ${withToc ? "with-toc" : "without-toc"}`}>
         <header className="post-header">
-          <a className="category-link">{document.category.name}</a>
           <h1>{document.title}</h1>
-          {document.description ? <p className="post-description">{document.description}</p> : null}
           <div className="post-meta">
             <span>
               게시 <time dateTime={document.publishedAt}>{formatDate(document.publishedAt)}</time>
@@ -261,15 +259,6 @@ function PreviewPost({ preview, siteOwner }: { preview: PublishPreviewResponse; 
           </div>
         ) : null}
         <div className="article-main">
-          {document.series === undefined ? null : (
-            <div className="series-nav">
-              <h2>시리즈 · {document.series.name}</h2>
-              <p className="muted">
-                {document.seriesOrder === undefined ? "순서 없음(게시일 순)" : `순서 ${document.seriesOrder}`} · 같은 시리즈의
-                다른 글은 게시된 블로그에서 함께 보입니다.
-              </p>
-            </div>
-          )}
           {/* previewBody: E2E가 프리뷰 본문을 찾는 이름 */}
           <div className="post-body previewBody">
             <Blocks blocks={document.blocks} />
@@ -334,7 +323,6 @@ function PreviewHome({ preview, siteOwner }: { preview: PublishPreviewResponse; 
         <div className="post-grid">
           <article className="post-card">
             <div className="post-card-meta">
-              <a className="category-link">{document.category.name}</a>
               <time dateTime={document.publishedAt}>{formatDate(document.publishedAt)}</time>
             </div>
             <h3>

@@ -23,7 +23,6 @@ function documentWithImages(urls: readonly string[]): PublishSourceDocument {
       kind: "image" as const,
       sourceUrl,
     })),
-    category: { name: "개발", slug: "category-a1b2c3d4" },
     description: "로컬 이미지 자산",
     publishedAt: "2026-08-09T00:00:00.000Z",
     schemaVersion: 2,

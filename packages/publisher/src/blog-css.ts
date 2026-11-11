@@ -11,7 +11,8 @@ export const BLOG_CSS = `
 .site-nav a { display: inline-flex; min-height: 2.75rem; align-items: center; padding-inline: 0.75rem; border-radius: var(--radius-control); color: var(--color-text-secondary); font-size: 0.875rem; font-weight: 500; text-decoration: none; }
 .site-nav a:hover { color: var(--color-text-primary); }
 .site-nav a[aria-current="page"], .site-brand[aria-current="page"] { color: var(--color-accent); }
-.site-main { min-height: 70vh; padding-block: 2.5rem 4rem; }
+/* 글 상세의 목차 배치는 화면이 아니라 본문 영역 폭으로 정한다(앱 프리뷰의 좁은 프레임에서도 같게). */
+.site-main { min-height: 70vh; padding-block: 2.5rem 4rem; container-type: inline-size; }
 .site-footer { border-top: 1px solid var(--color-border); color: var(--color-text-secondary); }
 .site-footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.5rem; padding-block: 1.5rem; font-size: 0.875rem; }
 .muted { color: var(--color-text-secondary); }
@@ -27,7 +28,20 @@ export const BLOG_CSS = `
 .section-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1rem; margin-block: 2.5rem 1rem; }
 .section-heading h2 { margin: 0; font-size: 1.125rem; }
 .post-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 28rem), 1fr)); gap: 1rem; }
-.post-list { display: grid; gap: 1rem; max-width: var(--reading-max); }
+.post-list { display: grid; gap: 1rem; }
+/* 읽기 폭 블록은 화면 가운데에 둔다(글 상세 본문 열과 같은 세로선). */
+.breadcrumbs, .page-intro, .post-list, .archive-month, .empty-state, .post-search, .post-status, .tag-filter, .pagination { max-width: var(--reading-max); margin-inline: auto; }
+.post-search { display: grid; gap: 0.375rem; margin-block-end: 1rem; }
+.post-search label { font-size: 0.875rem; font-weight: 600; }
+.post-search input { min-height: 2.75rem; padding-inline: 0.875rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-bg-surface); color: var(--color-text-primary); font: inherit; }
+.post-search input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.tag-filter { margin-block-end: 1.5rem; }
+.post-status { margin-block: 0 1rem; font-size: 0.875rem; }
+.pagination { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.375rem; margin-block-start: 2rem; }
+.pagination button { min-width: 2.75rem; min-height: 2.75rem; padding-inline: 0.75rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-bg-surface); color: var(--color-text-primary); font: inherit; font-family: var(--font-mono); font-size: 0.875rem; cursor: pointer; }
+.pagination button:hover:not(:disabled), .pagination button[aria-current="page"] { border-color: var(--color-accent); color: var(--color-accent); }
+.pagination button:disabled { cursor: default; opacity: 0.45; }
+.pagination button:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 
 .post-card { display: flex; min-width: 0; flex-direction: column; gap: 0.5rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-bg-surface); transition: border-color 120ms var(--ease); }
 .post-card:hover, .post-card:focus-within { border-color: var(--color-accent); }
@@ -36,47 +50,36 @@ export const BLOG_CSS = `
 .post-card-title { color: var(--color-text-primary); text-decoration: none; }
 .post-card-title:hover { color: var(--color-accent); text-decoration: underline; }
 .post-card-description { display: -webkit-box; overflow: hidden; margin: 0; color: var(--color-text-secondary); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.category-link { color: var(--color-proof); font-family: var(--font-mono); font-size: 0.8125rem; letter-spacing: 0.04em; text-decoration: none; }
-.category-link:hover { text-decoration: underline; }
 .tag-list { gap: 0.25rem 0.75rem; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 0.75rem; }
 .tag-list li { white-space: nowrap; }
 .tag-list a { color: inherit; text-decoration: none; }
 .tag-list a:hover { color: var(--color-accent); text-decoration: underline; }
-.archive-month { max-width: var(--reading-max); margin-block-end: 2rem; }
+.archive-month { margin-block-end: 2rem; }
 .archive-month h2 { margin: 0 0 0.5rem; font-size: 1.125rem; }
 .archive-list { margin: 0; padding: 0; list-style: none; }
 .archive-list li { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; padding-block: 0.5rem; border-bottom: 1px solid var(--color-border); }
 .archive-list time { min-width: 8.5rem; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 0.8125rem; }
-.series-list { max-width: var(--reading-max); }
-.series-nav { margin-block-end: 2rem; padding: 1rem 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-bg-surface); font-size: 0.9375rem; }
-.series-nav h2 { margin: 0 0 0.5rem; font-size: 0.9375rem; }
-.series-nav h2 a { color: var(--color-text-primary); text-decoration: none; }
-.series-nav h2 a:hover { color: var(--color-accent); text-decoration: underline; }
-.series-nav ol { margin: 0; padding-inline-start: 1.25rem; }
-.series-nav li + li { margin-block-start: 0.25rem; }
-.series-nav [aria-current="page"] { font-weight: 600; }
 .category-list { gap: 0.5rem; }
 .category-list a { display: inline-flex; min-height: 2.75rem; align-items: center; gap: 0.5rem; padding-inline: 0.875rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-bg-surface); color: var(--color-text-primary); text-decoration: none; }
-.category-list a:hover, .category-list a[aria-current="page"] { border-color: var(--color-accent); color: var(--color-accent); }
+.category-list a:hover, .category-list a[aria-current] { border-color: var(--color-accent); color: var(--color-accent); }
 .category-list .muted { font-family: var(--font-mono); font-size: 0.75rem; }
 
 .breadcrumbs { margin-block-end: 1.5rem; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 0.75rem; }
 .breadcrumbs ol { gap: 0.4rem; }
 .breadcrumbs li { display: flex; gap: 0.4rem; }
 .breadcrumbs a { color: inherit; }
-.page-intro { max-width: var(--reading-max); margin-block-end: 2rem; }
+.page-intro { margin-block-end: 2rem; }
 .page-intro h1, .post-header h1 { margin: 0 0 0.5rem; font-family: var(--font-title); font-size: clamp(1.75rem, 4vw, 2.125rem); line-height: 1.3; }
 .page-intro p { margin: 0; }
-.empty-state { max-width: var(--reading-max); padding: 1.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-bg-surface); }
+.empty-state { padding: 1.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-bg-surface); }
 .empty-state :is(h1, h2) { margin-block-start: 0; font-size: 1.25rem; }
 
 .post-header { margin-block-end: 2rem; padding-block-end: 1.25rem; border-bottom: 1px solid var(--color-text-primary); }
-.post-header h1 { margin-block-start: 0.5rem; }
-.post-description { margin: 0 0 1rem; color: var(--color-text-secondary); font-size: 1.125rem; }
+.post-header h1 { margin-block-start: 0; }
 .post-meta { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 0.8125rem; }
 .post-header .tag-list { margin-block-start: 0.75rem; }
-/* 글 상세: 제목 → 목차 → 본문 순서. 좁은 화면은 한 열, 넓은 화면은 목차를 본문 왼쪽에 붙인다. */
-.article-layout { display: grid; grid-template-columns: minmax(0, var(--reading-max)); }
+/* 글 상세: 제목 → 목차 → 본문 순서. 본문 열은 늘 가운데이고, 넓으면 목차를 본문 왼쪽 빈자리에 둔다. */
+.article-layout { display: grid; grid-template-columns: minmax(0, var(--reading-max)); justify-content: center; }
 .article-layout > * { min-width: 0; }
 /* 목차는 교정지 여백의 방주처럼 연필 파랑 선 옆에 둔다. */
 .post-toc { margin-block-end: 2rem; padding: 0.25rem 0 0.25rem 1rem; border-inline-start: 1px solid var(--color-guide); font-size: 0.875rem; }
@@ -132,10 +135,11 @@ export const BLOG_CSS = `
 @media (min-width: 37.5rem) {
   .site-header-inner, .site-main, .site-footer-inner { width: min(var(--shell-max), calc(100% - 4rem)); }
 }
-@media (min-width: 64rem) {
-  .article-layout.with-toc { grid-template-columns: var(--toc-width) minmax(0, var(--reading-max)); column-gap: 3rem; align-items: start; }
+/* 본문 45rem + 양쪽 목차 자리(약 12.5rem)와 간격이 들어가는 폭부터 목차를 옆에 둔다. 그보다 좁으면 본문 위다. */
+@container (min-width: 76rem) {
+  .article-layout.with-toc { grid-template-columns: minmax(0, 1fr) minmax(0, var(--reading-max)) minmax(0, 1fr); justify-content: stretch; column-gap: 3rem; align-items: start; }
   .article-layout.with-toc > .post-header, .article-layout.with-toc > .article-main { grid-column: 2; }
-  .article-layout.with-toc > .post-toc { position: sticky; top: 1.5rem; grid-column: 1; grid-row: 2; max-height: calc(100vh - 3rem); margin: 0; overflow-y: auto; }
+  .article-layout.with-toc > .post-toc { position: sticky; top: 1.5rem; grid-column: 1; grid-row: 2; justify-self: end; width: min(100%, var(--toc-width)); max-height: calc(100vh - 3rem); margin: 0; overflow-y: auto; }
   .article-layout.with-toc > .article-main { grid-row: 2; }
 }
 @media (max-width: 37.4375rem) {
@@ -146,6 +150,6 @@ export const BLOG_CSS = `
   .post-card { transition: none; }
 }
 @media (prefers-contrast: more) {
-  .post-card, .category-list a, .post-toc, .empty-state { border-color: var(--color-text-primary); }
+  .post-card, .category-list a, .post-toc, .empty-state, .post-search input, .pagination button { border-color: var(--color-text-primary); }
 }
 `;

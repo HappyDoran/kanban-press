@@ -11,12 +11,6 @@ const slugSchema = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const isoDateSchema = z.iso.datetime({ offset: true });
-const categorySchema = z
-  .object({
-    name: z.string().trim().min(1).max(80),
-    slug: slugSchema,
-  })
-  .strict();
 const tagSchema = z.string().trim().min(1).max(40);
 const tagsSchema = z
   .array(tagSchema)
@@ -181,13 +175,10 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
 const publishDocumentSchema = z
   .object({
     blocks: z.array(blockSchema).max(5_000),
-    category: categorySchema,
     description: z.string().max(1_000),
     pinned: z.literal(true).optional(),
     publishedAt: isoDateSchema,
     schemaVersion: z.literal(2),
-    series: categorySchema.optional(),
-    seriesOrder: z.number().finite().min(-1_000_000).max(1_000_000).optional(),
     slug: slugSchema,
     tags: tagsSchema,
     title: z.string().trim().min(1).max(2_000),
@@ -197,18 +188,11 @@ const publishDocumentSchema = z
 
 export interface PublishDocument {
   blocks: PublishBlock[];
-  category: {
-    name: string;
-    slug: string;
-  };
   description: string;
   /** 홈 상단 고정(R10). 고정할 때만 둔다. */
   pinned?: true;
   publishedAt: string;
   schemaVersion: 2;
-  /** 연재 묶음(R10)과 그 안의 순서. 순서는 시리즈가 있을 때만 의미가 있다. */
-  series?: { name: string; slug: string };
-  seriesOrder?: number;
   slug: string;
   tags: string[];
   title: string;
@@ -226,8 +210,6 @@ export function createMarkdownArtifact(
     `schemaVersion: ${document.schemaVersion}`,
     `title: ${frontmatterString(document.title)}`,
     `description: ${frontmatterString(document.description)}`,
-    `category: ${frontmatterString(document.category.name)}`,
-    `categorySlug: ${frontmatterString(document.category.slug)}`,
     `tags: [${document.tags.map(frontmatterString).join(", ")}]`,
     `publishedAt: ${frontmatterString(document.publishedAt)}`,
     `updatedAt: ${frontmatterString(document.updatedAt)}`,
@@ -235,13 +217,6 @@ export function createMarkdownArtifact(
     ...(manuscriptPages > 0 ? [`manuscriptPages: ${manuscriptPages}`] : []),
     // R10 필드는 값이 있을 때만 쓴다. 없으면 이전과 같은 Markdown이 나온다.
     ...(document.pinned === true ? ["pinned: true"] : []),
-    ...(document.series === undefined
-      ? []
-      : [
-          `series: ${frontmatterString(document.series.name)}`,
-          `seriesSlug: ${frontmatterString(document.series.slug)}`,
-          ...(document.seriesOrder === undefined ? [] : [`seriesOrder: ${document.seriesOrder}`]),
-        ]),
     "---",
   ].join("\n");
   const markdown = `${frontmatter}\n\n${body}`.trimEnd() + "\n";
@@ -491,8 +466,12 @@ function renderRichTextHtml(
     .join("");
 }
 
+/**
+ * Markdown code span. 안의 글자는 Markdown 렌더러가 그대로 보여 주고 HTML escape도 렌더러가 한다.
+ * 여기서 escape하면 `<`가 `&amp;lt;`로 두 번 escape되어 화면에 `&lt;`가 그대로 보인다.
+ */
 function inlineCode(value: string): string {
-  const content = escapeHtml(normalizeNewlines(value));
+  const content = normalizeNewlines(value);
   const longestRun = Math.max(
     0,
     ...([...content.matchAll(/`+/g)].map((match) => match[0].length)),
