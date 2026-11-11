@@ -63,6 +63,7 @@ interface KanbanBoardProps {
   connectionNames: Readonly<Record<string, string>>;
   onPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
+  onRemove: (record: KanbanRecord) => Promise<void>;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   publishFailures: Readonly<
     Record<
@@ -77,6 +78,7 @@ export function KanbanBoard({
   connectionNames,
   onPublish,
   onPreview,
+  onRemove,
   onUnpublish,
   publishFailures,
   records,
@@ -215,6 +217,7 @@ export function KanbanBoard({
                 key={column}
                 movingId={movingId}
                 onQueryChange={setQuery}
+                onRemove={onRemove}
                 onUnpublish={unpublish}
                 onRetryPublish={onPublish}
                 onPreview={onPreview}
@@ -246,6 +249,7 @@ function KanbanColumn({
   connectionNames,
   movingId,
   onQueryChange,
+  onRemove,
   onUnpublish,
   onRetryPublish,
   onPreview,
@@ -257,6 +261,7 @@ function KanbanColumn({
   connectionNames: Readonly<Record<string, string>>;
   movingId: string | null;
   onQueryChange: (query: string) => void;
+  onRemove: (record: KanbanRecord) => Promise<void>;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
@@ -311,6 +316,7 @@ function KanbanColumn({
               }
               disabled={movingId === recordId(record)}
               key={recordId(record)}
+              onRemove={onRemove}
               onUnpublish={onUnpublish}
               onRetryPublish={onRetryPublish}
               onPreview={onPreview}
@@ -321,7 +327,7 @@ function KanbanColumn({
           {column === "publishing" ? <p className="dropZone">여기에 놓으면 게시</p> : null}
           {column === "stored" && records.length === 0 ? (
             <p className="emptyColumn">
-              {query === "" ? "보관 중인 문서가 없습니다" : "일치하는 문서가 없습니다"}
+              {query === "" ? "왼쪽 문서 목록에서 추가하세요" : "일치하는 문서가 없습니다"}
             </p>
           ) : null}
           {column === "published" ? (
@@ -336,6 +342,7 @@ function KanbanColumn({
 function SortableBoardCard({
   connectionName,
   disabled,
+  onRemove,
   onUnpublish,
   onRetryPublish,
   onPreview,
@@ -344,6 +351,7 @@ function SortableBoardCard({
 }: {
   connectionName: string;
   disabled: boolean;
+  onRemove: (record: KanbanRecord) => Promise<void>;
   onUnpublish: (record: KanbanRecord) => Promise<void>;
   onRetryPublish: (record: KanbanRecord) => Promise<void>;
   onPreview: (record: KanbanRecord) => void;
@@ -382,6 +390,7 @@ function SortableBoardCard({
         dragAttributes={attributes}
         dragListeners={listeners}
         dragRef={setActivatorNodeRef}
+        onRemove={onRemove}
         onUnpublish={onUnpublish}
         onRetryPublish={onRetryPublish}
         onPreview={onPreview}
@@ -398,6 +407,7 @@ export function BoardCard({
   dragAttributes,
   dragListeners,
   dragRef,
+  onRemove,
   onUnpublish,
   onRetryPublish,
   onPreview,
@@ -410,6 +420,7 @@ export function BoardCard({
   dragAttributes?: DraggableAttributes;
   dragListeners?: DraggableSyntheticListeners;
   dragRef?: (element: HTMLElement | null) => void;
+  onRemove?: (record: KanbanRecord) => Promise<void>;
   onUnpublish?: (record: KanbanRecord) => Promise<void>;
   onRetryPublish?: (record: KanbanRecord) => Promise<void>;
   onPreview?: (record: KanbanRecord) => void;
@@ -541,6 +552,20 @@ export function BoardCard({
                 type="button"
               >
                 블로그에서 내리기
+              </button>
+            ) : null}
+            {record.column === "stored" && onRemove !== undefined ? (
+              <button
+                aria-label={`${record.title} 보관 중에서 빼기`}
+                className="iconButton"
+                disabled={disabled}
+                onClick={() => void onRemove(record)}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                title="보관 중에서 빼기"
+                type="button"
+              >
+                ✕
               </button>
             ) : null}
           </div>

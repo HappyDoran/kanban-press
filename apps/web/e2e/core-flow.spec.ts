@@ -21,15 +21,17 @@ test("signed-out OAuth entry is explicit and accessible", async ({ page }) => {
   await expectNoSeriousAccessibilityViolations(page);
 });
 
-test("session, preview, publish, the same board in another browser, and user switch", async ({
+test("session, adding to the board, preview, publish, the same board in another browser, and user switch", async ({
   browser,
   page,
 }) => {
   let userId = "52277540";
   let publishCalls = 0;
+  // 보관 중 목록은 블로그 저장소 branch에 있으므로 두 브라우저가 같은 값을 본다.
+  const board = { pageIds: [] as string[] };
   await installAppRoutes(page, () => userId, () => {
     publishCalls += 1;
-  }, NESTED_PAGES);
+  }, NESTED_PAGES, board);
   // R8: 블로그 저장소에 올라간 글 목록과 블로그에서 내리기.
   let onBlog = false;
   let unpublishCalls = 0;
@@ -53,11 +55,18 @@ test("session, preview, publish, the same board in another browser, and user swi
 
   await expect(page.getByText("E2E 게시 문서", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("게시 준비 완료")).toBeVisible();
-  // 하위 page도 칸반에 오르고, 하위 page가 있는 폴더 page는 오르지 않는다.
-  const board = page.getByRole("main");
-  await expect(board.getByRole("heading", { name: "E2E 하위 문서" })).toBeVisible();
-  await expect(board.getByRole("heading", { name: "E2E 폴더" })).toHaveCount(0);
+  // 보관 중은 직접 고른 문서만. 처음에는 비어 있고, 폴더(컨테이너)에는 추가 버튼이 없다.
+  const main = page.getByRole("main");
+  await expect(page.getByText("보관 중 0편")).toBeVisible();
+  const sidebar = page.getByRole("navigation", { name: "Notion 문서" });
+  await expect(sidebar.getByRole("button", { name: "E2E 폴더을 보관 중에서 넣기" })).toHaveCount(0);
+  await sidebar.getByRole("button", { name: "E2E 게시 문서을 보관 중에서 넣기" }).click();
+  await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).fill("하위");
+  await sidebar.getByRole("button", { name: "E2E 하위 문서을 보관 중에서 넣기" }).click();
+  await sidebar.getByRole("searchbox", { name: "문서 제목 검색" }).press("Escape");
   await expect(page.getByText("보관 중 2편")).toBeVisible();
+  await expect(main.getByRole("heading", { name: "E2E 하위 문서" })).toBeVisible();
+  expect(board.pageIds).toEqual([PAGE_ID.replaceAll("-", ""), NESTED_PAGES[2]!.providerPageId.replaceAll("-", "")]);
 
   await page.getByRole("button", { name: "E2E 게시 문서 카드 이동" }).locator("xpath=ancestor::article")
     .getByRole("button", { exact: true, name: "미리보기" }).click();
@@ -110,7 +119,7 @@ test("session, preview, publish, the same board in another browser, and user swi
   // 칸반을 브라우저에 저장하지 않으므로 아무것도 없는 다른 브라우저에서도 같은 칸반이 보인다.
   const otherBrowser = await browser.newContext();
   const fresh = await otherBrowser.newPage();
-  await installAppRoutes(fresh, () => userId, () => undefined, NESTED_PAGES);
+  await installAppRoutes(fresh, () => userId, () => undefined, NESTED_PAGES, board);
   await routeBlogPosts(fresh);
   await fresh.goto("/");
   await expect(fresh.getByText("보관 중 1편 · 게시 중 0편 · 게시 완료 1편")).toBeVisible();
@@ -278,7 +287,20 @@ async function installAppRoutes(
   currentUserId: () => string,
   onPublish: () => void,
   pages: readonly object[] = [E2E_PAGE],
+  board = { pageIds: [PAGE_ID.replaceAll("-", "")] },
 ): Promise<void> {
+  // `/api/board`: 보관 중 목록. POST는 넣기, DELETE는 빼기.
+  await page.route("**/api/board", (route) => {
+    const method = route.request().method();
+    if (method !== "GET") {
+      const pageId = String((route.request().postDataJSON() as { providerPageId: string }).providerPageId).replaceAll("-", "");
+      board.pageIds =
+        method === "POST"
+          ? [...board.pageIds.filter((id) => id !== pageId), pageId]
+          : board.pageIds.filter((id) => id !== pageId);
+    }
+    return route.fulfill({ json: { pageIds: board.pageIds } });
+  });
   await page.route("**/api/me", (route) =>
     route.fulfill({
       json: {

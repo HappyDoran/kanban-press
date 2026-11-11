@@ -28,8 +28,11 @@ const pages = [
 function render(query: string): string {
   return renderToStaticMarkup(
     createElement(NotionTree, {
+      board: new Set<string>(),
       connectionId: "connection",
+      onBoardChange: () => undefined,
       pages,
+      pendingKeys: new Set<string>(),
       query,
     }),
   );

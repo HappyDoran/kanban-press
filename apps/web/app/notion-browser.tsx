@@ -155,9 +155,14 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
               ) : null}
               {pageList.state === "ready" && pageList.pages.length > 0 && selectedConnectionId !== null ? (
                 <NotionTree
+                  board={board.board}
                   connectionId={selectedConnectionId}
                   key={selectedConnectionId}
+                  onBoardChange={(page, onBoard) =>
+                    void board.setOnBoard(selectedConnectionId, page.providerPageId, onBoard)
+                  }
                   pages={pageList.pages}
+                  pendingKeys={board.pendingKeys}
                   query={query}
                 />
               ) : null}
@@ -175,6 +180,11 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                 보관 중 {count("stored")}편 · 게시 중 {count("publishing")}편 · 게시 완료 {count("published")}편
               </p>
             </div>
+            {board.boardError === "" ? null : (
+              <p className="notice danger" role="status">
+                {board.boardError}
+              </p>
+            )}
             {pageList.state === "ready" ? (
               <KanbanBoard
                 connectionNames={connectionNames}
@@ -187,6 +197,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                   })
                 }
                 onPublish={board.publish}
+                onRemove={board.remove}
                 onUnpublish={board.unpublish}
                 publishFailures={board.failures}
                 records={board.kanbanRecords}

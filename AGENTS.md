@@ -60,7 +60,7 @@ last_verified: 2026-11-10
 
 - 실행 서버는 `apps/web` 하나다. 별도 Worker, DB, 큐, 객체 저장소를 추가하지 않는다.
 - GitHub 사용자는 서로 독립적이며 팀·조직·tenant 모델을 만들지 않는다.
-- 칸반 상태는 어디에도 저장하지 않고 Notion page 목록과 블로그 저장소에서 매번 계산한다([ADR 0002](docs/adr/0002-stateless-board.md)). 그래서 같은 계정이면 어느 브라우저에서나 같다.
+- 칸반의 보관 중 목록은 사용자 `<login>.github.io` 저장소의 `kanban-press-board` branch에 page ID로만 두고, 게시 완료는 블로그 글 파일로 정한다([ADR 0003](docs/adr/0003-board-branch.md)). 그래서 같은 계정이면 어느 브라우저에서나 같다.
 - 인증 및 provider token은 클라이언트 JavaScript나 브라우저 저장소(IndexedDB·localStorage)에 저장하지 않는다.
 - GitHub 세션과 Notion 연결 정보는 암호화·무결성 보호된 `HttpOnly`,
   `Secure`, `SameSite=Lax` 쿠키에만 둔다.
