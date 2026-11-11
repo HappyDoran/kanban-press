@@ -275,8 +275,9 @@ export function useBoard(ownerId: string | null, githubLogin: string, pageList: 
     [connectionId, pages, state, board, views, failures, blogPosts],
   );
   const boardIds = useMemo(() => new Set(board), [board]);
+  const publishedIds = useMemo(() => new Set(blogPosts.keys()), [blogPosts]);
 
-  return { board: boardIds, boardError, failures, kanbanRecords, pendingKeys, publish, remove, setOnBoard, unpublish };
+  return { board: boardIds, boardError, published: publishedIds, failures, kanbanRecords, pendingKeys, publish, remove, setOnBoard, unpublish };
 }
 
 function without<T>(map: Readonly<Record<string, T>>, key: string): Readonly<Record<string, T>> {

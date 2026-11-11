@@ -124,6 +124,10 @@ test("session, adding to the board, preview, publish, the same board in another 
   await fresh.goto("/");
   await expect(fresh.getByText("보관 중 1편 · 게시 중 0편 · 게시 완료 1편")).toBeVisible();
   await expect(fresh.getByRole("main").getByRole("heading", { name: "E2E 하위 문서" })).toBeVisible();
+  // 게시된 문서는 문서 목록에서 추가 대신 게시됨으로 보인다.
+  const freshSidebar = fresh.getByRole("navigation", { name: "Notion 문서" });
+  await expect(freshSidebar.getByText("게시됨")).toBeVisible();
+  await expect(freshSidebar.getByRole("button", { name: "E2E 게시 문서을 보관 중에서 빼기" })).toHaveCount(0);
   await otherBrowser.close();
 
   page.once("dialog", (dialog) => void dialog.accept());

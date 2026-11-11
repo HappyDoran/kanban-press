@@ -163,6 +163,7 @@ export function NotionBrowser({ marketing }: { marketing?: ReactNode }) {
                   }
                   pages={pageList.pages}
                   pendingKeys={board.pendingKeys}
+                  published={board.published}
                   query={query}
                 />
               ) : null}
