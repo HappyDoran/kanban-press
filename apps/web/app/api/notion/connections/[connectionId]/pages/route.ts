@@ -1,7 +1,7 @@
 import {
   createNotionPageTreeDependencies,
   listNotionPageTree,
-} from "../../../../../../lib/notion/pages";
+} from "@/lib/server/notion/pages";
 
 export const dynamic = "force-dynamic";
 

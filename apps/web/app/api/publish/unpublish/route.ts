@@ -1,4 +1,4 @@
-import { createPublishDependencies, unpublishNotionPage } from "../../../../lib/publish/orchestration";
+import { createPublishDependencies, unpublishNotionPage } from "@/lib/server/publish/orchestration";
 
 export const dynamic = "force-dynamic";
 

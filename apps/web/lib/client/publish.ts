@@ -1,6 +1,6 @@
 // 게시 요청 → GitHub Actions 배포 완료까지 기다리는 흐름. React를 모른다.
 // 서버 측 재시도나 이력은 없으므로(제품 명세 §4) 화면을 닫으면 확인을 멈추고 결과는 남기지 않는다.
-import { TaskLimiter } from "../board/task-limiter";
+import { TaskLimiter } from "@/lib/shared/task-limiter";
 import { ApiError, fetchPublishStatus, type PublishStatus, requestPublish, requestUnpublish } from "./api";
 
 // 상태 확인 한 번에 서버가 GitHub API를 2~6번 부른다. 여러 글을 함께 게시하면 사용자 GitHub 한도(시간당 5,000)를

@@ -1,7 +1,7 @@
 import {
   createNotionAuthDependencies,
   listNotionConnections,
-} from "../../../../lib/auth/notion";
+} from "@/lib/server/auth/notion";
 
 export const dynamic = "force-dynamic";
 

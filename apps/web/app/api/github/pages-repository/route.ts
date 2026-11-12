@@ -1,7 +1,7 @@
 import {
   createGitHubPagesDependencies,
   getGitHubPagesRepository,
-} from "../../../../lib/github/pages";
+} from "@/lib/server/github/pages";
 
 export const runtime = "nodejs";
 

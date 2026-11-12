@@ -1,4 +1,4 @@
-// provider·UI와 무관한 식별자와 칸반 열. 칸반 이동 규칙은 쓰는 곳(apps/web/app/board-drop.ts)이 가진다.
+// provider·UI와 무관한 식별자와 칸반 열. 칸반 이동 규칙은 쓰는 곳(apps/web/components/board-drop.ts)이 가진다.
 declare const entityIdBrand: unique symbol;
 
 /** 문자열이지만 다른 종류의 ID와 섞어 쓰면 타입 오류가 나는 ID. */

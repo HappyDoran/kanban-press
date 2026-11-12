@@ -1,7 +1,7 @@
 ---
 title: 아키텍처
 kind: design
-last_verified: 2026-11-11
+last_verified: 2026-11-12
 ---
 
 # 아키텍처
@@ -44,17 +44,31 @@ apps/web (stateless Next.js)
 ## 3. package 경계와 코드 위치
 
 package 책임과 허용 의존은 [TECH_RULES.md](../../TECH_RULES.md)의 책임과 의존 그래프 절이 소유한다.
-`apps/web` 안의 층은 다음과 같다. route 파일(`app/api/**/route.ts`, `app/auth/**`)은 아래 함수를 부르기만 한다.
+`apps/web` 안은 실행 위치로 나눈다. 패턴은 port(`packages/*`의 interface)와 adapter(`lib/server/`의 구현), 얇은 Route Handler, 의존성을 인자로 받는 use-case 함수(`create*Dependencies()`로 실제 구현을 주입하고 테스트는 fake를 넣는다)다.
+
+```text
+apps/web/
+  app/          Next 진입점만: page.tsx, layout.tsx, globals.css, api/**/route.ts, auth/**/route.ts
+  components/   화면 컴포넌트와 화면 상태 hook
+  lib/client/   브라우저에서 부르는 API 호출과 응답 검증
+  lib/shared/   서버·브라우저가 함께 쓰는 순수 코드(I/O 없음)
+  lib/server/   서버 전용: provider adapter, use-case, 쿠키·OAuth
+```
+
+- route 파일은 `lib/server/`의 함수를 부르기만 한다.
+- `components/`·`lib/client/`·`lib/shared/`는 `lib/server/`를 값으로 import하지 않고(타입 import는 허용), `lib/shared/`는 `components/`·`lib/client/`도 import하지 않는다. `apps/web/eslint.config.mjs`가 검사한다(테스트 파일 제외).
+- 다른 폴더는 `@/` 경로(`@/lib/server/auth/session`)로, 같은 폴더는 `./`로 import한다.
 
 | 층 | 위치 | 하는 일 |
 |---|---|---|
-| 화면 | `app/notion-browser.tsx`, `kanban-board.tsx`, `notion-tree.tsx`, `publish-preview.tsx`, `github-pages-target.tsx` | 조립과 표시 |
-| 화면 상태 | `app/use-workspace.ts`, `app/use-board.ts`, `lib/client/` | 세션·연결·칸반 상태, 브라우저 API 호출과 응답 검증, 게시→배포 확인 |
-| 인증 | `lib/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
-| Notion | `lib/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
-| GitHub | `lib/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
-| 게시 | `lib/publish/` | 보관 중 목록(`board-route.ts` 읽기·추가·빼기), 사이트 설정(`site-settings.ts` 형식, `site-settings-route.ts` 읽기·저장), 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 게시·내리기·게시 글 목록(`orchestration.ts`), 한 글의 저장소 파일 규칙(`blog-files.ts`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰 DTO(`preview.ts`) |
-| provider 공통 | `lib/operations/` | 10초 timeout·`Retry-After`·allowlist 로그 |
+| 화면 | `components/notion-browser.tsx`, `kanban-board.tsx`, `notion-tree.tsx`, `publish-preview.tsx`, `github-pages-target.tsx` | 조립과 표시 |
+| 화면 상태 | `components/use-workspace.ts`, `components/use-board.ts`, `lib/client/` | 세션·연결·칸반 상태, 브라우저 API 호출과 응답 검증, 게시→배포 확인 |
+| 공용 | `lib/shared/` | 동시 실행 상한(`task-limiter.ts`), 날짜 표시(`format-date.ts`), outline 필터(`notion-outline.ts`), 한 글의 저장소 파일 규칙(`blog-files.ts`), 사이트 설정 형식(`site-settings.ts`), 프리뷰 DTO(`publish-preview.ts`) |
+| 인증 | `lib/server/auth/` | 세션·연결 쿠키, GitHub·Notion OAuth |
+| Notion | `lib/server/notion/` | 요청(`provider.ts`)·응답 변환(`convert.ts`)·읽기 순서(`content.ts`)·목록 route(`pages.ts`) |
+| GitHub | `lib/server/github/pages.ts` | 저장소 확인·준비 상태·commit·배포 상태 |
+| 게시 | `lib/server/publish/` | 보관 중 목록(`board-route.ts` 읽기·추가·빼기), 사이트 설정 읽기·저장(`site-settings-route.ts`), 공통 요청 검증(`orchestration.ts`의 `authorizePageRequest`), 게시·내리기·게시 글 목록(`orchestration.ts`), 문서 조립(`document.ts`), 이미지(`image-assets.ts`), 프리뷰(`preview-orchestration.ts`) |
+| provider 공통 | `lib/server/operations/` | 10초 timeout·`Retry-After`·allowlist 로그 |
 
 ## 4. 요청 경계
 
@@ -166,7 +180,7 @@ numeric ID, public 여부와 push 권한을 확인하며 credential은 응답, U
 ## 6. 장애 특성
 
 - Notion/GitHub API 실패는 요청 실패로 반환하며 브라우저에서 명시적으로 재시도한다.
-- 모든 provider 요청은 `lib/operations/provider-request.ts`를 거치며 10초 timeout과 caller abort를 합성한다. fetch가 abort를 무시해도 timeout으로 끝난다. 429의 bounded
+- 모든 provider 요청은 `lib/server/operations/provider-request.ts`를 거치며 10초 timeout과 caller abort를 합성한다. fetch가 abort를 무시해도 timeout으로 끝난다. 429의 bounded
   `Retry-After`만 브라우저에 전달하고 timeout은 provider별 504 오류로 구분한다.
 - provider 장애 로그는 provider, operation, 안정적인 오류 code, HTTP status,
   bounded retry/소요 시간만 기록하는 allowlist JSON logger를 통한다.

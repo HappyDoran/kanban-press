@@ -10,8 +10,8 @@
     "start": "next start",
     "test": "vitest run --exclude 'e2e/**' --exclude '**/*.integration.test.ts' --exclude '**/*.smoke.test.ts'",
     "test:e2e": "playwright test",
-    "test:integration": "vitest run lib/publish/rollout.integration.test.ts",
-    "test:smoke": "vitest run --mode smoke --testTimeout=120000 lib/publish/provider.smoke.test.ts",
+    "test:integration": "vitest run lib/server/publish/rollout.integration.test.ts",
+    "test:smoke": "vitest run --mode smoke --testTimeout=120000 lib/server/publish/provider.smoke.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

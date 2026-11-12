@@ -1,4 +1,4 @@
-import { NotionBrowser } from "./notion-browser";
+import { NotionBrowser } from "@/components/notion-browser";
 
 export default function Home() {
   return <NotionBrowser marketing={<Marketing />} />;

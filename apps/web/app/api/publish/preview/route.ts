@@ -1,5 +1,5 @@
-import { createPublishDependencies } from "../../../../lib/publish/orchestration";
-import { previewNotionPage } from "../../../../lib/publish/preview-orchestration";
+import { createPublishDependencies } from "@/lib/server/publish/orchestration";
+import { previewNotionPage } from "@/lib/server/publish/preview-orchestration";
 
 export const dynamic = "force-dynamic";
 

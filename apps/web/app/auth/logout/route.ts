@@ -1,7 +1,7 @@
 import {
   createGitHubAuthDependencies,
   logout,
-} from "../../../lib/auth/github";
+} from "@/lib/server/auth/github";
 
 export const dynamic = "force-dynamic";
 

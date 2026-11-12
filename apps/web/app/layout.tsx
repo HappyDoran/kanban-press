@@ -1,7 +1,7 @@
 import { DESIGN_TOKENS_CSS } from "@kanban-press/publisher";
 import { Hahmlet, JetBrains_Mono } from "next/font/google";
 
-import { APP_NAME } from "./brand-mark";
+import { APP_NAME } from "@/components/brand-mark";
 
 import "./globals.css";
 

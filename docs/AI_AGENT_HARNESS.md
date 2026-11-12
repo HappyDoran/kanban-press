@@ -1,7 +1,7 @@
 ---
 title: AI Agent 작업 지원 체계
 kind: design
-last_verified: 2026-11-10
+last_verified: 2026-11-12
 ---
 
 # AI Agent 작업 지원 체계
@@ -38,8 +38,8 @@ AGENTS.md (= CLAUDE.md)  →  작업 범위·완료 조건 확인(gap-analysis) 
 |---|---|---|---|
 | 기획 | kp-planner | docs/spec/PROJECT_SPEC.md, docs/spec/gap-analysis.md, docs/planning/(BLOG_EXPERIENCE_DESIGN.md 제외) | 사용자 결정, 사업 제안 |
 | 디자인 | kp-designer | apps/web/app/globals.css, packages/publisher/src/blog-css.ts(블로그·프리뷰 공용 CSS), docs/planning/BLOG_EXPERIENCE_DESIGN.md | 요구사항의 화면·흐름 |
-| 프론트엔드 | kp-frontend | apps/web/app의 화면 컴포넌트·hook(`use-*.ts`)·`page.tsx`·`layout.tsx`와 테스트(`api/`, `auth/` 제외), apps/web/lib/client/, apps/web/lib/board/, apps/web/e2e/, apps/web/playwright.config.ts | 완료 조건, 디자인 기준, package 계약 |
-| 백엔드 | kp-backend | apps/web/app/api/, apps/web/app/auth/, apps/web/lib/(`client/`·`board/` 제외), packages/*(`blog-css.ts` 제외), docs/architecture/, docs/adr/ | 요구사항, TECH_RULES.md |
+| 프론트엔드 | kp-frontend | apps/web/components/(화면 컴포넌트·hook·테스트), apps/web/app/page.tsx·layout.tsx, apps/web/lib/client/, apps/web/lib/shared/task-limiter.ts·format-date.ts, apps/web/e2e/, apps/web/playwright.config.ts | 완료 조건, 디자인 기준, package 계약 |
+| 백엔드 | kp-backend | apps/web/app/api/, apps/web/app/auth/, apps/web/lib/server/, apps/web/lib/shared/(프론트엔드 소유 두 파일 제외), packages/*(`blog-css.ts` 제외), docs/architecture/, docs/adr/ | 요구사항, TECH_RULES.md |
 | AI 프롬프트 | kp-prompt-engineer | 해당 없음(모델 호출 없음, AI 처리 요구가 생기면 경로를 먼저 등록) | AI 처리 요구, 계약 |
 | 사업 | kp-business | 없음(제안만) | 기획의 방향·남은 결정 |
 

@@ -1,7 +1,7 @@
 import {
   createPublishDependencies,
   publishNotionPage,
-} from "../../../lib/publish/orchestration";
+} from "@/lib/server/publish/orchestration";
 
 export const dynamic = "force-dynamic";
 

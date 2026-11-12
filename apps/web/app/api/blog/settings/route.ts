@@ -2,7 +2,7 @@ import {
   createSiteSettingsDependencies,
   getSiteSettings,
   saveSiteSettings,
-} from "../../../../lib/publish/site-settings-route";
+} from "@/lib/server/publish/site-settings-route";
 
 export const dynamic = "force-dynamic";
 

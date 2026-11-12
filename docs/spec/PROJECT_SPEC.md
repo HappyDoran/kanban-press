@@ -365,7 +365,7 @@ PublishDocument
     text, href?, bold?, italic?, strikethrough?, code?
 ```
 
-`apps/web/lib/publish`의 공유 `buildPublishDocument`만 metadata fallback,
+`apps/web/lib/server/publish`의 공유 `buildPublishDocument`만 metadata fallback,
 tag 정규화, post slug와 block level 변환을 조립한다. publish와 이후 preview는 이 함수를
 사용하며 request body는 계속 `{ connectionId, providerPageId }`만 받는다. Astro template
 v2는 content frontmatter를 다음 순서로 해석한다.

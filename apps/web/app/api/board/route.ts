@@ -1,4 +1,4 @@
-import { changeBoard, createBoardDependencies, getBoard } from "../../../lib/publish/board-route";
+import { changeBoard, createBoardDependencies, getBoard } from "@/lib/server/publish/board-route";
 
 export const dynamic = "force-dynamic";
 

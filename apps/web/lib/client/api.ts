@@ -3,8 +3,8 @@
 import type { NotionOutlineNode } from "@kanban-press/notion";
 import { z } from "zod";
 
-import { parsePublishPreviewResponse, type PublishPreviewResponse } from "../publish/preview";
-import { type SiteSettings, siteSettingsSchema } from "../publish/site-settings";
+import { parsePublishPreviewResponse, type PublishPreviewResponse } from "@/lib/shared/publish-preview";
+import { type SiteSettings, siteSettingsSchema } from "@/lib/shared/site-settings";
 
 
 /** 실패한 API 호출. `code`는 서버 오류 code, `retryAt`은 429 등에서 다시 시도해도 되는 시각. */
