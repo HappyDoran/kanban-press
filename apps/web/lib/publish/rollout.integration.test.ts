@@ -46,6 +46,29 @@ interface RolloutFixture {
 }
 
 describe("preview/template v2 rollout", () => {
+  it("keeps fourth-level source headings in both preview and published Markdown", async () => {
+    const source = releasePage();
+    const text = (value: string) => [{ bold: false, code: false, href: null, italic: false, strikethrough: false, text: value }];
+    source.blocks = [
+      { kind: "heading", level: 3, richText: text("상위 제목") },
+      { kind: "heading", level: 4, richText: text("깊은 제목") },
+      { kind: "paragraph", richText: text("깊은 제목 아래 설명") },
+    ];
+    const context = await fixture(source);
+    const preview = await previewNotionPage(request("/api/publish/preview", context.cookie), context.dependencies);
+    expect(preview.status).toBe(200);
+    expect((await preview.json()).document.blocks).toMatchObject([
+      { kind: "heading", level: 4, richText: [{ text: "상위 제목" }] },
+      { kind: "heading", level: 5, richText: [{ text: "깊은 제목" }] },
+      { kind: "paragraph", richText: [{ text: "깊은 제목 아래 설명" }] },
+    ]);
+
+    const result = await publishNotionPage(request("/api/publish", context.cookie), context.dependencies);
+    expect(result.status).toBe(200);
+    const markdown = textArtifact(committedArtifacts(context), "src/content/blog/rollout-post-9188c6a57381452fb3dcd4865aa89bdf.md");
+    expect(markdown).toContain("#### 상위 제목\n\n##### 깊은 제목\n\n깊은 제목 아래 설명");
+  });
+
   it("publishes only the latest source after a stale preview", async () => {
     const context = await fixture(previewPage());
     const previewResponse = await previewNotionPage(

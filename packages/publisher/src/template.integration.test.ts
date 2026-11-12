@@ -229,6 +229,7 @@ describe("Astro template build", () => {
         { kind: "heading", level: 2, richText: [{ text: "Heading One" }] },
         { kind: "heading", level: 3, richText: [{ text: "Heading Two" }] },
         { kind: "heading", level: 4, richText: [{ text: "Heading Three" }] },
+        { kind: "heading", level: 5, richText: [{ text: "Deep Heading" }] },
         { kind: "heading", level: 2, richText: [{ text: "Heading Four" }] },
         { kind: "heading", level: 2, richText: [{ text: "Heading Five" }] },
         {
@@ -300,6 +301,7 @@ describe("Astro template build", () => {
     expect(html).toContain('<h2 id="heading-one">Heading One</h2>');
     expect(html).toContain('<h3 id="heading-two">Heading Two</h3>');
     expect(html).toContain('<h4 id="heading-three">Heading Three</h4>');
+    expect(html).toContain('<h5 id="deep-heading">Deep Heading</h5>');
     expect(html).toContain('class="article-layout with-toc"');
     expect(html).toContain('class="post-toc"');
     expect(html).toContain("<ul>");

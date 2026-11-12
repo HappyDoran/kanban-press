@@ -1,7 +1,7 @@
 ---
 title: 요구사항 대비 현재 상태와 백로그
 kind: spec
-last_verified: 2026-11-11
+last_verified: 2026-11-12
 ---
 
 # 요구사항 대비 현재 상태와 백로그
@@ -176,6 +176,12 @@ last_verified: 2026-11-11
 | K2 칸반 무상태화(K3로 일부 대체) | IndexedDB 칸반 저장소 제거, page 목록 기반 역할 판별, 토글 안 page의 소유 page 찾기, 보관 중 검색 | R3, R4, §3 칸반, §4 | backend, frontend | 아무 저장 데이터가 없는 다른 브라우저에서 같은 칸반이 보인다(E2E).<br>하위 page도 칸반에 오르고 컨테이너는 오르지 않는다(unit·E2E).<br>토글 안 page가 소유 page 아래로 붙는다(unit). | 완료 (2026-11-11 `e3ae72b`, PR #4로 prd 배포) |
 | K3 보관 중 직접 고르기 | 문서 목록의 추가 토글, 보관 중 목록을 블로그 저장소 branch에 저장(`/api/board`), 보관 중 카드 ✕ | R4, §3 칸반, §4 | backend, frontend | 고른 문서만 보관 중에 오르고, 저장 데이터 없는 다른 브라우저에서도 같은 보관 중이 보인다(E2E).<br>branch가 없으면 부모 없는 commit으로 만들고, 동시 변경은 409로 실패한다(unit).<br>연결 소유권·origin·추가 필드를 거절한다(unit). | 완료 (2026-11-11 아래 커밋 본문 참조) |
 | K4 원문 수정 표시 | 게시 뒤 Notion이 바뀐 `게시 완료` 카드에 다시 게시 필요 표시 | R8, §5.1 원문 수정 표시 | backend, frontend | 글 frontmatter `updatedAt`보다 Notion 수정 시각이 늦은 카드만 표시한다(unit).<br>`updatedAt`을 읽지 못해도 게시 완료 열은 보인다(unit). | 완료 (2026-11-11 lint, typecheck, build, unit 전체(web 278개) 통과, integration 22개, E2E 12개(+skip 4) 통과. GitHub client에 GraphQL로 글 50개씩 묶어 읽는 `readTextFiles`(path는 변수로만 전달)를 더하고, `/api/publish/posts`가 frontmatter `updatedAt`을 돌려준다(읽기 실패 시 null). 칸반 카드는 Notion 수정 시각이 더 늦으면 `원문 수정됨 · 다시 게시 필요`를 보인다. 미검증: 실제 GitHub GraphQL 응답(fetch mock만 확인), `test:smoke`) |
+
+## 게시 변환 결함 후속 (2026-11-12)
+
+| 항목 | 내용 | 완료 조건 | 상태 |
+|---|---|---|---|
+| H4 4단계 제목 보존 | outline에는 보이지만 게시 본문에서 누락되는 `heading_4`를 프리뷰·Markdown·Astro HTML에 보존 | provider 응답부터 h5까지 회귀 검증, 실제 누락 글 한 편 재게시 후 공개 소제목 확인 | 구현 완료·실환경 미확인 (2026-11-12 lint, typecheck, build, unit 318개, integration 20개, E2E 12개·skip 4개 통과. 로컬 pnpm 하위 프로세스는 PATH 영향으로 Node 26.3.1에서 실행됨. 실제 재게시·공개 소제목 확인은 배포 뒤 진행) |
 
 ## 미결 결정
 

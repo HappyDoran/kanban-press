@@ -35,6 +35,33 @@ function page(
 }
 
 describe("NotionRestContentAdapter", () => {
+  it("preserves a fourth-level heading, its rich text, and its child content", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(page(ROOT_ID, "제목 계층", { type: "workspace", workspace: "true" }, { created_time: "2026-07-18T09:00:00.000Z" })))
+      .mockResolvedValueOnce(Response.json({
+        has_more: false, next_cursor: null,
+        results: [{
+          id: CHILD_ID, object: "block", type: "heading_4", has_children: true,
+          heading_4: { rich_text: [{ plain_text: "네 번째 제목", annotations: { bold: true } }] },
+        }],
+      }))
+      .mockResolvedValueOnce(Response.json({
+        has_more: false, next_cursor: null,
+        results: [{
+          id: ROOT_ID, object: "block", type: "paragraph", has_children: false,
+          paragraph: { rich_text: [{ plain_text: "제목 아래 설명" }] },
+        }],
+      }));
+    const adapter = new NotionRestContentAdapter({ accessToken: "secret", apiVersion: "2026-03-11", fetch: fetchMock });
+
+    const content = await adapter.getPageContent(ROOT_ID);
+
+    expect(content.blocks).toMatchObject([
+      { kind: "heading", level: 4, richText: [{ bold: true, text: "네 번째 제목" }] },
+      { kind: "paragraph", richText: [{ text: "제목 아래 설명" }] },
+    ]);
+  });
+
   it("retrieves the latest publishable page content recursively", async () => {
     const toggleId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
     const fetchMock = vi

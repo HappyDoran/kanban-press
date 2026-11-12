@@ -221,7 +221,7 @@ function toPublishBlock(block: NotionContentBlock): PublishSourceBlock[] {
       return [
         {
           kind: "heading",
-          level: (block.level + 1) as 2 | 3 | 4,
+          level: (block.level + 1) as 2 | 3 | 4 | 5,
           richText: block.richText,
         },
       ];

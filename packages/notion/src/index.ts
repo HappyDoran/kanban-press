@@ -47,7 +47,7 @@ export type NotionContentBlock =
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
   | { expression: string; kind: "equation" }
-  | { kind: "heading"; level: 1 | 2 | 3; richText: NotionRichText[] }
+  | { kind: "heading"; level: 1 | 2 | 3 | 4; richText: NotionRichText[] }
   | { kind: "image"; caption: NotionRichText[]; url: string }
   | {
       children: NotionContentBlock[];
