@@ -45,7 +45,7 @@ export type PreviewBlock =
   | { code: string; kind: "code"; language: string }
   | { kind: "divider" }
   | { expression: string; kind: "equation" }
-  | { kind: "heading"; level: 2 | 3 | 4; richText: PreviewRichText[] }
+  | { kind: "heading"; level: 2 | 3 | 4 | 5; richText: PreviewRichText[] }
   | { caption: PreviewRichText[]; kind: "image" }
   | {
       children: PreviewBlock[];
@@ -107,7 +107,7 @@ const previewBlockSchema: z.ZodType<PreviewBlock> = z.lazy(() =>
     z
       .object({
         kind: z.literal("heading"),
-        level: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+        level: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
         richText: z.array(previewRichTextSchema).max(1_000),
       })
       .strict(),

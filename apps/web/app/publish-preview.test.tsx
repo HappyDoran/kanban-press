@@ -42,6 +42,15 @@ const document: PublishSourceDocument = {
 };
 
 describe("PublishPreviewContent", () => {
+  it("renders a fourth-level Notion heading as h5 without losing its text", () => {
+    const preview = createPublishPreviewResponse({
+      ...document,
+      blocks: [{ kind: "heading", level: 5, richText: [{ text: "깊은 제목" }] }],
+    }, document.updatedAt);
+    const html = renderToStaticMarkup(createElement(PublishPreviewContent, { preview }));
+    expect(html).toMatch(/<h5>.*깊은 제목.*<\/h5>/);
+  });
+
   it("renders typed blocks as escaped React nodes with metadata and no image URL", () => {
     const preview = createPublishPreviewResponse(
       document,

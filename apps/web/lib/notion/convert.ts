@@ -140,10 +140,11 @@ export function toContentBlocks(
     case "heading_1":
     case "heading_2":
     case "heading_3":
+    case "heading_4":
       return [
         {
           kind: "heading",
-          level: Number(block.type.at(-1)) as 1 | 2 | 3,
+          level: Number(block.type.at(-1)) as 1 | 2 | 3 | 4,
           richText: richTextAt(value),
         },
         ...children,

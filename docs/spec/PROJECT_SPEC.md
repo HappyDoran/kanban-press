@@ -1,7 +1,7 @@
 ---
 title: 제품 명세
 kind: spec
-last_verified: 2026-11-11
+last_verified: 2026-11-12
 ---
 
 # 제품 명세
@@ -408,11 +408,11 @@ URL allowlist escape를 거친다. 프리뷰 DTO와 최종 Astro HTML은 동일�
 허용된 HTTP(S) 링크 카드로 렌더링한다. audio·file·PDF·video의 외부 URL도 링크 카드로
 내보내되, 만료되는 Notion file capability URL은 노출하지 않고 URL 없는 첨부 카드로 낮춘다.
 
-글 전체 제목은 `h1` 하나로 유지하고 Notion heading 1·2·3은 최종 문서에서 각각
-`h2`·`h3`·`h4` 의미 구조로 내린다. 의미 태그가 프리뷰 dialog 안에서 `h4`·`h5`·`h6`로
-더 내려가더라도 시각 크기는 별도 Notion heading level class로 결정한다. 프리뷰와 최종
-Astro HTML 모두 세 단계가 본문보다 크고 `heading 1 > heading 2 > heading 3 > 본문` 순서를
-유지해야 하며, 브라우저 user-agent heading 기본값에 의존하지 않는다.
+글 전체 제목은 `h1` 하나로 유지하고 Notion heading 1·2·3·4는 프리뷰와 최종 문서에서 각각
+`h2`·`h3`·`h4`·`h5` 의미 구조로 내린다. 4단계 제목도 텍스트와 자식 블록을 누락하지 않는다.
+프리뷰와 최종 Astro HTML은 공용 CSS로 네 단계 모두 본문보다 크고
+`heading 1 > heading 2 > heading 3 > heading 4 > 본문` 순서를 유지해야 하며,
+브라우저 user-agent heading 기본값에 의존하지 않는다.
 
 slug는 정규화한 Notion 제목과 하이픈을 뺀 page ID 32자리 hex를 조합해 같은 제목과 한글
 제목에서도 안정적이고 충돌 없이 생성한다. Notion page ID는 앞부분이 워크스페이스와 생성 시점마다

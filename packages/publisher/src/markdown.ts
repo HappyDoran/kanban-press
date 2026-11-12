@@ -48,7 +48,7 @@ export type PublishBlockWith<Image> =
   | { kind: "code"; code: string; language: string }
   | { kind: "divider" }
   | { expression: string; kind: "equation" }
-  | { kind: "heading"; level: 2 | 3 | 4; richText: PublishRichText[] }
+  | { kind: "heading"; level: 2 | 3 | 4 | 5; richText: PublishRichText[] }
   | Image
   | {
       children: PublishBlockWith<Image>[];
@@ -101,7 +101,7 @@ const blockSchema: z.ZodType<PublishBlock> = z.lazy(() =>
     z
       .object({
         kind: z.literal("heading"),
-        level: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+        level: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
         richText: z.array(richTextSchema).max(1_000),
       })
       .strict(),
