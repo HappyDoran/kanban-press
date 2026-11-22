@@ -1,165 +1,85 @@
+<p align="center">
+  <img src="apps/web/app/icon.svg" width="96" alt="Kanban Press 로고">
+</p>
+
 # Kanban Press
 
-각 사용자가 GitHub로 로그인하고 자신의 Notion 문서를 개인 칸반에서 관리해
-자신의 GitHub Pages 블로그에 게시하는 애플리케이션입니다.
+> Notion에 쓴 글을 칸반으로 골라 내 GitHub Pages 블로그에 게시하는 서비스
 
-서버 DB는 사용하지 않습니다. 인증과 Notion 연결은 암호화된 HttpOnly 쿠키에 두고,
-칸반의 보관 중 목록은 내 블로그 저장소의 `kanban-press-board` branch에 page ID로만 두므로
-같은 계정이면 어느 브라우저에서나 같게 보입니다. 게시 중 표시는 현재 화면의 메모리에만
-있고, 게시 완료 여부는 사용자 GitHub repository를 source of truth로 사용합니다.
+Notion에 글을 쓰는 사람이 블로그에 올리려면 글을 옮겨 붙이고, 이미지를 내려받고, 정적 블로그를 직접 빌드해야 합니다.
+Kanban Press는 GitHub로 로그인하고 Notion을 연결하면 올릴 글을 칸반 카드로 모아 두고, 카드를 `게시 중` 열로 옮기는 것만으로 내 `<GitHub 아이디>.github.io` 블로그에 글을 올려 줍니다.
+별도 서버 DB 없이 칸반 목록과 글이 모두 내 GitHub 저장소에 기록되므로, 같은 계정이면 어느 브라우저에서 열어도 같은 칸반을 봅니다.
 
-제품 요구사항은 [docs/spec/PROJECT_SPEC.md](docs/spec/PROJECT_SPEC.md), 구현 순서는 [docs/spec/gap-analysis.md](docs/spec/gap-analysis.md)를
-기준으로 합니다.
+## :fireworks: Screenshots
 
-## 요구사항
+<p align="center">
+  <img src="docs/images/login.png" width="45%" alt="GitHub로 시작 버튼이 있는 로그인 전 소개 화면">
+  <img src="docs/images/kanban-board.png" width="45%" alt="보관 중, 게시 중, 게시 완료 열에 Notion 문서 카드가 놓인 칸반 보드">
+</p>
+<p align="center"><sub>왼쪽: 로그인 전 소개 화면 · 오른쪽: 보관 중·게시 중·게시 완료 칸반과 원문 수정 알림</sub></p>
 
-- [mise](https://mise.jdx.dev/)
-- Node.js 22 LTS
-- pnpm 11 (`mise.toml`이 설치하며 루트 `package.json`의 `packageManager`와 같은 버전으로 유지)
+<p align="center">
+  <img src="docs/images/publish-preview.png" width="45%" alt="블로그 글 상세 모양을 데스크톱 폭으로 보여 주는 게시 전 미리보기">
+  <img src="docs/images/generated-blog.png" width="45%" alt="고정 글과 최신 글이 보이는 생성된 블로그 홈">
+</p>
+<p align="center"><sub>왼쪽: 게시 전 미리보기 · 오른쪽: 함께 만들어지는 블로그 홈</sub></p>
 
-```bash
-mise install
-mise exec -- node --version
-```
+<p align="center"><sub>화면의 계정·문서·글은 모두 예시용 가상 데이터입니다.</sub></p>
 
-## 설치와 실행
+## :pushpin: 주요 기능
 
-Docker나 PostgreSQL은 필요하지 않습니다.
+- **GitHub 로그인과 블로그 저장소 확인**: GitHub 계정으로 로그인하면 내 공개 `<GitHub 아이디>.github.io` 저장소가 게시할 준비가 됐는지 바로 알려 줍니다.
+- **Notion 연결과 문서 탐색**: Notion 워크스페이스를 최대 3개까지 연결하고, 공유한 페이지와 하위 페이지를 계층 그대로 펼쳐 보며 블로그에 올릴 문서를 고릅니다.
+- **칸반으로 글 정리**: 고른 문서는 `보관 중`, 올리는 중인 글은 `게시 중`, 블로그에 있는 글은 `게시 완료` 열에 보입니다. 마우스와 키보드로 카드를 옮길 수 있고, 보관 중 문서는 제목으로 검색합니다.
+- **게시 전 미리보기**: 올리기 전에 글 상세와 블로그 홈에 어떻게 보일지 여러 화면 폭으로 확인합니다.
+- **카드를 옮기면 게시**: 카드를 `게시 중` 열에 놓으면 최신 Notion 원문과 이미지를 블로그 글로 바꿔 내 저장소에 올리고, GitHub Actions 배포가 끝날 때까지 진행 상태와 로그 링크를 보여 줍니다. 좁은 화면에서는 `게시` 버튼으로 같은 일을 합니다.
+- **원문 수정 알림**: 게시한 뒤 Notion에서 글을 고치면 해당 카드에 `원문 수정됨 · 다시 게시 필요`가 표시됩니다.
+- **글 관리**: 제목이나 주소를 바꿔 다시 올리면 옛 글을 정리하고 옛 주소에서 새 글로 안내합니다. `블로그에서 내리기`로 글을 내려도 Notion 원문은 그대로입니다.
+- **블로그 설정**: 블로그 이름, 소개, 프로필 링크를 앱에서 바로 바꿉니다. Notion 속성 `Blog Slug`로 글 주소를, `Blog Pinned`로 홈 고정 글을, `Blog Tags`로 태그를 정할 수 있습니다.
+- **함께 만들어지는 블로그**: 홈, 검색·태그 거르기·쪽 나누기가 있는 전체 글, 연·월 보관함, 목차가 있는 글 상세를 갖춘 반응형 블로그가 만들어지고 RSS·sitemap·Open Graph도 함께 생성됩니다.
 
-```bash
-mise exec -- pnpm install --frozen-lockfile
-mise exec -- pnpm dev
-```
+## :footprints: 사용 흐름
 
-기본 화면은 `http://localhost:3000`, health endpoint는
-`http://localhost:3000/api/health`입니다.
+1. **GitHub로 로그인**합니다. 공개 `<GitHub 아이디>.github.io` 저장소를 준비해 두면 게시 대상으로 확인됩니다.
+2. **Notion을 연결**하고 블로그에 쓸 페이지를 공유합니다.
+3. 문서 목록에서 올릴 글을 **`추가`해 칸반의 `보관 중`에 모읍니다**. 필요하면 미리보기로 모양을 확인합니다.
+4. 카드를 **`게시 중`으로 옮기면** 글이 내 저장소에 올라가고, 배포가 끝나면 `게시 완료` 카드에서 블로그 글을 엽니다.
 
-Web 앱만 실행하려면:
+## :sparkles: 기술 스택
 
-```bash
-mise exec -- pnpm --filter @kanban-press/web dev
-```
+<p>
+  <img src="https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/react-61DAFB?style=for-the-badge&logo=react&logoColor=black">
+  <img src="https://img.shields.io/badge/typescript-3178C6?style=for-the-badge&logo=typescript&logoColor=white">
+  <img src="https://img.shields.io/badge/zod-3E67B1?style=for-the-badge&logo=zod&logoColor=white">
+  <img src="https://img.shields.io/badge/dnd--kit-111111?style=for-the-badge">
+  <img src="https://img.shields.io/badge/astro-BC52EE?style=for-the-badge&logo=astro&logoColor=white">
+</p>
+<p>
+  <img src="https://img.shields.io/badge/notion%20api-000000?style=for-the-badge&logo=notion&logoColor=white">
+  <img src="https://img.shields.io/badge/github%20pages-222222?style=for-the-badge&logo=githubpages&logoColor=white">
+  <img src="https://img.shields.io/badge/github%20actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">
+</p>
+<p>
+  <img src="https://img.shields.io/badge/node.js-5FA04E?style=for-the-badge&logo=nodedotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white">
+  <img src="https://img.shields.io/badge/vitest-6E9F18?style=for-the-badge&logo=vitest&logoColor=white">
+  <img src="https://img.shields.io/badge/playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white">
+</p>
 
-## GitHub 로그인 설정
+## :calendar: 개발 정보
 
-`.env.example`을 기준으로 `apps/web/.env.local`을 만들고 다음 값을 설정합니다.
+- **개발 기간**: 2026.07.19 ~ 2026.11.12 (첫 커밋 ~ 마지막 커밋 기준)
+- **개발 형태**: 개인 프로젝트
 
-```text
-GITHUB_OAUTH_CLIENT_ID
-GITHUB_OAUTH_CLIENT_SECRET
-GITHUB_API_VERSION
-COOKIE_ENCRYPTION_KEY_V1
-COOKIE_ACTIVE_KEY_ID
-APP_ORIGIN
-```
+| <a href="https://github.com/HappyDoran"><img src="https://avatars.githubusercontent.com/u/52277540?v=4" width="100" alt="HappyDoran"></a> |
+|:---:|
+| [HappyDoran](https://github.com/HappyDoran) |
 
-로컬 GitHub OAuth App에는 다음 주소를 등록합니다.
+## :books: 개발 문서
 
-```text
-Homepage URL: http://localhost:3000
-Authorization callback URL: http://localhost:3000/auth/github/callback
-```
-
-32-byte base64url 쿠키 키는 다음과 같이 생성할 수 있습니다.
-
-```bash
-mise exec -- node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
-```
-
-로그인 시작 경로는 `/auth/github/start`, 현재 사용자 API는 `/api/me`,
-로그아웃은 `POST /auth/logout`입니다.
-
-로그인 OAuth는 `read:user public_repo workflow` scope를 요청합니다. 기존에
-`workflow` 없이 승인한 사용자는 메인 화면에서 GitHub 권한을 한 번 다시 승인해야
-합니다.
-
-## Notion 연결 설정
-
-Notion Creator dashboard에서 Public Connection을 만들고 다음 redirect URI를
-등록합니다.
-
-```text
-http://localhost:3000/auth/notion/callback
-```
-
-`apps/web/.env.local`에 다음 값을 추가합니다.
-
-```text
-NOTION_OAUTH_CLIENT_ID
-NOTION_OAUTH_CLIENT_SECRET
-NOTION_API_VERSION=2026-03-11
-```
-
-GitHub 로그인 후 메인 화면의 `Notion 연결` 버튼으로 OAuth를 시작할 수 있습니다.
-연결 목록은 `GET /api/notion/connections`, 연결 해제는
-`POST /api/notion/connections/disconnect`를 사용합니다.
-
-## GitHub Pages 게시 대상
-
-별도 GitHub App은 필요하지 않습니다. 로그인한 사용자가 자신의 공개
-`<GitHub login>.github.io` repository를 준비하면 서버가 OAuth credential로 소유권,
-공개 여부와 push 권한을 확인합니다.
-
-```text
-예: GitHub login이 octocat이면 octocat/octocat.github.io
-```
-
-게시 기능은 이 repository에 생성된 정적 블로그 파일을 직접 commit합니다. private
-repository와 다른 이름의 repository는 MVP 게시 대상으로 사용할 수 없습니다.
-같은 문서를 다시 게시해도 매번 새 commit과 GitHub Actions 실행을 생성합니다.
-
-## 검증
-
-`lint`는 package 경계와 문서·skill·agent 구조 검사를, `test`는 구조 검사의 회귀 테스트를
-먼저 실행합니다. 구조 검사만 실행하려면 `structure:check`, `test:harness`를 사용합니다.
-
-```bash
-mise exec -- pnpm lint
-mise exec -- pnpm typecheck
-mise exec -- pnpm test
-mise exec -- pnpm test:integration
-mise exec -- pnpm build
-```
-
-### 실제 provider smoke
-
-release 전 read-only smoke는 예시를 복사해 `apps/web/.env.smoke.local`을 만들고 실제
-테스트 credential과 identity를 설정합니다.
-이 파일은 gitignore 대상이며 실제 token을 commit하거나 명령행 인자로 전달하지 않습니다.
-
-```bash
-cp apps/web/smoke.env.example apps/web/.env.smoke.local
-```
-
-```text
-SMOKE_NOTION_ACCESS_TOKEN
-SMOKE_NOTION_PAGE_ID
-SMOKE_GITHUB_ACCESS_TOKEN
-SMOKE_GITHUB_USER_ID
-SMOKE_GITHUB_LOGIN
-GITHUB_API_VERSION
-NOTION_API_VERSION
-```
-
-테스트용 Notion page는 현재 integration에 공유되어 있어야 하며 GitHub identity는 공개
-`<login>.github.io` repository를 소유하고 `public_repo workflow` scope를 가져야 합니다.
-
-```bash
-mise exec -- pnpm --filter @kanban-press/web test:smoke
-```
-
-smoke는 Notion 원문 조회, 로컬 이미지 변환, GitHub repository readiness까지만 확인하며
-commit이나 Pages 설정 변경을 수행하지 않습니다.
-
-## 구조
-
-```text
-apps/
-└── web/             # stateless Next.js 애플리케이션
-packages/
-├── auth/            # 암호화 쿠키와 OAuth 계약
-├── domain/          # provider 독립 타입과 상태 규칙
-├── github/          # GitHub OAuth repository/commit 계약
-├── notion/          # Notion workspace/page 계약
-└── publisher/       # 결정적 게시 artifact 계약과 GitHub Pages용 Astro 블로그 생성
-```
+- [개발 가이드](docs/DEVELOPMENT.md): 설치와 실행, GitHub·Notion 연결 설정, 검증 명령, 저장소 구조
+- [제품 명세](docs/spec/PROJECT_SPEC.md): 요구사항과 저장·상태·흐름 계약
+- [구현 현황](docs/spec/gap-analysis.md): 요구사항 대비 현재 상태와 백로그
+- [아키텍처](docs/architecture/ARCHITECTURE.md): 런타임 구성과 요청 경계
+- [기술 규칙](TECH_RULES.md), [작업 규범](AGENTS.md)

@@ -15,7 +15,7 @@ last_verified: 2026-11-12
 - 2026-11-10 재검증: lint, typecheck, build, unit 261개, integration 17개, production Chromium E2E 6개 통과. 루트 script의 `corepack pnpm` 호출을 `pnpm`으로 바꿔 `mise exec -- pnpm` 실행을 복구했다.
 - 루트 단일 사용자 Astro 프로토타입은 2026-11-10 사용자 결정으로 제거했다(재작성 Q0).
 - 진행 중: 요구사항(R1~R7)과 기술 스택을 유지한 코드 재작성(아래 재작성 백로그).
-- 자동 테스트 명령: [README.md](../../README.md) 검증 절 기준.
+- 자동 테스트 명령: [개발 가이드](../DEVELOPMENT.md) 검증 절 기준.
 
 ### 구현 현황
 
@@ -128,7 +128,7 @@ last_verified: 2026-11-12
 - 게시 결과물: 생성 블로그는 `HappyDoran.github.io` repository다(2026-11-10 원격 기준 초기 commit만 있고 게시 글 0개). template은 `packages/publisher`가 생성하며 블로그 repository를 직접 고치지 않는다.
 - 학습 단위: 한 단계는 사용자가 한 번에 검토할 수 있는 크기로 나누고, 사용자 검토 뒤 다음 단계로 넘어간다.
 
-모든 Q 단계의 공통 완료 조건: README.md 전체 검증 통과, 교체 범위의 이전 코드 제거, 교체 전후 소스 줄 수 보고, IndexedDB v12 기존 데이터 읽기 유지, AGENTS.md 안전 조건 유지.
+모든 Q 단계의 공통 완료 조건: 개발 가이드(docs/DEVELOPMENT.md) 전체 검증 통과, 교체 범위의 이전 코드 제거, 교체 전후 소스 줄 수 보고, IndexedDB v12 기존 데이터 읽기 유지, AGENTS.md 안전 조건 유지.
 
 | 단계 | 내용 | 교체 범위 | 역할 | 완료 조건 | 상태 |
 |---|---|---|---|---|---|

@@ -1,7 +1,7 @@
 ---
 title: AI Agent 작업 지원 체계
 kind: design
-last_verified: 2026-11-12
+last_verified: 2026-11-22
 ---
 
 # AI Agent 작업 지원 체계
@@ -11,12 +11,12 @@ Agent가 과거 대화 없이 작업을 시작해 사실을 찾고, 변경을 �
 ```
 AGENTS.md (= CLAUDE.md)  →  작업 범위·완료 조건 확인(gap-analysis)  →  소유 문서 선택
   →  실제 코드·설정 확인  →  작업 유형별 skill 적용  →  코드·소유 문서 변경
-  →  README.md 검증  →  review  →  커밋 본문에 이유·검증 보존  →  다음 세션
+  →  개발 가이드 검증  →  review  →  커밋 본문에 이유·검증 보존  →  다음 세션
 ```
 
 ## 진입점과 skill
 
-진입점은 루트 AGENTS.md다. skill은 `.codex/skills/<name>/SKILL.md`, 역할 정의는 `.codex/agents/<name>.md`가 canonical이며 `.claude/` 아래는 symlink만 둔다. `.codex/skills/kanban-press/agents/openai.yaml`은 Codex UI 표시 정보다. 루트 규범 문서(AGENTS.md, TECH_RULES.md)와 `docs/` 아래 문서는 `title`, `kind`(`rule|design|spec|guide|runbook|snapshot|history`), `last_verified` frontmatter를 둔다. README.md는 frontmatter를 두지 않는다.
+진입점은 루트 AGENTS.md다. skill은 `.codex/skills/<name>/SKILL.md`, 역할 정의는 `.codex/agents/<name>.md`가 canonical이며 `.claude/` 아래는 symlink만 둔다. `.codex/skills/kanban-press/agents/openai.yaml`은 Codex UI 표시 정보다. 루트 규범 문서(AGENTS.md, TECH_RULES.md)와 `docs/` 아래 문서는 `title`, `kind`(`rule|design|spec|guide|runbook|snapshot|history`), `last_verified` frontmatter를 둔다. README.md는 frontmatter를 두지 않는다. 검증 명령은 [개발 가이드](DEVELOPMENT.md)가 소유한다.
 
 | skill | 적용 시점 |
 |---|---|

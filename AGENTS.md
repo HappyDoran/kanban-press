@@ -1,7 +1,7 @@
 ---
 title: 저장소 작업 규범
 kind: rule
-last_verified: 2026-11-10
+last_verified: 2026-11-22
 ---
 
 # Kanban Press
@@ -29,7 +29,8 @@ last_verified: 2026-11-10
 | 런타임 구성·저장 위치·요청 경계·쿠키 envelope·장애 특성 | [아키텍처](docs/architecture/ARCHITECTURE.md) | 요청 흐름·저장 위치·암호화 형식 변경 |
 | 구조적 결정의 이유(DB 도입 gate 등) | [docs/adr/](docs/adr/) | 기존 결정을 대체하는 결정 |
 | 블로그 고도화 기획·현행 감사 기록 | [docs/planning/](docs/planning/) | 새 고도화 기획 착수 |
-| 실행·검증 명령·환경 변수 | [README.md](README.md) | script·명령·환경 변수 변경 |
+| 서비스 소개(사용자 관점 기능·사용 흐름·기술 스택) | [README.md](README.md) | 사용자에게 보이는 기능 추가·제거 |
+| 실행·검증 명령·환경 변수·provider 설정 | [개발 가이드](docs/DEVELOPMENT.md) | script·명령·환경 변수 변경 |
 | 작업 지원 체계·역할 소유 범위·검사 범위와 한계 | [AI_AGENT_HARNESS.md](docs/AI_AGENT_HARNESS.md) | 진입점·skill·역할·검사 흐름 변경 |
 | 변경 이유와 검증 결과 | Git 커밋 본문 | 구조 규칙 도입, 예외 승인, 동작 변경 |
 
@@ -79,7 +80,7 @@ last_verified: 2026-11-10
 
 ## 명령어와 로컬 함정
 
-- 모든 명령은 `mise exec -- pnpm <script>`로 실행한다. 명령 목록은 README.md 검증 절이 소유한다.
+- 모든 명령은 `mise exec -- pnpm <script>`로 실행한다. 명령 목록은 [개발 가이드](docs/DEVELOPMENT.md) 검증 절이 소유한다.
 - 생성물(`dist`, `.next`, `*.tsbuildinfo`)은 소스 변경으로 취급하지 않는다.
 - 실제 provider smoke(`test:smoke`)는 gitignored `apps/web/.env.smoke.local`의 동의한 테스트 credential로만 사용자가 명시적으로 실행한다.
 
@@ -89,5 +90,5 @@ last_verified: 2026-11-10
    기능 작업은 docs/spec/gap-analysis.md의 가장 앞선 미완료 단계에서 시작하고 끝나면 상태를 갱신한다.
 2. 변경 범위의 소유 문서만 읽고 실제 코드·설정으로 현재 상태를 확인한다.
 3. 코드와 소유 문서를 함께 바꾸고 frontmatter의 `last_verified`를 갱신한다.
-4. README.md의 검증을 실행하고 `kp-review`를 적용한다. 완료 항목은 수용 기준과 실패 경로가 테스트로 증명되고, token과 사용자 데이터가 지정된 저장 경계를 벗어나지 않으며, 문서·환경 변수 예시·실제 구현과 gap-analysis 상태가 일치해야 한다.
+4. 개발 가이드의 검증을 실행하고 `kp-review`를 적용한다. 완료 항목은 수용 기준과 실패 경로가 테스트로 증명되고, token과 사용자 데이터가 지정된 저장 경계를 벗어나지 않으며, 문서·환경 변수 예시·실제 구현과 gap-analysis 상태가 일치해야 한다.
 5. 완료 보고와 커밋 본문에 실행한 검증과 실행하지 못한 검증을 구분해 적는다.
