@@ -67,15 +67,6 @@ Kanban Press는 GitHub로 로그인하고 Notion을 연결하면 올릴 글을 �
   <img src="https://img.shields.io/badge/playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white">
 </p>
 
-## :calendar: 개발 정보
-
-- **개발 기간**: 2026.07.19 ~ 2026.11.12 (첫 커밋 ~ 마지막 커밋 기준)
-- **개발 형태**: 개인 프로젝트
-
-| <a href="https://github.com/HappyDoran"><img src="https://avatars.githubusercontent.com/u/52277540?v=4" width="100" alt="HappyDoran"></a> |
-|:---:|
-| [HappyDoran](https://github.com/HappyDoran) |
-
 ## :books: 개발 문서
 
 - [개발 가이드](docs/DEVELOPMENT.md): 설치와 실행, GitHub·Notion 연결 설정, 검증 명령, 저장소 구조
